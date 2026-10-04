@@ -22,6 +22,7 @@
 #include "sci/sci.h"
 #include "sci/engine/state.h"
 #include "sci/graphics/screen.h"
+#include "graphics/fonts/dosfont.h"
 #include "sci/graphics/scifont.h"
 
 namespace Sci {
@@ -356,5 +357,56 @@ void GfxFontFromResource::drawToBuffer(uint16 chr, int16 top, int16 left, byte c
 	}
 }
 #endif
+
+void GfxFontAgi::glyphCols(uint16 chr, int &a, int &b) const {
+	const uint8 *glyph = Graphics::DosFont::fontData_PCBIOS + (chr & 0xFF) * 8;
+	a = 8;
+	b = -1;
+	for (int x = 0; x < 8; ++x)
+		for (int y = 0; y < 8; ++y)
+			if (glyph[y] & (0x80 >> x)) {
+				a = MIN(a, x);
+				b = MAX(b, x);
+			}
+}
+
+uint8 GfxFontAgi::getCharWidth(uint16 chr) {
+	if (useFallback(chr))
+		return _fallback->getCharWidth(chr);
+	if (!_tight)
+		return 8;
+	int a, b;
+	glyphCols(chr, a, b);
+	return (b < 0) ? _spaceWidth : (b - a + 2);
+}
+
+void GfxFontAgi::draw(uint16 chr, int16 top, int16 left, byte color, bool greyedOutput) {
+	if (useFallback(chr)) {
+		_fallback->draw(chr, top, left, color, greyedOutput);
+		return;
+	}
+	if (_tight) {
+		int a, b;
+		glyphCols(chr, a, b);
+		if (b >= 0)
+			left -= a;
+	}
+	const uint8 *glyph = Graphics::DosFont::fontData_PCBIOS + (chr & 0xFF) * 8;
+	const int16 screenWidth = _screen->getWidth();
+	const int16 screenHeight = _screen->getHeight();
+	for (int y = 0; y < 8; ++y) {
+		byte bits = glyph[y];
+		if (greyedOutput)
+			bits &= ((top + y) % 2) ? 0xAA : 0x55;
+		for (int x = 0; x < 8; ++x) {
+			if (!(bits & (0x80 >> x)))
+				continue;
+			const int sx = left + x;
+			const int sy = top + y;
+			if (sx >= 0 && sx < screenWidth && sy >= 0 && sy < screenHeight)
+				_screen->putFontPixel(top, sx, y, color);
+		}
+	}
+}
 
 } // End of namespace Sci

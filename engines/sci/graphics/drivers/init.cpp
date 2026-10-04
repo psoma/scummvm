@@ -39,6 +39,7 @@ SCI_GFXDRV_DCL1(GfxDefault);
 SCI_GFXDRV_DCL1(UpscaledGfx);
 SCI_GFXDRV_DCL1(PC98Gfx16Colors);
 SCI_GFXDRV_DCL1(WindowsGfx256Colors);
+SCI_GFXDRV_DCL1(SCI0_AGIDemake);
 SCI_GFXDRV_DCL2(SCI1_EGA);
 SCI_GFXDRV_DCL2(SCI1_VGAGreyScale);
 SCI_GFXDRV_DCL2(SCI0_CGA);
@@ -108,7 +109,7 @@ using namespace Sci;
 Common::RenderMode getRenderMode() {
 	// Check if the selected render mode is available for the game. This is quite specific for each game. Sometime it
 	// is only EGA, sometimes only CGA b/w without CGA 4 colors, etc. Also set default mode if undithering is enabled.
-	bool undither = ConfMan.getBool("disable_dithering");
+	bool undither = ConfMan.getBool("disable_dithering") || (ConfMan.hasKey("agi_demake") && ConfMan.getBool("agi_demake"));
 	Common::RenderMode selectedMode = ConfMan.hasKey("render_mode") ? Common::parseRenderMode(ConfMan.get("render_mode")) : Common::kRenderDefault;
 	Common::RenderMode result = selectedMode;
 	Common::Language lang = g_sci->getLanguage();
@@ -150,6 +151,11 @@ GfxDriver *create(Common::RenderMode renderMode, int width, int height) {
 
 	bool undither = ConfMan.hasKey("disable_dithering") ? ConfMan.getBool("disable_dithering") : false;
 	bool winCursors = ConfMan.hasKey("windows_cursors") ? ConfMan.getBool("windows_cursors") : false;
+
+	// AGI-style demake output, only for 16 colour EGA games with no other render mode selected
+	if (renderMode == Common::kRenderDefault && ConfMan.hasKey("agi_demake") && ConfMan.getBool("agi_demake")
+		&& version <= SCI_VERSION_1_EGA_ONLY && lang != Common::KO_KOR && (platform == Common::kPlatformDOS || platform == Common::kPlatformUnknown))
+		return SCI0_AGIDemakeDriver_create(requestRGB, 0, width, height);
 
 	// If a specific render mode is requested, we try to find a driver that supports it. Otherwise, we try to find a
 	// driver that supports the current platform, game and version.

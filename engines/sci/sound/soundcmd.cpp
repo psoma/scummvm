@@ -53,6 +53,9 @@ SoundCommandParser::SoundCommandParser(ResourceManager *resMan, SegManager *segM
 	// The GK1 demo (very late SCI1.1) does the same thing
 	// TODO: Check the QFG4 demo
 	_useDigitalSFX = (_soundVersion >= SCI_VERSION_2 || g_sci->getGameId() == GID_GK1DEMO || ConfMan.getBool("prefer_digitalsfx"));
+	// "Force AGI sound": PCjr only, no digital samples
+	if (ConfMan.hasKey("agi_sound") && ConfMan.getBool("agi_sound") && _soundVersion < SCI_VERSION_2)
+		_useDigitalSFX = false;
 
 	_music = new SciMusic(_soundVersion, _useDigitalSFX);
 	_music->init();

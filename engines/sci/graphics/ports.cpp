@@ -336,6 +336,14 @@ Window *GfxPorts::addWindow(const Common::Rect &dims, const Common::Rect *restor
 	openPort(pwnd);
 
 	r = dims;
+	// AGI demake: re-centre a text box that kTextSize widened (only the window that matches its
+	// width, created right after the measurement)
+	if (_screen->agiDemake() && _screen->agiWindowShift() > 0) {
+		const int16 tw = _screen->agiWindowShiftWidth();
+		if (r.width() >= tw && r.width() <= tw + 40)
+			r.translate(-MIN<int16>(_screen->agiWindowShift(), r.left), 0);
+		_screen->setAgiWindowShift(0, 0);
+	}
 	// This looks fishy, but it's exactly what Sierra did. They removed last
 	// bit of the left dimension in their interpreter. It seems Sierra did it
 	// for EGA byte alignment (EGA uses 1 byte for 2 pixels) and left it in
@@ -372,6 +380,16 @@ Window *GfxPorts::addWindow(const Common::Rect &dims, const Common::Rect *restor
 		if (style & SCI_WINDOWMGR_STYLE_TITLE) {
 			r.top -= 10;
 			r.bottom++;
+		}
+		// AGI demake: room for the AGI inset frame (4 pixels each side, 2 top and bottom)
+		if (_screen->agiDemake()) {
+			r.left -= 4;
+			r.right += 4;
+			r.top -= 2;
+			r.bottom += 2;
+			// Even edges: a white fat pixel, then the red fat pixel frame, on both sides
+			r.left &= ~1;
+			r.right += (r.right & 1);
 		}
 	}
 
@@ -445,6 +463,8 @@ Window *GfxPorts::addWindow(const Common::Rect &dims, const Common::Rect *restor
 
 	if (restoreRect == nullptr)
 		pwnd->restoreRect = pwnd->dims;
+	else if (_screen->agiDemake())
+		pwnd->restoreRect.extend(pwnd->dims);
 
 	if (pwnd->restoreRect.top < 0 && g_sci->getPlatform() == Common::kPlatformMacintosh &&
 		(style & SCI_WINDOWMGR_STYLE_USER) && _wmgrPort->top + pwnd->restoreRect.top >= 0) {
@@ -478,6 +498,36 @@ void GfxPorts::drawWindow(Window *pWnd) {
 			if ((wndStyle & SCI_WINDOWMGR_STYLE_USER) == 0)
 				_paint16->fillRect(pWnd->restoreRect, GFX_SCREEN_MASK_PRIORITY, 0, 15);
 		}
+	}
+
+	// AGI demake: AGI message box look (from ScummVM's AGI engine, GfxMgr::drawBox with
+	// colours 15 and 4): box background, red frame inset 2 pixels from the sides and 1 from
+	// top and bottom, vertical sides 2 pixels wide, no drop shadow
+	if (_screen->agiDemake() && wndStyle != _styleUser && !(wndStyle & SCI_WINDOWMGR_STYLE_NOFRAME)) {
+		Common::Rect d = pWnd->dims;
+		if (!(wndStyle & SCI_WINDOWMGR_STYLE_TRANSPARENT))
+			_paint16->fillRect(d, GFX_SCREEN_MASK_VISUAL, pWnd->backClr);
+		const byte oldMapValue = _screen->getCurPaletteMapValue();
+		_screen->setCurPaletteMapValue(2);	// frame pixels: kept as fat pixels by the driver
+		_paint16->fillRect(Common::Rect(d.left + 2, d.top + 1, d.right - 2, d.top + 2), GFX_SCREEN_MASK_VISUAL, 4);
+		_paint16->fillRect(Common::Rect(d.left + 2, d.bottom - 2, d.right - 2, d.bottom - 1), GFX_SCREEN_MASK_VISUAL, 4);
+		_paint16->fillRect(Common::Rect(d.left + 2, d.top + 2, d.left + 3, d.bottom - 2), GFX_SCREEN_MASK_VISUAL, 4);
+		_paint16->fillRect(Common::Rect(d.right - 3, d.top + 2, d.right - 2, d.bottom - 2), GFX_SCREEN_MASK_VISUAL, 4);
+		_screen->setCurPaletteMapValue(oldMapValue);
+		if ((wndStyle & SCI_WINDOWMGR_STYLE_TITLE) && !pWnd->title.empty()) {
+			// AGI had no window titles: show it as plain text across the top, with a red rule under it
+			Common::Rect t(d.left + 5, d.top + 3, d.right - 5, d.top + 12);
+			int16 oldcolor = getPort()->penClr;
+			penColor(0);
+			_text16->Box(pWnd->title.c_str(), true, t, SCI_TEXT16_ALIGNMENT_CENTER, 0);
+			penColor(oldcolor);
+			_screen->setCurPaletteMapValue(2);
+			_paint16->fillRect(Common::Rect(d.left + 2, d.top + 12, d.right - 2, d.top + 13), GFX_SCREEN_MASK_VISUAL, 4);
+			_screen->setCurPaletteMapValue(oldMapValue);
+		}
+		_paint16->bitsShow(pWnd->dims);
+		setPort(oldport);
+		return;
 	}
 
 	// drawing frame,shadow and title

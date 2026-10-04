@@ -65,6 +65,7 @@ public:
 	virtual bool supportsPalIntensity() const = 0;
 	virtual bool supportsHiResGraphics() const = 0;
 	virtual bool driverBasedTextRendering() const = 0;
+	virtual bool agiDemake() const { return false; }
 	uint16 numColors() const { return _numColors; }
 	byte pixelSize() const { return _pixelSize; }
 

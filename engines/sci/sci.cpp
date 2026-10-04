@@ -325,7 +325,8 @@ Common::Error SciEngine::run() {
 	}
 
 	if (getSciVersion() < SCI_VERSION_2) {
-		bool undither = ConfMan.getBool("disable_dithering");
+		// AGI demake always uses undithered backgrounds
+		bool undither = ConfMan.getBool("disable_dithering") || (ConfMan.hasKey("agi_demake") && ConfMan.getBool("agi_demake"));
 		Common::RenderMode renderMode = SciGfxDriver::getRenderMode();
 
 		// Disable undithering for CGA, Hercules and other unsuitable video modes. For all other modes,

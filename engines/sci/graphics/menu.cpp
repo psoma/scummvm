@@ -1025,7 +1025,35 @@ void GfxMenu::kernelDrawStatus(const char *text, int16 colorPen, int16 colorBack
 
 	_paint16->fillRect(_ports->_menuBarRect, 1, colorBack);
 	_ports->penColor(colorPen);
-	if (!g_sci->isLanguageRTL()) {
+	Common::String agiText;
+	if (_screen->agiDemake()) {
+		// AGI demake: start one fat pixel in, and shrink the longest runs of spaces until the
+		// line fits the 8 pixel font (PQ2 pads with spaces for SCI's narrower font)
+		agiText = text;
+		const uint maxChars = (_screen->getWidth() - 4) / 8;
+		while (agiText.size() > maxChars) {
+			uint bestPos = 0, bestLen = 0;
+			for (uint i = 0; i < agiText.size(); ) {
+				uint j = i;
+				while (j < agiText.size() && agiText[j] == ' ')
+					++j;
+				if (j - i > bestLen) {
+					bestLen = j - i;
+					bestPos = i;
+				}
+				i = (j > i) ? j : i + 1;
+			}
+			if (bestLen < 2)
+				break;
+			agiText.deleteChar(bestPos);
+		}
+		if (agiText.size() > maxChars)
+			agiText = Common::String(agiText.c_str(), maxChars);
+		text = agiText.c_str();
+	}
+	if (_screen->agiDemake()) {
+		_ports->moveTo(2, 1);
+	} else if (!g_sci->isLanguageRTL()) {
 		_ports->moveTo(0, 1);
 	} else {
 		int16 textWidth;

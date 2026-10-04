@@ -50,6 +50,33 @@ public:
 
 
 /**
+ * AGI demake: fixed 8x8 PC BIOS font, drawn as text pixels so they stay full width
+ */
+class GfxFontAgi : public GfxFont {
+public:
+	GfxFontAgi(GfxScreen *screen) : _screen(screen), _fallback(nullptr), _tight(false), _spaceWidth(4) {}
+	GuiResourceId getResourceId() override { return 0; }
+	uint8 getHeight() override { return 8; }
+	// Characters below 32 are game-specific symbols in SCI fonts (e.g. PQ2's "II"), so they are
+	// taken from the game's own font instead of the PC BIOS symbols
+	uint8 getCharWidth(uint16 chr) override;
+	// Tight spacing (text drawn straight onto the screen): each letter trimmed to the columns it
+	// uses plus a 1 pixel gap, spaces 4 pixels. Letter shapes are unchanged.
+	void setTight(bool tight) { _tight = tight; }
+	void setSpaceWidth(int w) { _spaceWidth = w; }
+	uint8 getCharHeight(uint16 chr) override { return useFallback(chr) ? _fallback->getCharHeight(chr) : 8; }
+	void draw(uint16 chr, int16 top, int16 left, byte color, bool greyedOutput) override;
+	void setFallback(GfxFont *font) { _fallback = font; }
+private:
+	bool useFallback(uint16 chr) const { return _fallback && chr < 32; }
+	GfxScreen *_screen;
+	GfxFont *_fallback;
+	bool _tight;
+	int _spaceWidth;
+	void glyphCols(uint16 chr, int &a, int &b) const;
+};
+
+/**
  * Font class, handles loading of font resources and drawing characters to screen
  *  every font resource has its own instance of this class
  */

@@ -53,6 +53,17 @@ GfxScreen::GfxScreen(ResourceManager *resMan, Common::RenderMode renderMode) : _
 
 	_curPaletteMapValue = 0;
 	_paletteModsEnabled = false;
+	_agiDemake = false;
+	_agiDemakeStill = false;
+	_agiWindowShift = 0;
+	_agiTermNext = 0;
+	_agiPicGeneration = 0;
+	_agiTermFrameShift = 0;
+	_agiTermStart = 0;
+	_agiTermPromptGeneration = 0xFFFFFFFF;
+	_agiTermFirstScriptX = -1;
+	_agiTermCol1Right = _agiTermCol2X = _agiTermCol2Right = 0;
+	_agiWindowShiftWidth = 0;
 
 	if (g_sci->getPlatform() == Common::kPlatformMacintosh) {
 		if (getSciVersion() <= SCI_VERSION_01) {
@@ -187,14 +198,15 @@ GfxScreen::GfxScreen(ResourceManager *resMan, Common::RenderMode renderMode) : _
 		_colorDefaultVectorData = 0;
 	}
 
-	// Set up palette mods if requested
-	if (ConfMan.hasKey("palette_mods") && ConfMan.getBool("palette_mods"))
+	// Set up palette mods if requested (not with the AGI demake, which uses the per-pixel map itself)
+	if (ConfMan.hasKey("palette_mods") && ConfMan.getBool("palette_mods") && !_gfxDrv->agiDemake())
 		setupCustomPaletteMods(this);
 
 	// Initialize the actual screen
 	_gfxDrv->initScreen();
 
-	if (_gfxDrv->pixelSize() != 1 && _paletteModsEnabled)
+	_agiDemake = _gfxDrv->agiDemake();
+	if ((_gfxDrv->pixelSize() != 1 && _paletteModsEnabled) || _agiDemake)
 		_paletteMapScreen = (byte *)calloc(_displayPixels, 1);
 	else
 		_paletteMapScreen = nullptr;

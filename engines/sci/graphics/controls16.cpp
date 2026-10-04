@@ -325,7 +325,17 @@ void GfxControls16::kernelDrawButton(Common::Rect rect, reg_t obj, const char *t
 		}
 		rect.grow(1);
 		_paint16->eraseRect(rect);
-		_paint16->frameRect(rect);
+		if (_screen->agiDemake()) {
+			// AGI demake: pull the frame in to even screen columns, so each side is a whole fat
+			// pixel inside the button and the gap to a neighbouring button stays white
+			const int off = _ports->_curPort->left;
+			Common::Rect frameR = rect;
+			frameR.left = ((frameR.left + off + 1) & ~1) - off;
+			frameR.right = ((frameR.right + off) & ~1) - off;
+			_paint16->frameRect(frameR);
+		} else {
+			_paint16->frameRect(rect);
+		}
 
 		// Unlike PC-98, the Korean fan translations have CJK text for some button controls. The original PC-98
 		// interpreters which were used to make the necessary code changes to kernelDrawText do not have any
@@ -337,7 +347,7 @@ void GfxControls16::kernelDrawButton(Common::Rect rect, reg_t obj, const char *t
 		if (_screen->gfxDriver()->driverBasedTextRendering() && !getPicNotValid()) {
 			if (style & SCI_CONTROLS_STYLE_SELECTED) {
 				rect.grow(-1);
-				_paint16->frameRect(rect);
+				_paint16->frameRect(rect, false);
 				rect.grow(1);
 			}
 			_paint16->bitsShow(rect);
@@ -356,8 +366,10 @@ void GfxControls16::kernelDrawButton(Common::Rect rect, reg_t obj, const char *t
 		// Fix for Korean fan translation, see comment above.
 		if (!_screen->gfxDriver()->driverBasedTextRendering()) {
 			rect.grow(1);
+			// AGI demake: the selected button's inner frame is not a fat frame line, so it
+			// cannot spill into the gap next to the button
 			if (style & SCI_CONTROLS_STYLE_SELECTED)
-				_paint16->frameRect(rect);
+				_paint16->frameRect(rect, false);
 			if (!getPicNotValid()) {
 				rect.grow(1);
 				_paint16->bitsShow(rect);
@@ -432,11 +444,15 @@ void GfxControls16::kernelDrawTextEdit(Common::Rect rect, reg_t obj, const char 
 	uint16 oldFontId = _text16->GetFontId();
 
 	rect.grow(1);
+	// AGI demake: one fat pixel of padding between the frame and the typed text
+	Common::Rect boxRect = rect;
+	if (_screen->agiDemake())
+		boxRect.left -= 2;
 	_texteditCursorVisible = false;
 	texteditCursorErase();
-	_paint16->eraseRect(rect);
+	_paint16->eraseRect(boxRect);
 	_text16->Box(text, languageSplitter, false, textRect, SCI_TEXT16_ALIGNMENT_LEFT, fontId);
-	_paint16->frameRect(rect);
+	_paint16->frameRect(boxRect);
 	if (style & SCI_CONTROLS_STYLE_SELECTED) {
 		_text16->SetFont(fontId);
 		rect.grow(-1);
@@ -449,14 +465,16 @@ void GfxControls16::kernelDrawTextEdit(Common::Rect rect, reg_t obj, const char 
 		g_system->setFeatureState(OSystem::kFeatureVirtualKeyboard, false);
 	}
 	if (!getPicNotValid())
-		_paint16->bitsShow(rect);
+		_paint16->bitsShow(boxRect);
 
 	_ports->setActiveWindowHasEditText();
 }
 
 void GfxControls16::kernelDrawIcon(Common::Rect rect, reg_t obj, GuiResourceId viewId, int16 loopNo, int16 celNo, int16 priority, int16 style, bool hilite) {
 	if (!hilite) {
+		_screen->setAgiDemakeStill(true);
 		_paint16->drawCelAndShow(viewId, loopNo, celNo, rect.left, rect.top, priority, 0);
+		_screen->setAgiDemakeStill(false);
 		if (style & 0x20) {
 			_paint16->frameRect(rect);
 		}

@@ -53,10 +53,13 @@ public:
 	// OptionsContainerWidget API
 	void load() override;
 	bool save() override;
+	void handleCommand(GUI::CommandSender *sender, uint32 cmd, uint32 data) override;
 
 private:
 	// OptionsContainerWidget API
 	void defineLayout(GUI::ThemeEval &layouts, const Common::String &layoutName, const Common::String &overlayedLayout) const override;
+
+	void updateDemakeDependents();
 
 	Common::String _guiOptions;
 	Common::HashMap<Common::String, GUI::CheckboxWidget *> _checkboxes;

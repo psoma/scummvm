@@ -105,6 +105,10 @@ void SciMusic::init() {
 
 	uint32 dev = MidiDriver::detectDevice(deviceFlags);
 	_musicType = MidiDriver::getMusicType(dev);
+	// "Force AGI sound" game option: PCjr sound, like AGI games, whatever the Audio tab says
+	// (only where the game supports the PCjr device)
+	if ((deviceFlags & MDT_PCJR) && ConfMan.hasKey("agi_sound") && ConfMan.getBool("agi_sound"))
+		_musicType = MT_PCJR;
 
 	if (g_sci->_features->useAltWinGMSound() && _musicType != MT_GM) {
 		warning("A Windows CD version with an alternate MIDI soundtrack has been chosen, "

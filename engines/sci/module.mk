@@ -65,6 +65,7 @@ MODULE_OBJS := \
 	graphics/text16.o \
 	graphics/transitions.o \
 	graphics/view.o \
+	graphics/drivers/agidemake.o \
 	graphics/drivers/cga.o \
 	graphics/drivers/cgabw.o \
 	graphics/drivers/common.o \

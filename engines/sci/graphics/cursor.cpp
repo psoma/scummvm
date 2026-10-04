@@ -118,6 +118,7 @@ void GfxCursor::kernelSetShape(GuiResourceId resourceId) {
 
 	Common::Point hotspot;
 	bool isSci0Cursor = (getSciVersion() <= SCI_VERSION_01);
+
 	if (isSci0Cursor) {
 		// SCI0 cursors contain hotspot flags, not actual hotspot coordinates.
 		// If bit 0 of resourceData[3] is set, the hotspot should be centered,
@@ -157,6 +158,56 @@ void GfxCursor::kernelSetShape(GuiResourceId resourceId) {
 	}
 
 	int16 heightWidth = SCI_CURSOR_SCI0_HEIGHTWIDTH;
+
+	// AGI demake: the arrow (top-left hotspot) is a hand-drawn arrow in AGI-size pixels, each
+	// character below is one screen pixel, K black, W white. Other cursors (centred hotspot, such
+	// as busy cursors) are the game's own, collapsed to 2 pixel wide pixels.
+	if (_screen->agiDemake() && isSci0Cursor && hotspot.x == 0 && hotspot.y == 0) {
+		static const char *const agiArrow[16] = {
+			"KK..........",
+			"KKKK........",
+			"KKKK........",
+			"KKWWKK......",
+			"KKWWKK......",
+			"KKWWWWKK....",
+			"KKWWWWKK....",
+			"KKWWWWWWKK..",
+			"KKWWWWWWKK..",
+			"KKWWWWWWWWKK",
+			"KKWWWWKKKKKK",
+			"KKWWKKWWKK..",
+			"KKKKKKWWKK..",
+			"KK....KKWWKK",
+			"......KKWWKK",
+			"........KKKK"
+		};
+		byte bitmap[12 * 16];
+		for (int y = 0; y < 16; ++y)
+			for (int x = 0; x < 12; ++x) {
+				const char c = agiArrow[y][x];
+				bitmap[y * 12 + x] = (c == 'K') ? 0 : ((c == 'W') ? _screen->getColorWhite() : (byte)SCI_CURSOR_SCI0_TRANSPARENCYCOLOR);
+			}
+		_screen->gfxDriver()->replaceCursor(bitmap, 12, 16, 0, 0, SCI_CURSOR_SCI0_TRANSPARENCYCOLOR);
+		kernelShow();
+		return;
+	}
+	if (_screen->agiDemake()) {
+		byte *bm = rawBitmap->getUnsafeDataAt(0, heightWidth * heightWidth);
+		for (int y = 0; y < heightWidth; ++y) {
+			byte *row = bm + y * heightWidth;
+			for (int x = 0; x + 1 < heightWidth; x += 2) {
+				const byte a = row[x], b = row[x + 1];
+				byte c;
+				if (a == SCI_CURSOR_SCI0_TRANSPARENCYCOLOR)
+					c = b;
+				else if (b == SCI_CURSOR_SCI0_TRANSPARENCYCOLOR || a == b)
+					c = a;
+				else
+					c = (a == 0 || b == 0) ? 0 : a;
+				row[x] = row[x + 1] = c;
+			}
+		}
+	}
 
 	if (_upscaledHires != GFX_SCREEN_UPSCALED_DISABLED && _upscaledHires != GFX_SCREEN_UPSCALED_480x300) {
 		// Scale cursor by 2x - note: sierra didn't do this, but it looks much better

@@ -40,6 +40,30 @@ const ADExtraGuiOptionsMap optionsList[] = {
 	},
 
 	{
+		GAMEOPTION_AGI_DEMAKE,
+		{
+			_s("AGI-style demake graphics"),
+			_s("Render at AGI-style 160 pixel width with no dithering (EGA dithering is always skipped)"),
+			"agi_demake",
+			false,
+			0,
+			0
+		}
+	},
+
+	{
+		GAMEOPTION_AGI_SOUND,
+		{
+			_s("Force AGI sound"),
+			_s("Use PCjr sound emulation, like AGI games, whatever is chosen in the Audio tab"),
+			"agi_sound",
+			false,
+			0,
+			0
+		}
+	},
+
+	{
 		GAMEOPTION_HIGH_RESOLUTION_GRAPHICS,
 		{
 			_s("Enable high resolution graphics"),

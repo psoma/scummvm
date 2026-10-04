@@ -22,6 +22,8 @@
 #ifndef SCI_GRAPHICS_PAINT16_H
 #define SCI_GRAPHICS_PAINT16_H
 
+#include "common/hashmap.h"
+
 namespace Sci {
 
 class GfxPorts;
@@ -56,7 +58,7 @@ public:
 	void eraseRect(const Common::Rect &rect);
 	void paintRect(const Common::Rect &rect);
 	void fillRect(const Common::Rect &rect, int16 drawFlags, byte color, byte priority = 0, byte control = 0);
-	void frameRect(const Common::Rect &rect);
+	void frameRect(const Common::Rect &rect, bool demakeFrame = true);
 
 	void bitsShow(const Common::Rect &r);
 	reg_t bitsSave(const Common::Rect &rect, byte screenFlags, bool hiresFlag = false);
@@ -95,6 +97,10 @@ private:
 	GfxPalette *_palette;
 	GfxText16 *_text16;
 	GfxTransitions *_transitions;
+
+	// AGI demake: PQ2 police computer (room 8, font 7). The prompt line is typed one character at a
+	// time at script positions 6 pixels apart; these map script x to where the AGI font puts it.
+	bool agiTerminal() const;
 
 	// true means make EGA picture drawing visible
 	bool _EGAdrawingVisualize;

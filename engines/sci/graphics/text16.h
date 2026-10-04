@@ -38,6 +38,7 @@ class GfxPorts;
 class GfxPaint16;
 class GfxScreen;
 class GfxFont;
+class GfxFontAgi;
 class GfxMacFontManager;
 /**
  * Text16 class, handles text calculation and displaying of text for SCI0->SCI1.1 games
@@ -49,6 +50,11 @@ public:
 
 	GuiResourceId GetFontId();
 	GfxFont *GetFont();
+	int16 agiWidth(const char *text, bool trimTrailingSpaces);
+	GfxFont *agiFont(GuiResourceId fontId);
+	void setAgiTight(bool tight) { _agiTight = tight; _agiSpace = 4; _agiFixedSpace = false; }
+	void setAgiSpaceWidth(int16 w) { _agiSpace = w; _agiFixedSpace = true; }
+	int16 agiDemakeOriginalWidth(const char *text, int16 maxWidth, GuiResourceId fontId);
 	void SetFont(GuiResourceId fontId);
 
 	int16 CodeProcessing(const char *&text, GuiResourceId orgFontId, int16 orgPenColor, bool doingDrawing);
@@ -77,6 +83,10 @@ public:
 	void DrawStatus(const Common::String &str);
 
 	GfxFont *_font;
+	GfxFontAgi *_agiFont;
+	bool _agiTight;
+	int16 _agiSpace;
+	bool _agiFixedSpace;
 
 	reg_t allocAndFillReferenceRectArray();
 

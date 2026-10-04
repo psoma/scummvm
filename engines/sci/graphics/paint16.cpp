@@ -88,6 +88,7 @@ void GfxPaint16::debugSetEGAdrawingVisualize(bool state) {
 }
 
 void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool addToFlag, GuiResourceId paletteId) {
+	_screen->_agiPicGeneration++;
 	// Set up custom per-picture palette mod
 	doCustomPicPalette(_screen, pictureId);
 
@@ -212,7 +213,10 @@ void GfxPaint16::invertRectViaXOR(const Common::Rect &rect) {
 	for (int16 y = r.top; y < r.bottom; y++) {
 		for (int16 x = r.left; x < r.right; x++) {
 			byte curVisual = _screen->getVisual(x, y);
+			const byte flag = _screen->agiDemake() ? _screen->getDemakeFlag(x, y) : 0;
 			_screen->putPixel(x, y, GFX_SCREEN_MASK_VISUAL, curVisual ^ 0x0f, 0, 0);
+			if (_screen->agiDemake())
+				_screen->setDemakeFlag(x, y, flag);
 		}
 	}
 }
@@ -241,11 +245,16 @@ void GfxPaint16::fillRect(const Common::Rect &rect, int16 drawFlags, byte color,
 			for (y = r.top; y < r.bottom; y++) {
 				for (x = r.left; x < r.right; x++) {
 					byte curVisual = _screen->getVisual(x, y);
+					// AGI demake: inverting (menu highlights) must keep the text flag, or the
+					// highlighted text gets collapsed to fat pixels and corrupts
+					const byte flag = _screen->agiDemake() ? _screen->getDemakeFlag(x, y) : 0;
 					if (curVisual == color) {
 						_screen->putPixel(x, y, GFX_SCREEN_MASK_VISUAL, priority, 0, 0);
 					} else if (curVisual == priority) {
 						_screen->putPixel(x, y, GFX_SCREEN_MASK_VISUAL, color, 0, 0);
 					}
+					if (_screen->agiDemake())
+						_screen->setDemakeFlag(x, y, flag);
 				}
 			}
 		} else { // just fill rect with color
@@ -280,7 +289,11 @@ void GfxPaint16::fillRect(const Common::Rect &rect, int16 drawFlags, byte color,
 	}
 }
 
-void GfxPaint16::frameRect(const Common::Rect &rect) {
+void GfxPaint16::frameRect(const Common::Rect &rect, bool demakeFrame) {
+	// AGI demake: flag frame pixels so thin borders become fat lines instead of vanishing
+	byte oldMapValue = _screen->getCurPaletteMapValue();
+	if (_screen->agiDemake() && demakeFrame)
+		_screen->setCurPaletteMapValue(2);
 	Common::Rect r = rect;
 	// left
 	r.right = rect.left + 1;
@@ -297,6 +310,7 @@ void GfxPaint16::frameRect(const Common::Rect &rect) {
 	r.bottom = rect.bottom;
 	r.top = rect.bottom - 1;
 	paintRect(r);
+	_screen->setCurPaletteMapValue(oldMapValue);
 }
 
 void GfxPaint16::bitsShow(const Common::Rect &rect) {
@@ -409,15 +423,42 @@ void GfxPaint16::kernelDrawCel(GuiResourceId viewId, int16 loopNo, int16 celNo, 
 	}
 }
 
-void GfxPaint16::kernelGraphFillBoxForeground(const Common::Rect &rect) {
+bool GfxPaint16::agiTerminal() const {
+	return _screen->agiDemake() && g_sci->getGameId() == GID_PQ2 && g_sci->getEngineState() &&
+		g_sci->getEngineState()->currentRoomNumber() == 8;
+}
+
+
+void agiDemakeLogLine(const Common::String &line);
+
+void GfxPaint16::kernelGraphFillBoxForeground(const Common::Rect &rectIn) {
+	Common::Rect rect = rectIn;
+	if (agiTerminal()) {
+		agiDemakeLogLine(Common::String::format("room 8 kGraph fillfore %d,%d-%d,%d", rect.left, rect.top, rect.right, rect.bottom));
+		if (rect.top < 24 && rect.left > 73 && rect.width() < 12)
+			rect.moveTo(_screen->agiTermScreenX(rect.left), rect.top);
+	}
 	paintRect(rect);
 }
 
-void GfxPaint16::kernelGraphFillBoxBackground(const Common::Rect &rect) {
+void GfxPaint16::kernelGraphFillBoxBackground(const Common::Rect &rectIn) {
+	Common::Rect rect = rectIn;
+	if (agiTerminal()) {
+		agiDemakeLogLine(Common::String::format("room 8 kGraph fillback %d,%d-%d,%d", rect.left, rect.top, rect.right, rect.bottom));
+		if (rect.top < 24 && rect.left > 73 && rect.width() < 12)
+			rect.moveTo(_screen->agiTermScreenX(rect.left), rect.top);
+	}
 	eraseRect(rect);
 }
 
-void GfxPaint16::kernelGraphFillBox(const Common::Rect &rect, uint16 colorMask, int16 color, int16 priority, int16 control) {
+void GfxPaint16::kernelGraphFillBox(const Common::Rect &rectIn, uint16 colorMask, int16 color, int16 priority, int16 control) {
+	Common::Rect rect = rectIn;
+	if (agiTerminal()) {
+		agiDemakeLogLine(Common::String::format("room 8 kGraph fillbox %d,%d-%d,%d mask %d color %d", rect.left, rect.top, rect.right, rect.bottom, colorMask, color));
+		// the cursor block on the prompt line follows the typed characters
+		if (rect.top < 24 && rect.left > 73 && rect.width() < 12)
+			rect.moveTo(_screen->agiTermScreenX(rect.left), rect.top);
+	}
 	fillRect(rect, colorMask, color, priority, control);
 }
 
@@ -429,6 +470,8 @@ void GfxPaint16::kernelGraphFrameBox(const Common::Rect &rect, int16 color) {
 }
 
 void GfxPaint16::kernelGraphDrawLine(Common::Point startPoint, Common::Point endPoint, int16 color, int16 priority, int16 control) {
+	if (agiTerminal())
+		agiDemakeLogLine(Common::String::format("room 8 kGraph line %d,%d-%d,%d color %d", startPoint.x, startPoint.y, endPoint.x, endPoint.y, color));
 	_ports->clipLine(startPoint, endPoint);
 	_ports->offsetLine(startPoint, endPoint);
 	_screen->drawLine(startPoint.x, startPoint.y, endPoint.x, endPoint.y, color, priority, control);
@@ -470,7 +513,16 @@ void GfxPaint16::kernelGraphRedrawBox(Common::Rect rect) {
 #define SCI_DISPLAY_DONTSHOWBITS		121
 #define SCI_DISPLAY_SETSTROKE			122
 
+// AGI demake: text displayed straight onto the screen (a full-width port, not a window) uses
+// tight letter spacing, so pages of text fit like Sierra's narrower font did
+struct AgiDemakeTightGuard {
+	GfxText16 *_text16;
+	AgiDemakeTightGuard(GfxText16 *text16, bool on) : _text16(text16) { _text16->setAgiTight(on); }
+	~AgiDemakeTightGuard() { _text16->setAgiTight(false); }
+};
+
 reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int argc, reg_t *argv) {
+	AgiDemakeTightGuard tightGuard(_text16, _screen->agiDemake() && _ports->getPort()->rect.width() >= _screen->getWidth());
 	reg_t displayArg;
 	TextAlignment alignment = SCI_TEXT16_ALIGNMENT_LEFT;
 	int16 colorPen = -1, colorBack = -1, width = -1, bRedraw = 1;
@@ -552,9 +604,139 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 		}
 	}
 
+	// AGI demake: PQ2's police computer (room 8, terminal font 7). The program places every
+	// character itself, spaced for Sierra's narrow font: the prompt line steps 6 pixels per typed
+	// character, and directory listings sit in two columns at x 73 and 155.
+	Common::String agiTerminalText;
+	int16 agiTermTypedX = -1;
+	bool agiTermPrompt = false;
+	if (agiTerminal() && _ports->getPort()->fontId == 7) {
+		Port *port = _ports->getPort();
+		// spaces keep the terminal font's own width, so Sierra's blanking strings cover what
+		// Sierra meant them to
+		// blanking strings (only spaces) keep the terminal font's own space width, so they cover
+		// what Sierra meant them to; spaces between words are 3 pixels
+		GfxFont *orig = _cache->getFont(7);
+		bool onlySpaces = true;
+		for (const char *c = text; *c; ++c)
+			if (*c != ' ')
+				onlySpaces = false;
+		if (port->curTop < 24)
+			_text16->setAgiSpaceWidth(onlySpaces ? 9 : 3);	// prompt line blanking must cover a whole AGI prompt
+		else
+			_text16->setAgiSpaceWidth(onlySpaces ? (orig ? orig->getCharWidth(' ') : 6) : 3);
+		if (port->curTop < 24) {
+			if (port->curLeft <= 73) {
+				agiTermPrompt = !onlySpaces;
+				if (agiTermPrompt) {
+					// prompts start level with the rest of the screen ("  DIR? > " is indented in the game)
+					while (*text == ' ')
+						++text;
+					// a new prompt: the whole prompt line is cleared first (old typing, old cursor)
+					fillRect(Common::Rect(73, port->curTop, 252, port->curTop + 9), GFX_SCREEN_MASK_VISUAL, 0, 0, 0);
+					bitsShow(Common::Rect(73, port->curTop, 252, port->curTop + 9));
+				}
+			} else if (onlySpaces) {
+				// blanking typed text: starts where that character was drawn, and typing resumes there
+				int16 x;
+				if (_screen->_agiTermX.contains(port->curLeft))
+					x = _screen->_agiTermX[port->curLeft];
+				else if (_screen->_agiTermFirstScriptX < 0 || port->curLeft <= _screen->_agiTermFirstScriptX)
+					x = _screen->_agiTermStart;
+				else
+					x = _screen->_agiTermNext;
+				const int16 scriptX = port->curLeft;
+				port->curLeft = x;
+				_screen->_agiTermNext = x;
+				Common::Array<int16> stale;
+				for (Common::HashMap<int16, int16>::const_iterator it = _screen->_agiTermX.begin(); it != _screen->_agiTermX.end(); ++it)
+					if (it->_key > scriptX)
+						stale.push_back(it->_key);
+				for (uint i = 0; i < stale.size(); ++i)
+					_screen->_agiTermX.erase(stale[i]);
+				_screen->_agiTermX[scriptX] = x;
+			} else {
+				agiTermTypedX = port->curLeft;
+				if (_screen->_agiTermFirstScriptX < 0 || port->curLeft < _screen->_agiTermFirstScriptX)
+					_screen->_agiTermFirstScriptX = port->curLeft;
+				port->curLeft = _screen->agiTermScreenX(port->curLeft);
+				// clear the character's cell (and any cursor block left there) before drawing it
+				const Common::Rect cell(port->curLeft, port->curTop, MIN<int16>(port->curLeft + 9, 252), port->curTop + 9);
+				fillRect(cell, GFX_SCREEN_MASK_VISUAL, 0, 0, 0);
+				bitsShow(cell);	// the text only refreshes its own (narrower) area
+			}
+		} else {
+			// listings: Sierra's own game list uses short names so both columns fit
+			static const char *const kShortNames[][2] = {
+				{ "POLICE QUEST", "PQ I" }, { "KING'S QUEST", "KQ I" }, { "MOTHER GOOSE", "MUMG" }, { "SPACE QUEST", "SQ I" }
+			};
+			agiTerminalText = text;
+			for (uint n = 0; n < ARRAYSIZE(kShortNames); ++n) {
+				if (agiTerminalText == kShortNames[n][0])
+					agiTerminalText = kShortNames[n][1];
+				else if (agiTerminalText == Common::String("| ") + kShortNames[n][0])
+					agiTerminalText = Common::String("| ") + kShortNames[n][1];
+			}
+			// personnel: "Surname, Firstname" becomes "Surname, F." so both columns fit
+			const int comma = agiTerminalText.find(", ");
+			if (comma >= 0 && comma + 2 < (int)agiTerminalText.size() && Common::isAlpha(agiTerminalText[comma + 2])) {
+				bool lettersOnly = true;
+				for (uint i = comma + 2; i < agiTerminalText.size(); ++i)
+					if (!Common::isAlpha(agiTerminalText[i]) && agiTerminalText[i] != ' ')
+						lettersOnly = false;
+				if (lettersOnly)
+					agiTerminalText = Common::String(agiTerminalText.c_str(), comma + 3) + ".";
+			}
+			text = agiTerminalText.c_str();
+			// right-hand column ("| name"): moved 10 pixels right so long left-hand names fit, and the
+			// selection frame is moved by the same amount the name start moves
+			if (agiTerminalText.hasPrefix("| ") && port->curLeft >= 150) {
+				const int16 origPrefix = orig ? orig->getCharWidth('|') + orig->getCharWidth(' ') : 8;
+				const int16 agiPrefix = _text16->agiWidth("| ", false);
+				port->curLeft += 10;
+				_screen->_agiTermFrameShift = 10 + agiPrefix - origPrefix;
+			}
+		}
+	}
+
 	// now drawing the text
 	_text16->Size(rect, text, languageSplitter, -1, width);
 	rect.moveTo(_ports->getPort()->curLeft, _ports->getPort()->curTop);
+	if (agiTerminal() && _ports->getPort()->fontId == 7) {
+		// keep blanking inside the monitor's screen
+		if (rect.right > 252)
+			rect.right = MAX<int16>(rect.left, 252);
+		// listing columns as actually drawn, for sizing the selection frame
+		bool listingText = rect.top >= 24;
+		for (const char *c = text; *c && listingText; ++c)
+			if (*c != ' ')
+				listingText = false;
+		listingText = !listingText && rect.top >= 24;
+		if (listingText) {
+			if (rect.left < 150) {
+				if (rect.top == 24)
+					_screen->_agiTermCol1Right = _screen->_agiTermCol2Right = 0;
+				_screen->_agiTermCol1Right = MAX<int16>(_screen->_agiTermCol1Right, rect.left + _text16->agiWidth(text, true));
+			} else {
+				_screen->_agiTermCol2X = rect.left;
+				_screen->_agiTermCol2Right = MAX<int16>(_screen->_agiTermCol2Right, rect.left + _text16->agiWidth(text, true));
+			}
+		}
+		if (agiTermPrompt) {
+			// typing starts one terminal space after the prompt's visible text
+			_screen->_agiTermX.clear();
+			GfxFont *orig = _cache->getFont(7);
+			_screen->_agiTermNext = rect.left + _text16->agiWidth(text, true) + (orig ? orig->getCharWidth(' ') : 6);
+			_screen->_agiTermStart = _screen->_agiTermNext;
+			_screen->_agiTermFirstScriptX = -1;
+			_screen->_agiTermPromptGeneration = _screen->_agiPicGeneration;
+		} else if (agiTermTypedX >= 0 && text[0] && text[0] != ' ') {
+			// a typed character: the next one follows it, tightly spaced like the rest of the screen
+			_screen->_agiTermX[agiTermTypedX] = rect.left;
+			_screen->_agiTermNext = rect.left + MAX<int16>(_text16->agiWidth(text, false), 6);
+			_screen->_agiTermX[agiTermTypedX + 6] = _screen->_agiTermNext;
+		}
+	}
 	// Note: This code has been found in SCI1 middle and newer games. It was
 	// previously only for SCI1 late and newer, but the LSL1 interpreter contains
 	// this code.

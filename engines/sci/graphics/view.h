@@ -70,6 +70,12 @@ public:
 	void getCelScaledRect(int16 loopNo, int16 celNo, int16 x, int16 y, int16 z, int16 scaleX, int16 scaleY, Common::Rect &outRect) const;
 	const SciSpan<const byte> &getBitmap(int16 loopNo, int16 celNo);
 	void draw(const Common::Rect &rect, const Common::Rect &clipRect, const Common::Rect &clipRectTranslated, int16 loopNo, int16 celNo, byte priority, uint16 EGAmappingNr, bool upscaledHires, uint16 scaleSignal = 0);
+	int agiDemakePhase(int16 loopNo);
+	const char *agiDemakeLabelWord(int16 loopNo) const;
+	void drawAgiDemakeFrame(const Common::Rect &rect, const Common::Rect &clipRect, const Common::Rect &clipRectTranslated, int16 loopNo, int16 celNo, byte priority, uint16 scaleSignal, const Palette *palette, int newWidth);
+	void drawAgiDemakePlate(const Common::Rect &rect, const Common::Rect &clipRect, const Common::Rect &clipRectTranslated, int16 loopNo, int16 celNo, byte priority, uint16 scaleSignal, const Palette *palette);
+	void drawAgiDemakeLabel(const Common::Rect &rect, const Common::Rect &clipRect, const Common::Rect &clipRectTranslated, int16 loopNo, int16 celNo, byte priority, uint16 scaleSignal, const Palette *palette);
+	void drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRect, const Common::Rect &clipRectTranslated, int16 loopNo, int16 celNo, byte priority, uint16 scaleSignal, const Palette *palette);
 	void drawScaled(const Common::Rect &rect, const Common::Rect &clipRect, const Common::Rect &clipRectTranslated, int16 loopNo, int16 celNo, byte priority, int16 scaleX, int16 scaleY, uint16 scaleSignal = 0);
 	uint16 getLoopCount() const { return _loop.size(); }
 	uint16 getCelCount(int16 loopNo) const;
@@ -97,6 +103,7 @@ private:
 	Resource *_resource;
 
 	Common::Array<LoopInfo> _loop;
+	Common::Array<int8> _agiDemakePhase;
 	bool _embeddedPal;
 	Palette _viewPalette;
 

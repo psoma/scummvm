@@ -19,6 +19,9 @@
  *
  */
 
+#include "common/config-manager.h"
+#include "common/hashmap.h"
+#include "common/file.h"
 #include "common/util.h"
 #include "common/stack.h"
 #include "common/unicode-bidi.h"
@@ -47,10 +50,15 @@ GfxText16::GfxText16(GfxCache *cache, GfxPorts *ports, GfxPaint16 *paint16, GfxS
 GfxText16::~GfxText16() {
 	delete[] _codeFonts;
 	delete[] _codeColors;
+	delete _agiFont;
 }
 
 void GfxText16::init() {
 	_font = nullptr;
+	_agiFont = nullptr;
+	_agiTight = false;
+	_agiSpace = 4;
+	_agiFixedSpace = false;
 	_codeFonts = nullptr;
 	_codeFontsCount = 0;
 	_codeColors = nullptr;
@@ -62,7 +70,34 @@ GuiResourceId GfxText16::GetFontId() {
 	return _ports->_curPort->fontId;
 }
 
+// AGI demake: every SCI font is replaced by the 8x8 PC BIOS font, which is what ScummVM's
+// own AGI engine uses for DOS games when no Sierra font file is supplied
+GfxFont *GfxText16::agiFont(GuiResourceId fontId) {
+	if (!_agiFont)
+		_agiFont = new GfxFontAgi(_screen);
+	_agiFont->setFallback(_cache->getFont(fontId));
+	_agiFont->setTight(_agiTight);
+	_agiFont->setSpaceWidth(_agiSpace);
+	return _agiFont;
+}
+
+int16 GfxText16::agiWidth(const char *text, bool trimTrailingSpaces) {
+	GfxFont *f = GetFont();
+	int16 w = 0, trimmed = 0;
+	for (const char *p = text; *p; ++p) {
+		w += f->getCharWidth((byte)*p);
+		if (*p != ' ')
+			trimmed = w;
+	}
+	return trimTrailingSpaces ? trimmed : w;
+}
+
 GfxFont *GfxText16::GetFont() {
+	if (_screen->agiDemake()) {
+		_font = agiFont(_ports->_curPort->fontId);
+		_ports->_curPort->fontHeight = _font->getHeight();
+		return _font;
+	}
 	if ((_font == nullptr) || (_font->getResourceId() != _ports->_curPort->fontId))
 		_font = _cache->getFont(_ports->_curPort->fontId);
 
@@ -70,6 +105,12 @@ GfxFont *GfxText16::GetFont() {
 }
 
 void GfxText16::SetFont(GuiResourceId fontId) {
+	if (_screen->agiDemake()) {
+		_font = agiFont(fontId);
+		_ports->_curPort->fontId = fontId;
+		_ports->_curPort->fontHeight = _font->getHeight();
+		return;
+	}
 	if ((_font == nullptr) || (_font->getResourceId() != fontId))
 		_font = _cache->getFont(fontId);
 
@@ -273,7 +314,10 @@ int16 GfxText16::GetLongest(const char *&textPtr, int16 maxWidth, GuiResourceId 
 
 		// the previous greater than test was originally a greater than or equals when
 		//  no space character had been reached yet
-		if (_useEarlyGetLongestTextCalculations) {
+		// AGI demake: skipped. With the fixed 8 pixel font, text boxes are often exactly as wide as
+		// their longest line, and this early break then leaves that line's newline for a line of its
+		// own, adding a blank line that pushes the last line out of the box (PQ2 desk passwords)
+		if (_useEarlyGetLongestTextCalculations && !_screen->agiDemake()) {
 			if (lastSpaceCharCount == 0 && tempWidth == maxWidth) {
 				break;
 			}
@@ -565,7 +609,93 @@ void GfxText16::Show(const char *text, int16 from, int16 len, GuiResourceId orgF
 }
 
 // Draws a text in rect.
-void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const Common::Rect &rect, TextAlignment alignment, GuiResourceId fontId) {
+// Diagnostics for adding games: only when "agi_demake_debug=true" is set in the game's section of
+// scummvm.ini. Writes agi_demake_text.txt (every text box, plus PQ2 computer drawing) next to the exe.
+static Common::DumpFile *g_agiDemakeTextLog = nullptr;
+void agiDemakeLogLine(const Common::String &line) {
+	if (!ConfMan.hasKey("agi_demake_debug") || !ConfMan.getBool("agi_demake_debug"))
+		return;
+	if (!g_agiDemakeTextLog) {
+		g_agiDemakeTextLog = new Common::DumpFile();
+		if (!g_agiDemakeTextLog->open(Common::Path("agi_demake_text.txt"))) {
+			delete g_agiDemakeTextLog;
+			g_agiDemakeTextLog = nullptr;
+			return;
+		}
+	}
+	g_agiDemakeTextLog->writeString(line + "\n");
+	g_agiDemakeTextLog->flush();
+}
+
+// Temporary diagnostics: every distinct text box drawn (text with control characters shown as
+// <hex>, box rectangle, alignment, font, port), written next to scummvm.exe
+static void agiDemakeLogText(const char *text, const Common::Rect &rect, int alignment, int fontId, const Common::Rect &port, int portFont) {
+	static Common::DumpFile *file = nullptr;
+	static Common::HashMap<Common::String, bool> seen;
+	const int room = g_sci->getEngineState() ? g_sci->getEngineState()->currentRoomNumber() : -1;
+	Common::String line = Common::String::format("room %d box %d,%d-%d,%d port %d,%d-%d,%d align %d font %d portfont %d: ",
+		room, rect.left, rect.top, rect.right, rect.bottom, port.left, port.top, port.right, port.bottom, alignment, fontId, portFont);
+	for (const char *c = text; *c; ++c) {
+		const byte b = (byte)*c;
+		if (b < 32 || b > 126)
+			line += Common::String::format("<%02x>", b);
+		else
+			line += (char)b;
+	}
+	if (seen.contains(line))
+		return;
+	seen[line] = true;
+	(void)file;
+	agiDemakeLogLine(line);
+}
+
+// AGI demake: a text box that runs to the right edge of the screen has no real width limit, so
+// the game relied on its own font to keep the text inside whatever is drawn behind it. Wrap such
+// boxes no wider than the widest line the game's own font would have produced (same greedy word
+// wrap at the box width), so the wider 8x8 text stays inside Sierra's layout.
+int16 GfxText16::agiDemakeOriginalWidth(const char *text, int16 maxWidth, GuiResourceId fontId) {
+	GfxFont *orig = _cache->getFont(fontId != -1 ? fontId : _ports->_curPort->fontId);
+	if (!orig)
+		return maxWidth;
+	int16 widest = 0, cur = 0, atSpace = -1;
+	for (const char *p = text; ; ++p) {
+		const byte c = (byte)*p;
+		if (c == 0 || c == 0x0A || c == 0x0D) {
+			widest = MAX(widest, cur);
+			cur = 0;
+			atSpace = -1;
+			if (c == 0)
+				break;
+			continue;
+		}
+		if (c == ' ')
+			atSpace = cur;
+		const int16 cw = orig->getCharWidth(c);
+		if (cur + cw > maxWidth) {
+			// the original would have broken the line here: at the last space, or mid-word
+			widest = MAX<int16>(widest, (atSpace >= 0) ? atSpace : cur);
+			cur = (atSpace >= 0) ? (cur - atSpace) : 0;
+			atSpace = -1;
+		}
+		cur += cw;
+	}
+	return MIN(widest, maxWidth);
+}
+
+void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const Common::Rect &rectIn, TextAlignment alignment, GuiResourceId fontId) {
+	Common::Rect rect = rectIn;
+	if (_screen->agiDemake()) {
+		agiDemakeLogText(text, rect, alignment, fontId, _ports->_curPort->rect, _ports->_curPort->fontId);
+		if (_ports->_curPort->left + rect.right >= _screen->getWidth()) {
+			// at least as wide as the left margin mirrored on the right (pages are centred), since
+			// Sierra's line breaks are often hand-placed and only just fit their own font
+			const int16 absLeft = _ports->_curPort->left + rect.left;
+			const int16 mirrored = _screen->getWidth() - 2 * absLeft;
+			const int16 w = MAX<int16>(agiDemakeOriginalWidth(text, rect.width(), fontId), mirrored);
+			if (w > 0 && w < rect.width())
+				rect.right = rect.left + w;
+		}
+	}
 	int16 textWidth, maxTextWidth, textHeight;
 	int16 offset = 0;
 	int16 hline = 0;
@@ -620,6 +750,23 @@ void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const 
 				(g_sci->getGameId() == GID_PQ2 && *curTextPos == ' ' && curTextPos[1] != '\0' && SwitchToFont900OnSjis(curTextPos + 1, languageSplitter));
 		}
 
+		// AGI demake, tight spacing: a hand-broken line that is slightly too long gets narrower spaces
+		// (3, then 2 pixels) if that saves it from wrapping
+		if (_screen->agiDemake() && _agiTight && !_agiFixedSpace) {
+			_agiSpace = 4;
+			for (int16 sw = 4; sw >= 2; --sw) {
+				_agiSpace = sw;
+				GfxFont *f = GetFont();
+				int16 lw = 0;
+				for (const char *p = curTextPos; *p && *p != 0x0A && *p != 0x0D; ++p)
+					lw += f->getCharWidth((byte)*p);
+				if (lw <= rect.width())
+					break;
+				if (sw == 2)
+					_agiSpace = 4;	// still too long: wrap normally
+			}
+			GetFont();
+		}
 		int16 charCount = GetLongest(curTextPos, rect.width(), fontId);
 		if (charCount == 0)
 			break;
@@ -803,6 +950,41 @@ reg_t GfxText16::allocAndFillReferenceRectArray() {
 
 void GfxText16::kernelTextSize(const char *text, uint16 languageSplitter, int16 font, int16 maxWidth, int16 *textWidth, int16 *textHeight) {
 	Common::Rect rect(0, 0, 0, 0);
+	// AGI demake: text with hand-placed line breaks keeps them. If its longest line (trailing
+	// spaces ignored) is wider than the game asked for in the 8x8 font, the box is made wide
+	// enough for it, up to the screen width less a margin, instead of re-wrapping every line.
+	if (_screen->agiDemake() && maxWidth > 0 && strchr(text, 0x0A)) {
+		const GuiResourceId previousFontId = GetFontId();
+		if (font != -1)
+			SetFont(font);
+		GfxFont *f = GetFont();
+		int16 longest = 0, cur = 0, curTrimmed = 0;
+		for (const char *p = text; ; ++p) {
+			const byte c = (byte)*p;
+			if (c == 0 || c == 0x0A || c == 0x0D) {
+				longest = MAX(longest, curTrimmed);
+				cur = curTrimmed = 0;
+				if (c == 0)
+					break;
+				continue;
+			}
+			cur += f->getCharWidth(c);
+			if (c != ' ')
+				curTrimmed = cur;
+		}
+		SetFont(previousFontId);
+		const int16 cap = _screen->getWidth() - 24;
+		_screen->setAgiWindowShift(0, 0);
+		if (longest > maxWidth) {
+			Common::Rect original(0, 0, 0, 0);
+			Size(original, text, languageSplitter, font, maxWidth);
+			maxWidth = MIN(longest, cap);
+			Common::Rect widened(0, 0, 0, 0);
+			Size(widened, text, languageSplitter, font, maxWidth);
+			if (widened.width() > original.width())
+				_screen->setAgiWindowShift((widened.width() - original.width()) / 2, widened.width());
+		}
+	}
 	Size(rect, text, languageSplitter, font, maxWidth);
 	*textWidth = rect.width();
 	*textHeight = rect.height();

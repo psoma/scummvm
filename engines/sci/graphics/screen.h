@@ -33,6 +33,8 @@
 
 #include "common/rendermode.h"
 
+#include "common/hashmap.h"
+
 namespace Sci {
 
 enum {
@@ -158,6 +160,29 @@ public:
 	void setCurPaletteMapValue(byte val) { _curPaletteMapValue = val; }
 	void setPaletteMods(const PaletteMod *mods, unsigned int count);
 	bool paletteModsEnabled() const { return _paletteModsEnabled; }
+	bool agiDemake() const { return _agiDemake; }
+	// AGI demake: set while a dialog icon (still image such as a portrait) is drawn
+	bool agiDemakeStill() const { return _agiDemakeStill; }
+	void setAgiDemakeStill(bool s) { _agiDemakeStill = s; }
+	// AGI demake: a text box widened for hand-broken lines is moved left by half the extra width
+	// when its window is created, so it stays centred where the game put it
+	void setAgiWindowShift(int16 shift, int16 textWidth) { _agiWindowShift = shift; _agiWindowShiftWidth = textWidth; }
+	int16 agiWindowShift() const { return _agiWindowShift; }
+	int16 agiWindowShiftWidth() const { return _agiWindowShiftWidth; }
+	// AGI demake: PQ2 computer prompt line, script x of a typed character -> where it is drawn
+	Common::HashMap<int16, int16> _agiTermX;
+	int16 _agiTermNext;
+	int16 agiTermScreenX(int16 scriptX) const { return _agiTermX.getValOrDefault(scriptX, _agiTermNext); }
+	// AGI demake: counts pictures drawn, so scenery edits are applied once per picture
+	uint32 _agiPicGeneration;
+	int16 _agiTermFrameShift;
+	int16 _agiTermStart, _agiTermFirstScriptX;		// prompt line: where typing starts
+	uint32 _agiTermPromptGeneration;			// picture the last prompt was drawn on
+	int16 _agiTermCol1Right, _agiTermCol2X, _agiTermCol2Right;	// listing columns as drawn
+	Common::Rect _agiTermLastFrame;				// selection frame last drawn (screen coords)
+	// AGI demake: per-pixel flag (1 text, 2 frame), only valid when agiDemake() is set
+	byte getDemakeFlag(int16 x, int16 y) const { return _paletteMapScreen[y * _displayWidth + x]; }
+	void setDemakeFlag(int16 x, int16 y, byte v) { _paletteMapScreen[y * _displayWidth + x] = v; }
 
 	GfxDriver *gfxDriver() const { return _gfxDrv; }
 
@@ -213,6 +238,10 @@ private:
 	byte _curPaletteMapValue;
 	PaletteMod _paletteMods[256];
 	bool _paletteModsEnabled;
+	bool _agiDemake;
+	bool _agiDemakeStill;
+	int16 _agiWindowShift;
+	int16 _agiWindowShiftWidth;
 
 	byte *_backupScreen; // for bak* functions
 
@@ -395,6 +424,9 @@ public:
 			switch (_upscaledHires) {
 			case GFX_SCREEN_UPSCALED_DISABLED:
 				_displayScreen[offset] = color;
+				// AGI demake: flag text pixels so the driver keeps them at full width
+				if (_agiDemake)
+					_paletteMapScreen[offset] = 1;
 				break;
 			case GFX_SCREEN_UPSCALED_640x400: {
 				// to 1-> 4 pixels upscaling for all of those, so that fonts won't look weird
