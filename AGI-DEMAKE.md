@@ -1,4 +1,4 @@
-# SCI to AGI Demake (unofficial ScummVM fork) - v0.147
+# SCI to AGI Demake (unofficial ScummVM fork) - v0.148
 
 This fork adds an **AGI-style demake** mode to ScummVM's SCI engine. Early Sierra SCI games (SCI0 / SCI01, 16-colour EGA) are drawn the way Sierra's older AGI games looked: 160-pixel-wide "fat" pixels, no dithering, the 8x8 AGI font, AGI-style message boxes, and optional PCjr sound.
 
@@ -29,13 +29,9 @@ It is an unofficial, personal fork. It is not part of ScummVM and is not endorse
 
 ## Diagnostics for adding games
 
-To help tune a new game, add this line to the game's section of `scummvm.ini`:
+In this test build (v0.148) the diagnostics are always on, no `scummvm.ini` setting needed. This is temporary and will go back to opt-in before the next public release.
 
-```
-agi_demake_debug=true
-```
-
-ScummVM then writes `agi_demake_dump.txt` (sprites) and `agi_demake_text.txt` (text) next to the executable. Leave it off for normal play.
+ScummVM writes `agi_demake_dump.txt` (sprites) and `agi_demake_text.txt` (text) next to the executable, overwritten each session.
 
 ## Building
 

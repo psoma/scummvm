@@ -1752,12 +1752,11 @@ static void agiDemakeAwayHead(const SciSpan<const byte> &bitmap, int w, int h, b
 	}
 }
 
-// Diagnostics for adding games: only when "agi_demake_debug=true" is set in the game's section of
-// scummvm.ini. Writes agi_demake_dump.txt (each distinct cel drawn, source and result) next to the exe.
+// Diagnostics for adding games: TEMP always on in v0.148 (normally "agi_demake_debug=true" in the game's section of
+// scummvm.ini). Writes agi_demake_dump.txt (each distinct cel drawn, source and result) next to the exe.
 static void agiDemakeDump(int viewId, int loopNo, int celNo, const CelInfo *ci, bool mirrored, int startX,
 			const SciSpan<const byte> &bitmap, const byte *fat, int fatW) {
-	if (!ConfMan.hasKey("agi_demake_debug") || !ConfMan.getBool("agi_demake_debug"))
-		return;
+	// TEMP: always on for testing, remove before next public release
 	static Common::DumpFile *file = nullptr;
 	static Common::HashMap<uint32, bool> seen;
 	const uint32 key = ((uint32)viewId << 16) | ((loopNo & 0xFF) << 8) | (celNo & 0xFF);
