@@ -1892,6 +1892,37 @@ static void agiDemakeCopyHead(GuiResourceId view, int16 loop, int h, byte clearK
 	}
 }
 
+// Single fat pixel touch-ups after the collapse, for heads too narrow for the general rules.
+// Each changes one fat pixel (pair) of a loop's cels from one colour to another, and only when
+// it still has the expected colour, so frames that differ are left alone.
+struct AgiDemakeFatPatch {
+	SciGameId game;
+	int16 view, loop;
+	int16 row, pair;
+	byte from, to;
+};
+static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
+	// PQ2 Keith facing you (view 20): his face is 4 fat pixels wide, so the eyes merge. The
+	// lower of the two black pixels on the left of his head becomes hair brown, and the eyes
+	// move apart with skin between: left eye on the face's left edge
+	{ GID_PQ2, 20, 2, 4, 2, 0, 6 },
+	{ GID_PQ2, 20, 2, 5, 2, 4, 0 },
+	{ GID_PQ2, 20, 2, 5, 3, 0, 12 },
+};
+
+static void agiDemakeApplyFatPatches(GuiResourceId view, int16 loop, int h, byte *fat, int fatW, int pad, int numPairs) {
+	for (uint i = 0; i < ARRAYSIZE(kAgiDemakeFatPatches); ++i) {
+		const AgiDemakeFatPatch &fp = kAgiDemakeFatPatches[i];
+		if (fp.game != g_sci->getGameId() || fp.view != view || fp.loop != loop)
+			continue;
+		if (fp.row < 0 || fp.row >= h || fp.pair < 0 || fp.pair >= numPairs)
+			continue;
+		byte &px = fat[fp.row * fatW + pad + fp.pair];
+		if (px == fp.from)
+			px = fp.to;
+	}
+}
+
 // Diagnostics for adding games: TEMP always on in test builds (normally "agi_demake_debug=true" in the game's section of
 // scummvm.ini). Writes agi_demake_dump.txt (each distinct cel drawn, source and result) next to the exe.
 static void agiDemakeDump(int viewId, int loopNo, int celNo, const CelInfo *ci, bool mirrored, int startX,
@@ -2049,6 +2080,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		agiDemakeSpreadEyes(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad);
 	if (towards || away)
 		agiDemakeCopyHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
+	agiDemakeApplyFatPatches(_resourceId, loopNo, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeDump(_resourceId, loopNo, celNo, celInfo, mirrored, startX, bitmap, fat.data(), fatW);
 
 	for (int cy = clipRect.top - rect.top; cy < MIN<int>(celHeight, clipRect.bottom - rect.top); ++cy) {
