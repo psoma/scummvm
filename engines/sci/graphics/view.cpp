@@ -1974,29 +1974,50 @@ static void agiDemakeApplyFatBlocks(GuiResourceId view, int16 loop, int16 cel, i
 	}
 }
 
-// PQ2 inventory item frames: red, brown and green rings, 3 pixels each side. The collapse keeps
-// red and green on the left but turns the right side into black and red. On a cel framed like
-// that (left 3 columns mirror the right 3 on every row, red brown green from the outside), each
-// side becomes red outside and green inside.
-static void agiDemakeInventoryFrame(const SciSpan<const byte> &bitmap, int w, int h, byte *fat, int fatW, int pad, int numPairs) {
-	const byte red = 4, brown = 6, green = 2;
+// PQ2 inventory items (views 100-199): a frame of 3 pixel rings each side, e.g. red, brown and
+// green, or black, white and white. On screen the fat pixels sit on even columns, so depending on
+// the item's width and screen position the first or last fat pixel of a row hangs half outside
+// the item and is clipped, and the outer ring vanishes on that side. On a cel framed like that
+// (left 3 columns mirror the right 3 on every row, the same 3 colours down both sides) every row
+// is rebuilt to fit inside the item: fat pixels that would be clipped are dropped, the outermost
+// whole fat pixel each side gets the outer ring colour and the next one in the inner ring colour.
+static void agiDemakeInventoryFrame(const SciSpan<const byte> &bitmap, int w, int h, byte clearKey, byte *fat, int fatW, int pad, int numPairs, int pairStart, int celLeft) {
 	if (w < 20 || h < 10 || numPairs < 6)
 		return;
 	for (int y = 0; y < h; ++y) {
 		const byte *row = bitmap.getUnsafeDataAt(y * w, w);
 		for (int i = 0; i < 3; ++i)
-			if (row[i] != row[w - 1 - i])
+			if (row[i] != row[w - 1 - i] || row[i] == clearKey)
 				return;
 	}
+	const byte *mid = bitmap.getUnsafeDataAt((h / 2) * w, w);
+	const byte outer = mid[0], ring = mid[1], inner = mid[2];
+	if (outer == ring && ring == inner)
+		return;
 	for (int y = 3; y < h - 3; ++y) {
 		const byte *row = bitmap.getUnsafeDataAt(y * w, w);
-		if (row[0] != red || row[1] != brown || row[2] != green)
+		if (row[0] != outer || row[1] != ring || row[2] != inner)
 			return;
 	}
-	for (int y = 3; y < h - 3; ++y) {
+	// first and last fat pixels that land wholly inside the item on screen
+	int p0 = 0, p1 = numPairs - 1;
+	while (p0 < numPairs && pairStart + 2 * p0 < celLeft)
+		++p0;
+	while (p1 >= 0 && pairStart + 2 * p1 + 1 > celLeft + w - 1)
+		--p1;
+	if (p1 - p0 < 4)
+		return;
+	for (int y = 0; y < h; ++y) {
 		byte *f = fat + y * fatW + pad;
-		f[0] = f[numPairs - 1] = red;
-		f[1] = f[numPairs - 2] = green;
+		for (int p = -pad; p < p0; ++p)
+			f[p] = clearKey;
+		for (int p = p1 + 1; p < numPairs + pad; ++p)
+			f[p] = clearKey;
+		if (y == 0 || y == h - 1)
+			continue;
+		f[p0] = f[p1] = outer;
+		if (y >= 2 && y < h - 2)
+			f[p0 + 1] = f[p1 - 1] = inner;
 	}
 }
 
@@ -2159,8 +2180,8 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		agiDemakeCopyHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatPatches(_resourceId, loopNo, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatBlocks(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
-	if (g_sci->getGameId() == GID_PQ2)
-		agiDemakeInventoryFrame(bitmap, celWidth, celHeight, fat.data(), fatW, pad, numPairs);
+	if (g_sci->getGameId() == GID_PQ2 && _resourceId >= 100 && _resourceId <= 199)
+		agiDemakeInventoryFrame(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, pad, numPairs, pairStart, rect.left + offsetX);
 	agiDemakeDump(_resourceId, loopNo, celNo, celInfo, mirrored, startX, bitmap, fat.data(), fatW);
 
 	for (int cy = clipRect.top - rect.top; cy < MIN<int>(celHeight, clipRect.bottom - rect.top); ++cy) {
