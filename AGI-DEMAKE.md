@@ -1,4 +1,4 @@
-# SCI to AGI Demake (unofficial ScummVM fork) - v0.156
+# SCI to AGI Demake (unofficial ScummVM fork) - v0.157
 
 This fork adds an **AGI-style demake** mode to ScummVM's SCI engine. Early Sierra SCI games (SCI0 / SCI01, 16-colour EGA) are drawn the way Sierra's older AGI games looked: 160-pixel-wide "fat" pixels, no dithering, the 8x8 AGI font, AGI-style message boxes, and optional PCjr sound.
 
@@ -25,11 +25,11 @@ It is an unofficial, personal fork. It is not part of ScummVM and is not endorse
 - **Sprites:** walking characters, wide sprites (cars), and dialog portraits each have tuned conversion rules. Characters facing you keep a one pixel gap between their eyes where the face has room
 - **Text:** the 8x8 AGI font. Full-screen page text uses tight letter spacing so pages fit. Message boxes keep fixed AGI spacing
 - **Interface:** AGI-style message boxes (red inset frame), status line, menus, buttons and a chunky mouse cursor
-- **Game-specific fixes (PQ2):** painted-in lettering redrawn in the AGI font (radio labels, gun sight labels, file tabs, drawer plate, mugshot numbers, surname on the personnel file photo, scuba tank 1, the handwritten number on the back of the business card), inventory item frames whole on both sides wherever the item sits on screen, Sonny's normal head on his diving suits, and the police computer screen
+- **Game-specific fixes (PQ2):** painted-in lettering redrawn in the AGI font (radio labels, gun sight labels, file tabs, drawer plate, mugshot numbers, surname on the personnel file photo, mugshot numbers on the inventory mugshots, scuba tank 1, the handwritten number on the back of the business card), inventory item frames whole on both sides wherever the item sits on screen, Sonny's normal head on his diving suits, and the police computer screen
 
 ## Diagnostics for adding games
 
-In this test build (v0.156) the diagnostics are always on, no `scummvm.ini` setting needed. This is temporary and will go back to opt-in before the next public release.
+In this test build (v0.157) the diagnostics are always on, no `scummvm.ini` setting needed. This is temporary and will go back to opt-in before the next public release.
 
 ScummVM writes `agi_demake_dump.txt` (sprites) and `agi_demake_text.txt` (text) next to the executable, overwritten each session.
 

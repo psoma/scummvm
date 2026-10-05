@@ -1014,7 +1014,9 @@ static int agiDemakeWordWidth(const char *word);
 // "PATE, L" in the same 3x5 font. The surname (letters before the comma) is read off it and drawn
 // on a black bar the same way. Letters P A T E L were taken from Pate's placard. Anything else
 // leaves the placard as it is.
-static const AgiDemakeTextOverride *agiDemakeMugshotPlacard(const SciSpan<const byte> &bitmap, int w, int h) {
+// The two mugshot inventory items (views 112 and 123, same 73x52 layout) carry the same placards
+// with black digits on grey. They are read the same way and get the same black bar.
+static const AgiDemakeTextOverride *agiDemakeMugshotPlacard(const SciSpan<const byte> &bitmap, int w, int h, byte digitColor = 15) {
 	static const struct { char ch; const char *rows; } kDigits[] = {
 		{ '1', ".#./##./.#./.#./###" }, { '2', "###/..#/###/#../###" }, { '4', "#.#/#.#/#.#/###/..#" },
 		{ '5', "###/#../###/..#/###" }, { '6', "###/#../###/#.#/###" }, { '7', "###/..#/..#/..#/..#" },
@@ -1030,7 +1032,7 @@ static const AgiDemakeTextOverride *agiDemakeMugshotPlacard(const SciSpan<const 
 	const bool single = (w == 39 && h == 52);
 	if (!single && (w != 73 || h != 52))
 		return nullptr;
-	const byte white = 15;
+	const byte white = digitColor;	// the digits' colour: white on the station files, black on the inventory copies
 	// two-photo file: left placard, digits in rows 43-47, columns 8-29
 	// personnel file: one placard, letters in rows 44-48, columns 6-33
 	const int top = single ? 44 : 43;
@@ -1089,7 +1091,7 @@ static const AgiDemakeTextOverride *agiDemakeMugshotPlacard(const SciSpan<const 
 	placard.loop = placard.cel = -1;
 	placard.letterColor = white;
 	placard.background = 0;
-	placard.textColor = white;
+	placard.textColor = 15;	// the AGI number is always white on the black bar
 	placard.backing = 0xFF;
 	for (int i = 0; i < 4; ++i)
 		placard.areas[i] = AgiDemakeTextArea{ 0, -1, 0, -1 };
@@ -2077,6 +2079,8 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	const AgiDemakeTextOverride *textOverride = agiDemakeFindTextOverride(_resourceId, loopNo, celNo);
 	if (!textOverride && g_sci->getGameId() == GID_PQ2 && _resourceId == 204)
 		textOverride = agiDemakeMugshotPlacard(origBitmap, celWidth, celHeight);
+	else if (!textOverride && g_sci->getGameId() == GID_PQ2 && (_resourceId == 112 || _resourceId == 123))
+		textOverride = agiDemakeMugshotPlacard(origBitmap, celWidth, celHeight, 0);
 	Common::Array<byte> strippedData;
 	if (textOverride) {
 		strippedData.resize(celWidth * celHeight);
