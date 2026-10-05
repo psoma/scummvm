@@ -1908,6 +1908,9 @@ static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
 	{ GID_PQ2, 20, 2, 4, 2, 0, 6 },
 	{ GID_PQ2, 20, 2, 5, 2, 4, 0 },
 	{ GID_PQ2, 20, 2, 5, 3, 0, 12 },
+	// PQ2 Sonny in the office (view 3 loop 3, three-quarter face): the two eye pixels merge into a
+	// black bar. Only the right eye is kept
+	{ GID_PQ2, 3, 3, 5, 4, 0, 12 },
 };
 
 static void agiDemakeApplyFatPatches(GuiResourceId view, int16 loop, int h, byte *fat, int fatW, int pad, int numPairs) {
@@ -1920,6 +1923,54 @@ static void agiDemakeApplyFatPatches(GuiResourceId view, int16 loop, int h, byte
 		byte &px = fat[fp.row * fatW + pad + fp.pair];
 		if (px == fp.from)
 			px = fp.to;
+	}
+}
+
+// Hand-drawn blocks of fat pixels, for lettering that has to stay handwriting (no font) but
+// does not survive the collapse. A block replaces the cel's fat pixels at the given row and pair,
+// one string per row ('.' keeps the pixel). Only pixels that are already the block's two colours
+// change, so the block never paints over the card's frame if the pairing ever shifts.
+struct AgiDemakeFatBlock {
+	SciGameId game;
+	int16 view, loop, cel;
+	int16 top, pair;
+	byte paper, ink;
+	const char *rows[10];
+};
+static const AgiDemakeFatBlock kAgiDemakeFatBlocks[] = {
+	// PQ2 back of Sonny's business card: "36-4-12" handwritten, redrawn legibly in fat pixels
+	{ GID_PQ2, 137, 0, 1, 15, 5, 15, 1,
+		{ "ff11fff11ffffffffffffffff",
+		  "ffff1f1fffff1f1ffffffffff",
+		  "ffff1f1fffff1f1ffff1f11ff",
+		  "fff1ff11ffff1f1fff11fff1f",
+		  "ffff1f1f1f1f111f1ff1fff1f",
+		  "ffff1f1f1fffff1ffff1ff1ff",
+		  "ff11fff1ffffff1ffff1f1fff",
+		  "ffffffffffffff1ffff1f1fff",
+		  "fffffffffffffffffff1f111f",
+		  "fffffffffffffffffffffffff" } },
+};
+
+static void agiDemakeApplyFatBlocks(GuiResourceId view, int16 loop, int16 cel, int h, byte *fat, int fatW, int pad, int numPairs) {
+	for (uint i = 0; i < ARRAYSIZE(kAgiDemakeFatBlocks); ++i) {
+		const AgiDemakeFatBlock &b = kAgiDemakeFatBlocks[i];
+		if (b.game != g_sci->getGameId() || b.view != view || b.loop != loop || b.cel != cel)
+			continue;
+		for (int r = 0; r < 10 && b.rows[r]; ++r) {
+			const int y = b.top + r;
+			if (y < 0 || y >= h)
+				continue;
+			for (int x = 0; b.rows[r][x]; ++x) {
+				const int p = b.pair + x;
+				const char ch = b.rows[r][x];
+				if (ch == '.' || p < 0 || p >= numPairs)
+					continue;
+				byte &px = fat[y * fatW + pad + p];
+				if (px == b.paper || px == b.ink)
+					px = (ch == '1') ? b.ink : b.paper;
+			}
+		}
 	}
 }
 
@@ -2081,6 +2132,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	if (towards || away)
 		agiDemakeCopyHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatPatches(_resourceId, loopNo, celHeight, fat.data(), fatW, pad, numPairs);
+	agiDemakeApplyFatBlocks(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeDump(_resourceId, loopNo, celNo, celInfo, mirrored, startX, bitmap, fat.data(), fatW);
 
 	for (int cy = clipRect.top - rect.top; cy < MIN<int>(celHeight, clipRect.bottom - rect.top); ++cy) {
