@@ -2023,8 +2023,9 @@ static void agiDemakeInventoryFrame(const SciSpan<const byte> &bitmap, int w, in
 	}
 }
 
-// PQ2 Jesse Bains' front photo on the two mugshot inventory items (views 112 and 123): the
-// collapse keeps his photo-left eye but not the photo-right one. The left eye's 3 fat pixels are
+// PQ2 Jesse Bains' front photo on the two mugshot inventory items (views 112 and 123) and the
+// copy protection screen on loadup (view 701 cel 4): the collapse keeps his photo-left eye but
+// not the photo-right one. The left eye's 3 fat pixels are
 // mirrored onto the right, after one fat pixel of face as the gap, which takes a little of the right
 // side of his face. Pairs are counted at the pairing these photos are drawn with (startX -1), and
 // nothing changes at any other pairing.
@@ -2038,6 +2039,7 @@ struct AgiDemakeEyeMirror {
 static const AgiDemakeEyeMirror kAgiDemakeEyeMirrors[] = {
 	{ GID_PQ2, 112, 0, 0, -1, 22, 2, 6 },
 	{ GID_PQ2, 123, 0, 0, -1, 21, 1, 6 },
+	{ GID_PQ2, 701, 0, 4, -1, 22, 2, 6 },	// copy protection photo on loadup (same drawing as 112)
 };
 
 static void agiDemakeMirrorEyes(GuiResourceId view, int16 loop, int16 cel, int startX, int h, byte *fat, int fatW, int pad, int numPairs) {
