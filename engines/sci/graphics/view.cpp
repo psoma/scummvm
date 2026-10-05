@@ -1004,6 +1004,10 @@ static int agiDemakeWordWidth(const char *word);
 // photos with the number once, in the AGI font. Digits 1 2 3 4 5 6 7 8 9 were taken from the game's
 // own placards. 0 has not been seen yet, so anything that does not match exactly leaves the
 // placards as they are.
+// Personnel file photos (view 204, 39x52, e.g. Pate's file) have one placard with a name such as
+// "PATE, L" in the same 3x5 font. The surname (letters before the comma) is read off it and drawn
+// on a black bar the same way. Letters P A T E L were taken from Pate's placard. Anything else
+// leaves the placard as it is.
 static const AgiDemakeTextOverride *agiDemakeMugshotPlacard(const SciSpan<const byte> &bitmap, int w, int h) {
 	static const struct { char ch; const char *rows; } kDigits[] = {
 		{ '1', ".#./##./.#./.#./###" }, { '2', "###/..#/###/#../###" }, { '4', "#.#/#.#/#.#/###/..#" },
@@ -1011,16 +1015,24 @@ static const AgiDemakeTextOverride *agiDemakeMugshotPlacard(const SciSpan<const 
 		{ '9', "###/#.#/###/..#/..#" }, { '0', "###/#.#/#.#/#.#/###" }, { '3', "###/..#/.##/..#/###" },
 		{ '8', "###/#.#/###/#.#/###" }, { '.', "./././#/#" }
 	};
+	static const struct { char ch; const char *rows; } kLetters[] = {
+		{ 'P', "###/#.#/###/#../#.." }, { 'A', ".##./#..#/#..#/####/#..#" }, { 'T', "###/.#./.#./.#./.#." },
+		{ 'E', "###/#../##./#../###" }, { 'L', "#../#../#../#../###" }, { '.', "./././#/#" }
+	};
 	static AgiDemakeTextOverride placard;
 	static char number[16];
-	if (w != 73 || h != 52)
+	const bool single = (w == 39 && h == 52);
+	if (!single && (w != 73 || h != 52))
 		return nullptr;
 	const byte white = 15;
-	// left placard: digits in rows 43-47, columns 8-29
+	// two-photo file: left placard, digits in rows 43-47, columns 8-29
+	// personnel file: one placard, letters in rows 44-48, columns 6-33
+	const int top = single ? 44 : 43;
+	const int xStart = single ? 6 : 8, xEnd = single ? 34 : 30;
 	Common::String found;
-	for (int x = 8; x < 30; ) {
+	for (int x = xStart; x < xEnd; ) {
 		bool ink = false;
-		for (int y = 43; y <= 47; ++y)
+		for (int y = top; y <= top + 4; ++y)
 			if (bitmap[y * w + x] == white)
 				ink = true;
 		if (!ink) {
@@ -1030,8 +1042,8 @@ static const AgiDemakeTextOverride *agiDemakeMugshotPlacard(const SciSpan<const 
 		int e = x;
 		for (;;) {
 			bool next = false;
-			if (e + 1 < 30)
-				for (int y = 43; y <= 47; ++y)
+			if (e + 1 < xEnd)
+				for (int y = top; y <= top + 4; ++y)
 					if (bitmap[y * w + e + 1] == white)
 						next = true;
 			if (!next)
@@ -1039,18 +1051,26 @@ static const AgiDemakeTextOverride *agiDemakeMugshotPlacard(const SciSpan<const 
 			++e;
 		}
 		Common::String pattern;
-		for (int y = 43; y <= 47; ++y) {
-			if (y > 43)
+		for (int y = top; y <= top + 4; ++y) {
+			if (y > top)
 				pattern += '/';
 			for (int i = x; i <= e; ++i)
 				pattern += (bitmap[y * w + i] == white) ? '#' : '.';
 		}
 		char ch = 0;
-		for (uint d = 0; d < ARRAYSIZE(kDigits); ++d)
-			if (pattern == kDigits[d].rows)
-				ch = kDigits[d].ch;
+		if (single) {
+			for (uint d = 0; d < ARRAYSIZE(kLetters); ++d)
+				if (pattern == kLetters[d].rows)
+					ch = kLetters[d].ch;
+		} else {
+			for (uint d = 0; d < ARRAYSIZE(kDigits); ++d)
+				if (pattern == kDigits[d].rows)
+					ch = kDigits[d].ch;
+		}
 		if (!ch || found.size() >= sizeof(number) - 1)
 			return nullptr;
+		if (single && ch == '.')
+			break;	// the comma after the surname
 		found += ch;
 		x = e + 1;
 	}
@@ -1069,11 +1089,16 @@ static const AgiDemakeTextOverride *agiDemakeMugshotPlacard(const SciSpan<const 
 		placard.areas[i] = AgiDemakeTextArea{ 0, -1, 0, -1 };
 	for (int i = 0; i < 6; ++i)
 		placard.items[i] = AgiDemakeTextItem{ nullptr, 0, 0, false };
-	// one black bar across both placards, rows 42-48, columns 7-64
+	// one black bar across both placards, rows 42-48, columns 7-64, or across the single
+	// placard, rows 43-49, columns 3-34 (the photo's width inside its frame, whole fat pixels)
+	const int barTop = single ? 43 : 42, barL = single ? 3 : 7, barR = single ? 34 : 64;
 	for (int i = 0; i < 7; ++i)
-		placard.paint[i] = AgiDemakePaint{ (int16)(42 + i), 7, 64, 0 };
+		placard.paint[i] = AgiDemakePaint{ (int16)(barTop + i), (int16)barL, (int16)barR, 0 };
 	placard.paint[7] = AgiDemakePaint{ 0, 1, 0, 0 };
-	placard.items[0] = AgiDemakeTextItem{ number, (int16)(7 + (58 - agiDemakeWordWidth(number)) / 2), 42, false };
+	const int textW = agiDemakeWordWidth(number);
+	if (textW > barR - barL + 1)
+		return nullptr;
+	placard.items[0] = AgiDemakeTextItem{ number, (int16)(barL + (barR - barL + 1 - textW) / 2), (int16)barTop, false };
 	return &placard;
 }
 
@@ -1752,7 +1777,65 @@ static void agiDemakeAwayHead(const SciSpan<const byte> &bitmap, int w, int h, b
 	}
 }
 
-// Diagnostics for adding games: TEMP always on in v0.148 (normally "agi_demake_debug=true" in the game's section of
+// Towards-facing loop only: the eyes are the topmost pair of single black pixels with opaque,
+// non-black pixels either side, 2 to 4 pixels apart on one row in the top third (plus the rows
+// straight below with a pair in the same columns). If the collapse put them in neighbouring fat
+// pixels, one eye moves out by one fat pixel onto the face, never onto the head's outline (the
+// pixel it moves onto must have another opaque pixel beyond it), and the face colour it covered
+// fills the gap. If both sides have room, the gap goes nearer the middle of the source eyes.
+static void agiDemakeSpreadEyes(const SciSpan<const byte> &bitmap, int w, int h, byte clearKey, byte *fat, int fatW, int startX, int pad) {
+	const byte black = 0;
+	int eyeL = -1, eyeR = -1;
+	for (int y = 0; y < h / 3; ++y) {
+		const byte *row = bitmap.getUnsafeDataAt(y * w, w);
+		Common::Array<int> eyes;
+		for (int x = 1; x + 1 < w; ++x)
+			if (row[x] == black && row[x - 1] != clearKey && row[x - 1] != black && row[x + 1] != clearKey && row[x + 1] != black)
+				eyes.push_back(x);
+		int xl = -1, xr = -1;
+		for (uint i = 0; i + 1 < eyes.size() && xl < 0; ++i)
+			if (eyes[i + 1] - eyes[i] >= 2 && eyes[i + 1] - eyes[i] <= 4 && (eyeL < 0 || (eyes[i] == eyeL && eyes[i + 1] == eyeR))) {
+				xl = eyes[i];
+				xr = eyes[i + 1];
+			}
+		if (xl < 0) {
+			if (eyeL >= 0)
+				break;	// the rows below the eyes
+			continue;
+		}
+		eyeL = xl;
+		eyeR = xr;
+		{
+			const int pl = (xl - startX) >> 1, pr = (xr - startX) >> 1;
+			if (pr != pl + 1)
+				continue;
+			byte *f = fat + y * fatW + pad;
+			if (f[pl] != black || f[pr] != black)
+				continue;
+			// pl - 2 and pr + 2 stay inside the padded row (pad is at least 3)
+			const bool canL = f[pl - 1] != clearKey && f[pl - 1] != black && f[pl - 2] != clearKey;
+			const bool canR = f[pr + 1] != clearKey && f[pr + 1] != black && f[pr + 2] != clearKey;
+			if (!canL && !canR)
+				continue;
+			bool left = canL;
+			if (canL && canR) {
+				// gap cell after a left move is pl, after a right move pr: pick the one whose
+				// source columns are nearer the eyes' midpoint
+				const int mid2 = xl + xr;	// twice the midpoint
+				const int dL = ABS(2 * (startX + 2 * pl) + 1 - mid2);
+				const int dR = ABS(2 * (startX + 2 * pr) + 1 - mid2);
+				left = dL <= dR;
+			}
+			const int target = left ? pl - 1 : pr + 1;
+			const int gap = left ? pl : pr;
+			const byte face = f[target];
+			f[target] = black;
+			f[gap] = face;
+		}
+	}
+}
+
+// Diagnostics for adding games: TEMP always on in test builds (normally "agi_demake_debug=true" in the game's section of
 // scummvm.ini). Writes agi_demake_dump.txt (each distinct cel drawn, source and result) next to the exe.
 static void agiDemakeDump(int viewId, int loopNo, int celNo, const CelInfo *ci, bool mirrored, int startX,
 			const SciSpan<const byte> &bitmap, const byte *fat, int fatW) {
@@ -1905,6 +1988,8 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		agiDemakeAwayHead(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad);
 	else if (!towards && !wide)
 		agiDemakeRepairBumps(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX);
+	if (towards)
+		agiDemakeSpreadEyes(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad);
 	agiDemakeDump(_resourceId, loopNo, celNo, celInfo, mirrored, startX, bitmap, fat.data(), fatW);
 
 	for (int cy = clipRect.top - rect.top; cy < MIN<int>(celHeight, clipRect.bottom - rect.top); ++cy) {

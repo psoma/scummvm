@@ -609,7 +609,7 @@ void GfxText16::Show(const char *text, int16 from, int16 len, GuiResourceId orgF
 }
 
 // Draws a text in rect.
-// Diagnostics for adding games: TEMP always on in v0.148 (normally "agi_demake_debug=true" in the game's section of
+// Diagnostics for adding games: TEMP always on in test builds (normally "agi_demake_debug=true" in the game's section of
 // scummvm.ini). Writes agi_demake_text.txt (every text box, plus PQ2 computer drawing) next to the exe.
 static Common::DumpFile *g_agiDemakeTextLog = nullptr;
 void agiDemakeLogLine(const Common::String &line) {
