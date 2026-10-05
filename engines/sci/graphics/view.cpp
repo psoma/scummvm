@@ -1974,6 +1974,32 @@ static void agiDemakeApplyFatBlocks(GuiResourceId view, int16 loop, int16 cel, i
 	}
 }
 
+// PQ2 inventory item frames: red, brown and green rings, 3 pixels each side. The collapse keeps
+// red and green on the left but turns the right side into black and red. On a cel framed like
+// that (left 3 columns mirror the right 3 on every row, red brown green from the outside), each
+// side becomes red outside and green inside.
+static void agiDemakeInventoryFrame(const SciSpan<const byte> &bitmap, int w, int h, byte *fat, int fatW, int pad, int numPairs) {
+	const byte red = 4, brown = 6, green = 2;
+	if (w < 20 || h < 10 || numPairs < 6)
+		return;
+	for (int y = 0; y < h; ++y) {
+		const byte *row = bitmap.getUnsafeDataAt(y * w, w);
+		for (int i = 0; i < 3; ++i)
+			if (row[i] != row[w - 1 - i])
+				return;
+	}
+	for (int y = 3; y < h - 3; ++y) {
+		const byte *row = bitmap.getUnsafeDataAt(y * w, w);
+		if (row[0] != red || row[1] != brown || row[2] != green)
+			return;
+	}
+	for (int y = 3; y < h - 3; ++y) {
+		byte *f = fat + y * fatW + pad;
+		f[0] = f[numPairs - 1] = red;
+		f[1] = f[numPairs - 2] = green;
+	}
+}
+
 // Diagnostics for adding games: TEMP always on in test builds (normally "agi_demake_debug=true" in the game's section of
 // scummvm.ini). Writes agi_demake_dump.txt (each distinct cel drawn, source and result) next to the exe.
 static void agiDemakeDump(int viewId, int loopNo, int celNo, const CelInfo *ci, bool mirrored, int startX,
@@ -2133,6 +2159,8 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		agiDemakeCopyHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatPatches(_resourceId, loopNo, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatBlocks(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
+	if (g_sci->getGameId() == GID_PQ2)
+		agiDemakeInventoryFrame(bitmap, celWidth, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeDump(_resourceId, loopNo, celNo, celInfo, mirrored, startX, bitmap, fat.data(), fatW);
 
 	for (int cy = clipRect.top - rect.top; cy < MIN<int>(celHeight, clipRect.bottom - rect.top); ++cy) {
