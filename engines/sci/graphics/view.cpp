@@ -958,6 +958,12 @@ struct AgiDemakeTextOverride {
 	AgiDemakePaint paint[8];	// extra pixels painted in before the fat pixel collapse
 };
 static const AgiDemakeTextOverride kAgiDemakeTextOverrides[] = {
+	// PQ2 scuba tank 1 (dive shop tank selection): the 1 painted on the tank loses the right half
+	// of its base in the collapse. One extra base pixel brings it back, like tanks 2 3 and 4
+	{ GID_PQ2, 96, 2, 1, 0, 0, 0, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false } },
+		{ { 37, 10, 10, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } } },
 	// PQ2 gun sight adjustment close-up: ELEVATION SCREW (top left) and WINDAGE SCREW (bottom right)
 	{ GID_PQ2, 70, 4, 0, 14, 0, 14, 0,
 		{ { 18, 29, 5, 44 }, { 57, 68, 76, 113 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
@@ -1778,19 +1784,21 @@ static void agiDemakeAwayHead(const SciSpan<const byte> &bitmap, int w, int h, b
 }
 
 // Towards-facing loop only: the eyes are the topmost pair of single black pixels with opaque,
-// non-black pixels either side, 2 to 4 pixels apart on one row in the top third (plus the rows
-// straight below with a pair in the same columns). If the collapse put them in neighbouring fat
+// non-black pixels either side, at least one of them skin (light red or brown), 2 to 4 pixels
+// apart on one row in the top third (plus the rows straight below with a pair in the same
+// columns). If the collapse put them in neighbouring fat
 // pixels, one eye moves out by one fat pixel onto the face, never onto the head's outline (the
 // pixel it moves onto must have another opaque pixel beyond it), and the face colour it covered
 // fills the gap. If both sides have room, the gap goes nearer the middle of the source eyes.
 static void agiDemakeSpreadEyes(const SciSpan<const byte> &bitmap, int w, int h, byte clearKey, byte *fat, int fatW, int startX, int pad) {
-	const byte black = 0;
+	const byte black = 0, skinLight = 12, skinDark = 6;
 	int eyeL = -1, eyeR = -1;
 	for (int y = 0; y < h / 3; ++y) {
 		const byte *row = bitmap.getUnsafeDataAt(y * w, w);
 		Common::Array<int> eyes;
 		for (int x = 1; x + 1 < w; ++x)
-			if (row[x] == black && row[x - 1] != clearKey && row[x - 1] != black && row[x + 1] != clearKey && row[x + 1] != black)
+			if (row[x] == black && row[x - 1] != clearKey && row[x - 1] != black && row[x + 1] != clearKey && row[x + 1] != black &&
+				(row[x - 1] == skinLight || row[x - 1] == skinDark || row[x + 1] == skinLight || row[x + 1] == skinDark))
 				eyes.push_back(x);
 		int xl = -1, xr = -1;
 		for (uint i = 0; i + 1 < eyes.size() && xl < 0; ++i)
@@ -1832,6 +1840,55 @@ static void agiDemakeSpreadEyes(const SciSpan<const byte> &bitmap, int w, int h,
 			f[target] = black;
 			f[gap] = face;
 		}
+	}
+}
+
+// PQ2 diving suits: Sonny's head is copied from his standard walking view (view 0) onto the
+// suit views, so towards gets his normal eyes and away his normal rounded head. The rows are
+// view 0's own collapsed head (fat pixels), towards rows 0-8 and away rows 1-9, and land on rows
+// 0-8 of the suit cel. View 0's head is an odd width, the suit bodies are centred between two fat
+// pixels, so the head sits half a fat pixel left of the body's centre. hood: hair colour (yellow)
+// becomes black, for the hooded diver suit (view 22).
+struct AgiDemakeHeadCopy {
+	SciGameId game;
+	int16 view, loop;
+	int16 left;			// first fat pixel (pair) of the pattern in the suit cel
+	bool hood;
+	const char *const *rows;	// 9 rows of fat pixels, view 0 colours ('.' transparent)
+};
+static const char *const kAgiDemakeSonnyHeadTowards[9] = {
+	".....", ".eee.", ".eeee", "e44ee", "e44ee", "e4c4e", ".040.", ".c4c.", ".ccc."
+};
+static const char *const kAgiDemakeSonnyHeadAway[9] = {
+	".....", ".eee.", "eeeee", "eeeee", "eeeee", "eeeee", "eeeee", ".eee.", ".eee."
+};
+static const AgiDemakeHeadCopy kAgiDemakeHeadCopies[] = {
+	{ GID_PQ2, 17, 2, 2, false, kAgiDemakeSonnyHeadTowards },	// Sonny, wetsuit
+	{ GID_PQ2, 17, 3, 2, false, kAgiDemakeSonnyHeadAway },
+	{ GID_PQ2, 22, 2, 2, true, kAgiDemakeSonnyHeadTowards },	// hooded diver suit
+	{ GID_PQ2, 22, 3, 2, true, kAgiDemakeSonnyHeadAway },
+};
+
+static void agiDemakeCopyHead(GuiResourceId view, int16 loop, int h, byte clearKey, byte *fat, int fatW, int pad, int numPairs) {
+	for (uint i = 0; i < ARRAYSIZE(kAgiDemakeHeadCopies); ++i) {
+		const AgiDemakeHeadCopy &hc = kAgiDemakeHeadCopies[i];
+		if (hc.game != g_sci->getGameId() || hc.view != view || hc.loop != loop)
+			continue;
+		for (int r = 0; r < 9 && r < h; ++r) {
+			byte *f = fat + r * fatW + pad;
+			for (int p = 0; p < numPairs; ++p)
+				f[p] = clearKey;
+			const char *row = hc.rows[r];
+			for (int x = 0; row[x]; ++x) {
+				if (row[x] == '.' || hc.left + x < 0 || hc.left + x >= numPairs)
+					continue;
+				byte c = (byte)((row[x] <= '9') ? row[x] - '0' : row[x] - 'a' + 10);
+				if (hc.hood && c == 14)
+					c = 0;
+				f[hc.left + x] = c;
+			}
+		}
+		return;
 	}
 }
 
@@ -1990,6 +2047,8 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		agiDemakeRepairBumps(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX);
 	if (towards)
 		agiDemakeSpreadEyes(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad);
+	if (towards || away)
+		agiDemakeCopyHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeDump(_resourceId, loopNo, celNo, celInfo, mirrored, startX, bitmap, fat.data(), fatW);
 
 	for (int cy = clipRect.top - rect.top; cy < MIN<int>(celHeight, clipRect.bottom - rect.top); ++cy) {
