@@ -1848,7 +1848,7 @@ static void agiDemakeSpreadEyes(const SciSpan<const byte> &bitmap, int w, int h,
 // view 0's own collapsed head (fat pixels), towards rows 0-8 and away rows 1-9, and land on rows
 // 0-8 of the suit cel. View 0's head is an odd width, the suit bodies are centred between two fat
 // pixels, so the head sits half a fat pixel left of the body's centre. hood: hair colour (yellow)
-// becomes black, for the hooded diver suit (view 22).
+// becomes black, for the hooded diver (views 21 and 22).
 struct AgiDemakeHeadCopy {
 	SciGameId game;
 	int16 view, loop;
@@ -1867,6 +1867,8 @@ static const AgiDemakeHeadCopy kAgiDemakeHeadCopies[] = {
 	{ GID_PQ2, 17, 3, 2, false, kAgiDemakeSonnyHeadAway },
 	{ GID_PQ2, 22, 2, 2, true, kAgiDemakeSonnyHeadTowards },	// hooded diver suit
 	{ GID_PQ2, 22, 3, 2, true, kAgiDemakeSonnyHeadAway },
+	{ GID_PQ2, 21, 2, 1, true, kAgiDemakeSonnyHeadTowards },	// the same hooded diver out of his scuba gear
+	{ GID_PQ2, 21, 3, 1, true, kAgiDemakeSonnyHeadAway },
 };
 
 static void agiDemakeCopyHead(GuiResourceId view, int16 loop, int h, byte clearKey, byte *fat, int fatW, int pad, int numPairs) {
