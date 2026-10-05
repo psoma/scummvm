@@ -2023,6 +2023,38 @@ static void agiDemakeInventoryFrame(const SciSpan<const byte> &bitmap, int w, in
 	}
 }
 
+// PQ2 Jesse Bains' front photo on the two mugshot inventory items (views 112 and 123): the
+// collapse keeps his photo-left eye but not the photo-right one. The left eye's 3 fat pixels are
+// mirrored onto the right, after one fat pixel of face as the gap, which takes a little of the right
+// side of his face. Pairs are counted at the pairing these photos are drawn with (startX -1), and
+// nothing changes at any other pairing.
+struct AgiDemakeEyeMirror {
+	SciGameId game;
+	int16 view, loop, cel;
+	int16 startX;
+	int16 firstRow, rows;
+	int16 leftPair;		// first of the left eye's 3 fat pixels; the gap is leftPair + 3
+};
+static const AgiDemakeEyeMirror kAgiDemakeEyeMirrors[] = {
+	{ GID_PQ2, 112, 0, 0, -1, 22, 2, 6 },
+	{ GID_PQ2, 123, 0, 0, -1, 21, 1, 6 },
+};
+
+static void agiDemakeMirrorEyes(GuiResourceId view, int16 loop, int16 cel, int startX, int h, byte *fat, int fatW, int pad, int numPairs) {
+	for (uint i = 0; i < ARRAYSIZE(kAgiDemakeEyeMirrors); ++i) {
+		const AgiDemakeEyeMirror &m = kAgiDemakeEyeMirrors[i];
+		if (m.game != g_sci->getGameId() || m.view != view || m.loop != loop || m.cel != cel || m.startX != startX)
+			continue;
+		if (m.leftPair + 6 >= numPairs || m.firstRow + m.rows > h)
+			continue;
+		for (int y = m.firstRow; y < m.firstRow + m.rows; ++y) {
+			byte *f = fat + y * fatW + pad;
+			for (int k = 0; k < 3; ++k)
+				f[m.leftPair + 4 + k] = f[m.leftPair + 2 - k];
+		}
+	}
+}
+
 // Diagnostics for adding games: TEMP always on in test builds (normally "agi_demake_debug=true" in the game's section of
 // scummvm.ini). Writes agi_demake_dump.txt (each distinct cel drawn, source and result) next to the exe.
 static void agiDemakeDump(int viewId, int loopNo, int celNo, const CelInfo *ci, bool mirrored, int startX,
@@ -2184,6 +2216,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		agiDemakeCopyHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatPatches(_resourceId, loopNo, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatBlocks(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
+	agiDemakeMirrorEyes(_resourceId, loopNo, celNo, startX, celHeight, fat.data(), fatW, pad, numPairs);
 	if (g_sci->getGameId() == GID_PQ2 && _resourceId >= 100 && _resourceId <= 199)
 		agiDemakeInventoryFrame(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, pad, numPairs, pairStart, rect.left + offsetX);
 	agiDemakeDump(_resourceId, loopNo, celNo, celInfo, mirrored, startX, bitmap, fat.data(), fatW);
