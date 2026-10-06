@@ -681,9 +681,26 @@ int16 GfxText16::agiDemakeOriginalWidth(const char *text, int16 maxWidth, GuiRes
 	return MIN(widest, maxWidth);
 }
 
+// AGI demake: game text replaced where the picture it describes can't carry the detail in AGI
+// pixels. Used both when the game sizes the box (kTextSize) and when it draws it, so the box fits.
+static const char *agiDemakeSubstituteText(const char *text) {
+	static const struct { SciGameId game; const char *from, *to; } kSubs[] = {
+		// PQ2 envelope corner: the name and address on it are too small for AGI pixels
+		{ GID_PQ2, "Corner of an envelope with name and address.",
+			"Corner of an envelope with name and address: \"Bill Cole, 753 Third St, Lytton City\"" },
+	};
+	if (!text)
+		return text;
+	for (uint i = 0; i < ARRAYSIZE(kSubs); ++i)
+		if (g_sci->getGameId() == kSubs[i].game && !strcmp(text, kSubs[i].from))
+			return kSubs[i].to;
+	return text;
+}
+
 void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const Common::Rect &rectIn, TextAlignment alignment, GuiResourceId fontId) {
 	Common::Rect rect = rectIn;
 	if (_screen->agiDemake()) {
+		text = agiDemakeSubstituteText(text);
 		agiDemakeLogText(text, rect, alignment, fontId, _ports->_curPort->rect, _ports->_curPort->fontId);
 		if (_ports->_curPort->left + rect.right >= _screen->getWidth()) {
 			// at least as wide as the left margin mirrored on the right (pages are centred), since
@@ -949,6 +966,8 @@ reg_t GfxText16::allocAndFillReferenceRectArray() {
 
 void GfxText16::kernelTextSize(const char *text, uint16 languageSplitter, int16 font, int16 maxWidth, int16 *textWidth, int16 *textHeight) {
 	Common::Rect rect(0, 0, 0, 0);
+	if (_screen->agiDemake())
+		text = agiDemakeSubstituteText(text);
 	// AGI demake: text with hand-placed line breaks keeps them. If its longest line (trailing
 	// spaces ignored) is wider than the game asked for in the 8x8 font, the box is made wide
 	// enough for it, up to the screen width less a margin, instead of re-wrapping every line.

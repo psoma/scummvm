@@ -1899,7 +1899,7 @@ static void agiDemakeCopyHead(GuiResourceId view, int16 loop, int h, byte clearK
 // it still has the expected colour, so frames that differ are left alone.
 struct AgiDemakeFatPatch {
 	SciGameId game;
-	int16 view, loop;
+	int16 view, loop, cel;		// cel -1: every cel of the loop
 	int16 row, pair;
 	byte from, to;
 };
@@ -1907,18 +1907,37 @@ static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
 	// PQ2 Keith facing you (view 20): his face is 4 fat pixels wide, so the eyes merge. The
 	// lower of the two black pixels on the left of his head becomes hair brown, and the eyes
 	// move apart with skin between: left eye on the face's left edge
-	{ GID_PQ2, 20, 2, 4, 2, 0, 6 },
-	{ GID_PQ2, 20, 2, 5, 2, 4, 0 },
-	{ GID_PQ2, 20, 2, 5, 3, 0, 12 },
+	{ GID_PQ2, 20, 2, -1, 4, 2, 0, 6 },
+	{ GID_PQ2, 20, 2, -1, 5, 2, 4, 0 },
+	{ GID_PQ2, 20, 2, -1, 5, 3, 0, 12 },
 	// PQ2 Sonny in the office (view 3 loop 3, three-quarter face): the two eye pixels merge into a
 	// black bar. Only the right eye is kept
-	{ GID_PQ2, 3, 3, 5, 4, 0, 12 },
+	{ GID_PQ2, 3, 3, -1, 5, 4, 0, 12 },
+	// PQ2 man in the yellow top (view 61 loop 6): eyes merged on a 4 fat pixel face. Left eye
+	// moves onto the grey hair edge, skin between
+	{ GID_PQ2, 61, 6, -1, 3, 2, 8, 0 },
+	{ GID_PQ2, 61, 6, -1, 3, 3, 0, 12 },
+	// PQ2 sign on a pole (view 253 cel 0): the black marks run into the sign's white edge after the
+	// collapse. One white fat pixel is kept at each side (the red corner can still reach the edge)
+	{ GID_PQ2, 253, 0, 0, 2, 0, 0, 15 },
+	{ GID_PQ2, 253, 0, 0, 3, 0, 0, 15 },
+	{ GID_PQ2, 253, 0, 0, 5, 0, 0, 15 },
+	{ GID_PQ2, 253, 0, 0, 6, 0, 0, 15 },
+	{ GID_PQ2, 253, 0, 0, 7, 0, 0, 15 },
+	{ GID_PQ2, 253, 0, 0, 10, 0, 0, 15 },
+	{ GID_PQ2, 253, 0, 0, 12, 0, 0, 15 },
+	{ GID_PQ2, 253, 0, 0, 14, 0, 0, 15 },
+	{ GID_PQ2, 253, 0, 0, 5, 4, 0, 15 },
+	{ GID_PQ2, 253, 0, 0, 6, 4, 0, 15 },
+	{ GID_PQ2, 253, 0, 0, 7, 4, 0, 15 },
+	{ GID_PQ2, 253, 0, 0, 10, 4, 0, 15 },
+	{ GID_PQ2, 253, 0, 0, 12, 4, 0, 15 },
 };
 
-static void agiDemakeApplyFatPatches(GuiResourceId view, int16 loop, int h, byte *fat, int fatW, int pad, int numPairs) {
+static void agiDemakeApplyFatPatches(GuiResourceId view, int16 loop, int16 cel, int h, byte *fat, int fatW, int pad, int numPairs) {
 	for (uint i = 0; i < ARRAYSIZE(kAgiDemakeFatPatches); ++i) {
 		const AgiDemakeFatPatch &fp = kAgiDemakeFatPatches[i];
-		if (fp.game != g_sci->getGameId() || fp.view != view || fp.loop != loop)
+		if (fp.game != g_sci->getGameId() || fp.view != view || fp.loop != loop || (fp.cel >= 0 && fp.cel != cel))
 			continue;
 		if (fp.row < 0 || fp.row >= h || fp.pair < 0 || fp.pair >= numPairs)
 			continue;
@@ -2216,7 +2235,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		agiDemakeSpreadEyes(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad);
 	if (towards || away)
 		agiDemakeCopyHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
-	agiDemakeApplyFatPatches(_resourceId, loopNo, celHeight, fat.data(), fatW, pad, numPairs);
+	agiDemakeApplyFatPatches(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatBlocks(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeMirrorEyes(_resourceId, loopNo, celNo, startX, celHeight, fat.data(), fatW, pad, numPairs);
 	if (g_sci->getGameId() == GID_PQ2 && _resourceId >= 100 && _resourceId <= 199)
