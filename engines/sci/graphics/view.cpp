@@ -2009,6 +2009,86 @@ static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
 	// mouth make it match the right
 	{ GID_PQ2, 205, 0, 2, 32, 7, 6, 0 },
 	{ GID_PQ2, 205, 0, 2, 33, 7, 6, 0 },
+	// PQ2 shooting range target touch-ups (view 70 loop 2, at the pairings in kAgiDemakeTargetStartX):
+	// rings closed, "10"s kept off the rings, c4's ring widened and its right frame kept
+	// cel 0: 10 fat pixels
+	{ GID_PQ2, 70, 2, 0, 5, 15, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 0, 5, 16, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 0, 12, 17, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 0, 13, 17, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 0, 21, 15, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 0, 21, 16, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 0, 32, 13, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 0, 32, 18, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 0, 77, 13, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 0, 77, 18, 0xFF, 15 },
+	// cel 1: 6 fat pixels
+	{ GID_PQ2, 70, 2, 1, 5, 12, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 1, 5, 13, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 1, 10, 14, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 1, 11, 14, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 1, 17, 12, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 1, 17, 13, 0xFF, 15 },
+	// cel 2: 5 fat pixels
+	{ GID_PQ2, 70, 2, 2, 29, 11, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 2, 30, 11, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 2, 31, 11, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 2, 32, 11, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 2, 33, 11, 0xFF, 0 },
+	// cel 3: 19 fat pixels
+	{ GID_PQ2, 70, 2, 3, 36, 4, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 3, 36, 5, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 3, 36, 6, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 3, 36, 10, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 3, 36, 11, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 3, 36, 12, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 3, 37, 4, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 3, 37, 5, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 3, 37, 6, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 3, 37, 10, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 3, 37, 11, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 3, 37, 12, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 3, 38, 4, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 3, 38, 6, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 3, 38, 7, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 3, 38, 8, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 3, 38, 9, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 3, 38, 10, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 3, 38, 12, 0xFF, 0 },
+	// cel 4: 29 fat pixels
+	{ GID_PQ2, 70, 2, 4, 15, 8, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 4, 15, 9, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 4, 16, 8, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 4, 16, 9, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 4, 17, 8, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 4, 17, 9, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 4, 18, 8, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 4, 18, 9, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 4, 19, 8, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 4, 19, 9, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 4, 20, 8, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 4, 20, 9, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 4, 21, 8, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 4, 22, 8, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 4, 22, 9, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 4, 22, 12, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 4, 23, 8, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 4, 23, 9, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 4, 23, 12, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 4, 24, 8, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 4, 24, 12, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 4, 25, 8, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 4, 25, 9, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 4, 26, 8, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 4, 26, 9, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 4, 27, 8, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 4, 27, 9, 0xFF, 15 },
+	{ GID_PQ2, 70, 2, 4, 28, 8, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 4, 28, 9, 0xFF, 15 },
+	// PQ2 stewardess facing you (view 26 loop 2): eyes merged on a 4 fat pixel face. Left eye moves onto
+	// the face's left edge, skin between
+	{ GID_PQ2, 26, 2, -1, 6, 2, 12, 0 },
+	{ GID_PQ2, 26, 2, -1, 6, 3, 0, 12 },
 	// PQ2 sign on a pole (view 253 cel 0): the black marks run into the sign's white edge after the
 	// collapse. One white fat pixel is kept at each side (the red corner can still reach the edge)
 	{ GID_PQ2, 253, 0, 0, 2, 0, 0, 15 },
@@ -2309,6 +2389,24 @@ static void agiDemakeMugshotEyes(const SciSpan<const byte> &bitmap, int w, int h
 	}
 }
 
+// PQ2 shooting range target (view 70 loop 2, cels 0-4 by distance): its rings and "10"s are white
+// lines 1 pixel wide on black, which darker-wins loses. A white pixel with black on both sides wins
+// its pair; everything else is darker-wins. Each cel uses the pairing that keeps the most of it, and
+// the remaining gaps are touched up in the fat patch table.
+static const int8 kAgiDemakeTargetStartX[5] = { -1, 0, -1, -1, -1 };
+
+static byte agiDemakeThinWhitePick(const byte *row, int w, int cx, byte clearKey) {
+	const byte white = 15, black = 0;
+	for (int k = 0; k < 2; ++k) {
+		const int x = cx + k;
+		if (x > 0 && x + 1 < w && row[x] == white && row[x - 1] == black && row[x + 1] == black)
+			return white;
+	}
+	const byte a = (cx >= 0) ? row[cx] : clearKey;
+	const byte b = (cx + 1 < w) ? row[cx + 1] : clearKey;
+	return agiDemakePick(a, b, clearKey);
+}
+
 // Diagnostics for adding games: TEMP always on in test builds (normally "agi_demake_debug=true" in the game's section of
 // scummvm.ini). Writes agi_demake_dump.txt (each distinct cel drawn, source and result) next to the exe.
 static void agiDemakeDump(int viewId, int loopNo, int celNo, const CelInfo *ci, bool mirrored, int startX,
@@ -2428,6 +2526,13 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		pairStart = pairScreenX - (pairScreenX & 1);
 	}
 
+	const bool rangeTarget = g_sci->getGameId() == GID_PQ2 && _resourceId == 70 && loopNo == 2 && celNo >= 0 && celNo <= 4;
+	if (rangeTarget) {
+		startX = kAgiDemakeTargetStartX[celNo];
+		const int pairScreenX = rect.left + offsetX + startX;
+		pairStart = pairScreenX - (pairScreenX & 1);
+	}
+
 	// Collapse the whole cel into fat pixels, with spare fat columns each side for repairs
 	const int pad = celWidth / 4 + 3;
 	const int numPairs = (celWidth - startX + 1) / 2;
@@ -2467,6 +2572,13 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 			fat[cy * fatW + p + pad] = v;
 		}
 	}
+	if (rangeTarget) {
+		for (int cy = 0; cy < celHeight; ++cy) {
+			const byte *row = bitmap.getUnsafeDataAt(cy * celWidth, celWidth);
+			for (int p = 0; p < numPairs; ++p)
+				fat[cy * fatW + p + pad] = agiDemakeThinWhitePick(row, celWidth, startX + 2 * p, clearKey);
+		}
+	}
 	// Away: v4 body, only the head is rebuilt
 	// still images: plain collapse, no outline repairs
 	if (still) {
@@ -2474,7 +2586,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		agiDemakeAwayHead(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad);
 	else if (!towards && !wide)
 		agiDemakeRepairBumps(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX);
-	if (towards)
+	if (towards && !rangeTarget)
 		agiDemakeSpreadEyes(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad);
 	if (towards || away)
 		agiDemakeCopyHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
