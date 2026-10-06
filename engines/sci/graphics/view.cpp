@@ -1982,24 +1982,25 @@ static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
 	{ GID_PQ2, 205, 1, 2, 23, 10, 0xFF, 15 },
 	{ GID_PQ2, 205, 1, 2, 23, 11, 0xFF, 1 },
 	{ GID_PQ2, 205, 1, 2, 23, 12, 0xFF, 15 },
-	// Jones (205 loop 0 cel 2): Simms' eyes, two rows of white, pupil, white, skin between
-	{ GID_PQ2, 205, 0, 2, 21, 5, 0xFF, 6 },
-	{ GID_PQ2, 205, 0, 2, 21, 6, 0xFF, 15 },
-	{ GID_PQ2, 205, 0, 2, 21, 7, 0xFF, 0 },
+	// Jones (205 loop 0 cel 2): his right eye (our right, as in v0.164) mirrored onto the left, with the
+	// black pupil one fat pixel further out on each eye so he doesn't look cross-eyed
+	{ GID_PQ2, 205, 0, 2, 21, 5, 0xFF, 15 },
+	{ GID_PQ2, 205, 0, 2, 21, 6, 0xFF, 0 },
+	{ GID_PQ2, 205, 0, 2, 21, 7, 0xFF, 15 },
 	{ GID_PQ2, 205, 0, 2, 21, 8, 0xFF, 15 },
 	{ GID_PQ2, 205, 0, 2, 21, 9, 0xFF, 6 },
 	{ GID_PQ2, 205, 0, 2, 21, 10, 0xFF, 15 },
-	{ GID_PQ2, 205, 0, 2, 21, 11, 0xFF, 0 },
-	{ GID_PQ2, 205, 0, 2, 21, 12, 0xFF, 15 },
-	{ GID_PQ2, 205, 0, 2, 21, 13, 0xFF, 6 },
+	{ GID_PQ2, 205, 0, 2, 21, 11, 0xFF, 15 },
+	{ GID_PQ2, 205, 0, 2, 21, 12, 0xFF, 0 },
+	{ GID_PQ2, 205, 0, 2, 21, 13, 0xFF, 15 },
 	{ GID_PQ2, 205, 0, 2, 22, 5, 0xFF, 6 },
-	{ GID_PQ2, 205, 0, 2, 22, 6, 0xFF, 15 },
-	{ GID_PQ2, 205, 0, 2, 22, 7, 0xFF, 0 },
-	{ GID_PQ2, 205, 0, 2, 22, 8, 0xFF, 15 },
+	{ GID_PQ2, 205, 0, 2, 22, 6, 0xFF, 0 },
+	{ GID_PQ2, 205, 0, 2, 22, 7, 0xFF, 15 },
+	{ GID_PQ2, 205, 0, 2, 22, 8, 0xFF, 4 },
 	{ GID_PQ2, 205, 0, 2, 22, 9, 0xFF, 6 },
-	{ GID_PQ2, 205, 0, 2, 22, 10, 0xFF, 15 },
-	{ GID_PQ2, 205, 0, 2, 22, 11, 0xFF, 0 },
-	{ GID_PQ2, 205, 0, 2, 22, 12, 0xFF, 15 },
+	{ GID_PQ2, 205, 0, 2, 22, 10, 0xFF, 4 },
+	{ GID_PQ2, 205, 0, 2, 22, 11, 0xFF, 15 },
+	{ GID_PQ2, 205, 0, 2, 22, 12, 0xFF, 0 },
 	{ GID_PQ2, 205, 0, 2, 22, 13, 0xFF, 6 },
 	// PQ2 sign on a pole (view 253 cel 0): the black marks run into the sign's white edge after the
 	// collapse. One white fat pixel is kept at each side (the red corner can still reach the edge)
@@ -2543,7 +2544,9 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 						const int cx = x0 - 1 + bx, cy = y0 - 1 + by;
 						if (cx < 0 || cx >= celWidth || cy < 0 || cy >= celHeight)
 							continue;
-						if (origBitmap[cy * celWidth + cx] == clearKey)
+						// the painted copy, not the original: a painted bar can cover pixels that are
+						// see-through in the original (the gap between Snider's two placards)
+						if (bitmap[cy * celWidth + cx] == clearKey)
 							continue;
 						const bool isInk = ink[by * (wordW + 2) + bx];
 						if (pass == 1 && !isInk)
