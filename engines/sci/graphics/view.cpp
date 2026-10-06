@@ -910,7 +910,7 @@ void GfxView::draw(const Common::Rect &rect, const Common::Rect &clipRect, const
 	} else if (upscaledHires) {
 		// upscaledHires means view is hires and needs no scaling
 		_screen->copyHiResRectToScreen(bitmapData, celWidth, clipRect.left, clipRect.top, width, height, palette->mapping);
-	} else if (_screen->agiDemake() && g_sci->getGameId() == GID_PQ2 && _resourceId == 60 && loopNo == 2 && celNo == 0) {
+	} else if (_screen->agiDemake() && g_sci->getGameId() == GID_PQ2 && _resourceId == 60 && loopNo == 2 && (celNo == 0 || celNo == 1)) {	// HOMICIDE, NARCOTICS
 		drawAgiDemakePlate(rect, clipRect, clipRectTranslated, loopNo, celNo, priority, scaleSignal, palette);
 	} else if (_screen->agiDemake() && agiDemakeLabelWord(loopNo)) {
 		drawAgiDemakeLabel(rect, clipRect, clipRectTranslated, loopNo, celNo, priority, scaleSignal, palette);
@@ -1002,15 +1002,45 @@ static const AgiDemakeTextOverride kAgiDemakeTextOverrides[] = {
 		{ { 2, 5, 10, 69 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
 		{ { "West", 26, 1, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false } },
 		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } } },
+	// PQ2 Narcotics filing cabinet folders (loop 1): surname on each tab, as in Homicide. The tabs read
+	// DONALD COLBY, MOFFET DICKEY, ROBIN JONES, VICTOR SIMMS, WILMA SNIDER, GEORGE SNOW, JOSE VALENCIA
+	{ GID_PQ2, 60, 1, 0, 0, 10, 0, 0xFF,
+		{ { 2, 5, 13, 71 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "Colby", 26, 1, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } } },
+	{ GID_PQ2, 60, 1, 1, 0, 10, 0, 0xFF,
+		{ { 2, 5, 51, 109 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "Dickey", 60, 1, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } } },
+	{ GID_PQ2, 60, 1, 2, 0, 10, 0, 0xFF,
+		{ { 2, 5, 10, 68 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "Jones", 22, 1, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } } },
+	{ GID_PQ2, 60, 1, 3, 0, 10, 0, 0xFF,
+		{ { 2, 5, 11, 69 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "Simms", 24, 1, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } } },
+	{ GID_PQ2, 60, 1, 4, 0, 10, 0, 0xFF,
+		{ { 2, 5, 35, 91 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "Snider", 43, 1, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } } },
+	{ GID_PQ2, 60, 1, 5, 0, 10, 0, 0xFF,
+		{ { 2, 5, 32, 90 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "Snow", 48, 1, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } } },
+	{ GID_PQ2, 60, 1, 6, 0, 10, 0, 0xFF,
+		{ { 2, 5, 10, 68 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "Valencia", 13, 1, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } } },
 };
 
 static int agiDemakeWordWidth(const char *word);
 
-// PQ2 file mugshots (view 204, 73x52): the booking number is painted on two small placards in a
-// 3x5 font. It is read off the left placard, and both placards become one black bar under the two
-// photos with the number once, in the AGI font. Digits 1 2 3 4 5 6 7 8 9 were taken from the game's
-// own placards. 0 has not been seen yet, so anything that does not match exactly leaves the
-// placards as they are.
+// PQ2 file mugshots (view 204 Homicide, view 205 Narcotics, 73x52): the booking number is painted on
+// two small placards in a 3x5 font. It is read off the left placard, and both placards become one
+// black bar under the two photos with the number once, in the AGI font. All digits were taken from
+// the game's own placards (9 comes with an open and a closed foot). Anything that does not match
+// exactly leaves the placards as they are.
 // Personnel file photos (view 204, 39x52, e.g. Pate's file) have one placard with a name such as
 // "PATE, L" in the same 3x5 font. The surname (letters before the comma) is read off it and drawn
 // on a black bar the same way. Letters P A T E L were taken from Pate's placard. Anything else
@@ -1022,7 +1052,7 @@ static const AgiDemakeTextOverride *agiDemakeMugshotPlacard(const SciSpan<const 
 		{ '1', ".#./##./.#./.#./###" }, { '2', "###/..#/###/#../###" }, { '4', "#.#/#.#/#.#/###/..#" },
 		{ '5', "###/#../###/..#/###" }, { '6', "###/#../###/#.#/###" }, { '7', "###/..#/..#/..#/..#" },
 		{ '9', "###/#.#/###/..#/..#" }, { '0', "###/#.#/#.#/#.#/###" }, { '3', "###/..#/.##/..#/###" },
-		{ '8', "###/#.#/###/#.#/###" }, { '.', "./././#/#" }
+		{ '8', "###/#.#/###/#.#/###" }, { '9', "###/#.#/###/..#/###" }, { '.', "./././#/#" }
 	};
 	static const struct { char ch; const char *rows; } kLetters[] = {
 		{ 'P', "###/#.#/###/#../#.." }, { 'A', ".##./#..#/#..#/####/#..#" }, { 'T', "###/.#./.#./.#./.#." },
@@ -1188,8 +1218,18 @@ void GfxView::drawAgiDemakePlate(const Common::Rect &rect, const Common::Rect &c
 	const int w = celInfo->width, h = celInfo->height;
 	const byte clearKey = celInfo->clearKey;
 	const byte drawMask = priority > 15 ? GFX_SCREEN_MASK_VISUAL : GFX_SCREEN_MASK_VISUAL|GFX_SCREEN_MASK_PRIORITY;
-	static const char *const word = "HOMICIDE";
-	const int midLeft = 7, midRight = 44, cleanCol = 7, textY = 5;
+	// one entry per drawer: the word, the plate's lettered middle (stretched to fit the word), a
+	// clean column copied across it, and the top row for the AGI lettering
+	static const struct { int16 cel; const char *word; int16 midLeft, midRight, cleanCol, textY; } kPlates[] = {
+		{ 0, "HOMICIDE", 7, 44, 7, 5 },
+		{ 1, "NARCOTICS", 5, 48, 5, 8 },
+	};
+	uint plateNo = 0;
+	while (plateNo + 1 < ARRAYSIZE(kPlates) && kPlates[plateNo].cel != celNo)
+		++plateNo;
+	const char *const word = kPlates[plateNo].word;
+	const int midLeft = kPlates[plateNo].midLeft, midRight = kPlates[plateNo].midRight;
+	const int cleanCol = kPlates[plateNo].cleanCol, textY = kPlates[plateNo].textY;
 	const int textW = agiDemakeWordWidth(word);
 	const int newMid = textW + 6;
 	const int extra = MAX(0, newMid - (midRight - midLeft + 1));
@@ -1918,6 +1958,12 @@ static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
 	// moves onto the grey hair edge, skin between
 	{ GID_PQ2, 61, 6, -1, 3, 2, 8, 0 },
 	{ GID_PQ2, 61, 6, -1, 3, 3, 0, 12 },
+	// PQ2 man at the desk (view 68 cel 2): eyes merged on a 4 fat pixel face. Right eye moves onto
+	// the hair edge, face between, and face colour under both eyes as in SCI
+	{ GID_PQ2, 68, 0, 2, 5, 5, 0, 12 },
+	{ GID_PQ2, 68, 0, 2, 5, 6, 6, 0 },
+	{ GID_PQ2, 68, 0, 2, 6, 4, 6, 12 },
+	{ GID_PQ2, 68, 0, 2, 6, 6, 6, 12 },
 	// PQ2 sign on a pole (view 253 cel 0): the black marks run into the sign's white edge after the
 	// collapse. One white fat pixel is kept at each side (the red corner can still reach the edge)
 	{ GID_PQ2, 253, 0, 0, 2, 0, 0, 15 },
@@ -1957,9 +2003,34 @@ struct AgiDemakeFatBlock {
 	int16 view, loop, cel;
 	int16 top, pair;
 	byte paper, ink;
-	const char *rows[10];
+	const char *rows[24];
 };
 static const AgiDemakeFatBlock kAgiDemakeFatBlocks[] = {
+	// PQ2 note pinned to the door (view 136 cel 1): "Sonny" handwritten, redrawn in fat pixels
+	{ GID_PQ2, 136, 0, 1, 21, 7, 15, 0,
+		{ "ff111fffffffffffffffff",
+		  "f1fff1ffffffffffffffff",
+		  "1fffffffffffffffffffff",
+		  "1fffffffffffffffffffff",
+		  "1fffffffffffffffffffff",
+		  "f1ffffffffffffffffffff",
+		  "ff11ffff1ff11ff11ff1f1",
+		  "ffff1ff1f1f1f1f1f1f1f1",
+		  "fffff1f1f1f1f1f1f1f1f1",
+		  "fffff1f1f1f1f1f1f1f1f1",
+		  "fffff1f1f1f1f1f1f1f1f1",
+		  "fffff1f1f1f1f1f1f1f1f1",
+		  "1ffff1f1f1f1f1f1f1ff11",
+		  "f1ff1ff1f1f1f1f1f1fff1",
+		  "ff11ffff1ff1f1f1f1fff1",
+		  "fffffffffffffffffffff1",
+		  "fffffffffffffffffffff1",
+		  "fffffffffffffffffffff1",
+		  "fffffffffffffffffffff1",
+		  "fffffffffffffffffffff1",
+		  "fffffffffffffffffffff1",
+		  "fffffffffffffffffffff1",
+		  "ffffffffffffffffffffff" } },
 	// PQ2 back of Sonny's business card: "36-4-12" handwritten, redrawn legibly in fat pixels
 	{ GID_PQ2, 137, 0, 1, 15, 5, 15, 1,
 		{ "ff11fff11ffffffffffffffff",
@@ -1979,7 +2050,7 @@ static void agiDemakeApplyFatBlocks(GuiResourceId view, int16 loop, int16 cel, i
 		const AgiDemakeFatBlock &b = kAgiDemakeFatBlocks[i];
 		if (b.game != g_sci->getGameId() || b.view != view || b.loop != loop || b.cel != cel)
 			continue;
-		for (int r = 0; r < 10 && b.rows[r]; ++r) {
+		for (int r = 0; r < 24 && b.rows[r]; ++r) {
 			const int y = b.top + r;
 			if (y < 0 || y >= h)
 				continue;
@@ -2187,7 +2258,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 
 	// Painted lettering that is replaced by AGI font text: remove it from a copy of the cel
 	const AgiDemakeTextOverride *textOverride = agiDemakeFindTextOverride(_resourceId, loopNo, celNo);
-	if (!textOverride && g_sci->getGameId() == GID_PQ2 && _resourceId == 204)
+	if (!textOverride && g_sci->getGameId() == GID_PQ2 && (_resourceId == 204 || _resourceId == 205))	// Homicide, Narcotics files
 		textOverride = agiDemakeMugshotPlacard(origBitmap, celWidth, celHeight);
 	else if (!textOverride && g_sci->getGameId() == GID_PQ2 && (_resourceId == 112 || _resourceId == 123))
 		textOverride = agiDemakeMugshotPlacard(origBitmap, celWidth, celHeight, 0);
