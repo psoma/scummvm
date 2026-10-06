@@ -23,6 +23,8 @@
 #include "sci/sci.h"
 #include "sci/graphics/drivers/gfxdriver_intern.h"
 
+#include "sci/engine/state.h"
+
 namespace Sci {
 
 // Output-only filter: game logic, priority and control screens stay at 320x200.
@@ -92,6 +94,27 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 	if (destX + w > _screenW)
 		w = _screenW - destX;
 
+	// Per-room colour for an undithered pair, where the nearest single colour reads wrongly. PQ2
+	// motel room (room 26): the floor is dithered black and brown, which snaps to black. It is shown
+	// dark grey instead, which also keeps it apart from the brown bed
+	static const struct { SciGameId game; uint16 room; byte pair; byte color; } kRoomPairColors[] = {
+		{ GID_PQ2, 26, 0x60, 8 },
+	};
+	const byte *lut = _lut;
+	byte roomLut[256];
+	if (g_sci && g_sci->getEngineState()) {
+		const uint16 room = g_sci->getEngineState()->currentRoomNumber();
+		for (uint i = 0; i < ARRAYSIZE(kRoomPairColors); ++i) {
+			if (kRoomPairColors[i].game != g_sci->getGameId() || kRoomPairColors[i].room != room)
+				continue;
+			if (lut == _lut) {
+				memcpy(roomLut, _lut, sizeof(roomLut));
+				lut = roomLut;
+			}
+			roomLut[kRoomPairColors[i].pair] = kRoomPairColors[i].color;
+		}
+	}
+
 	// palModMapping is the full-screen map buffer: 1 marks text, 2 marks window frames
 	const byte *s = src + srcY * pitch + srcX;
 	const byte *m = palModMapping ? palModMapping + destY * _screenW + destX : nullptr;
@@ -102,15 +125,15 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 			byte fl = m ? m[x] : 0;
 			byte fr = (m && hasRight) ? m[x + 1] : 0;
 			if (fl == 1 || fr == 1) {
-				d[x] = _lut[s[x]];
+				d[x] = lut[s[x]];
 				if (hasRight)
-					d[x + 1] = _lut[s[x + 1]];
+					d[x + 1] = lut[s[x + 1]];
 			} else if (fr == 2 && fl != 2) {
-				byte c = _lut[s[x + 1]];
+				byte c = lut[s[x + 1]];
 				d[x] = c;
 				d[x + 1] = c;
 			} else {
-				byte c = _lut[s[x]];
+				byte c = lut[s[x]];
 				// A 1 pixel vertical line in the right half of the pair (left pixel matches its
 				// left neighbour, right pixel differs from its right neighbour) wins the pair, so
 				// thin picture lines on odd columns are not lost. Neighbours are only read from a
@@ -118,10 +141,10 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 				// on which rectangle is being updated.
 				if (hasRight && pitch == _screenW) {
 					const int col = srcX + x;
-					const byte b = _lut[s[x + 1]];
+					const byte b = lut[s[x + 1]];
 					if (b != c && col - 1 >= 0 && col + 2 < _screenW) {
-						const byte leftN = _lut[s[x - 1]];
-						const byte rightN = _lut[s[x + 2]];
+						const byte leftN = lut[s[x - 1]];
+						const byte rightN = lut[s[x + 2]];
 						if (c == leftN && b != rightN)
 							c = b;
 					}

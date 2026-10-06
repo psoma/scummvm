@@ -23,6 +23,7 @@
 #include "common/file.h"
 #include "graphics/fonts/dosfont.h"
 #include "common/hashmap.h"
+#include "common/hash-str.h"
 #include "sci/sci.h"
 #include "sci/engine/state.h"
 #include "sci/graphics/drivers/gfxdriver.h"
@@ -2002,23 +2003,40 @@ static void agiDemakeApplyFatBlocks(GuiResourceId view, int16 loop, int16 cel, i
 // (left 3 columns mirror the right 3 on every row, the same 3 colours down both sides) every row
 // is rebuilt to fit inside the item: fat pixels that would be clipped are dropped, the outermost
 // whole fat pixel each side gets the outer ring colour and the next one in the inner ring colour.
-static void agiDemakeInventoryFrame(const SciSpan<const byte> &bitmap, int w, int h, byte clearKey, byte *fat, int fatW, int pad, int numPairs, int pairStart, int celLeft) {
-	if (w < 20 || h < 10 || numPairs < 6)
-		return;
+static bool agiDemakeIsInventoryFrame(const SciSpan<const byte> &bitmap, int w, int h, byte clearKey) {
+	if (w < 20 || h < 10)
+		return false;
 	for (int y = 0; y < h; ++y) {
 		const byte *row = bitmap.getUnsafeDataAt(y * w, w);
 		for (int i = 0; i < 3; ++i)
 			if (row[i] != row[w - 1 - i] || row[i] == clearKey)
-				return;
+				return false;
 	}
 	const byte *mid = bitmap.getUnsafeDataAt((h / 2) * w, w);
-	const byte outer = mid[0], ring = mid[1], inner = mid[2];
-	if (outer == ring && ring == inner)
-		return;
+	if (mid[0] == mid[1] && mid[1] == mid[2])
+		return false;
 	for (int y = 3; y < h - 3; ++y) {
 		const byte *row = bitmap.getUnsafeDataAt(y * w, w);
-		if (row[0] != outer || row[1] != ring || row[2] != inner)
-			return;
+		if (row[0] != mid[0] || row[1] != mid[1] || row[2] != mid[2])
+			return false;
+	}
+	return true;
+}
+
+static void agiDemakeInventoryFrame(const SciSpan<const byte> &bitmap, int w, int h, byte clearKey, byte *fat, int fatW, int pad, int numPairs, int pairStart, int celLeft) {
+	if (numPairs < 6 || !agiDemakeIsInventoryFrame(bitmap, w, h, clearKey))
+		return;
+	const byte *mid = bitmap.getUnsafeDataAt((h / 2) * w, w);
+	const byte outer = mid[0], inner = mid[2];
+	// Most items also have a 2 pixel band of one colour (black) just inside the rings, which the
+	// collapse can merge into the picture on one side. When it runs down both sides it is kept as
+	// the third fat pixel in from each edge
+	const byte bandColor = mid[3];
+	bool band = mid[4] == bandColor;
+	for (int y = 3; y < h - 3 && band; ++y) {
+		const byte *row = bitmap.getUnsafeDataAt(y * w, w);
+		if (row[3] != bandColor || row[4] != bandColor || row[w - 4] != bandColor || row[w - 5] != bandColor)
+			band = false;
 	}
 	// first and last fat pixels that land wholly inside the item on screen
 	int p0 = 0, p1 = numPairs - 1;
@@ -2026,7 +2044,7 @@ static void agiDemakeInventoryFrame(const SciSpan<const byte> &bitmap, int w, in
 		++p0;
 	while (p1 >= 0 && pairStart + 2 * p1 + 1 > celLeft + w - 1)
 		--p1;
-	if (p1 - p0 < 4)
+	if (p1 - p0 < 6)
 		return;
 	for (int y = 0; y < h; ++y) {
 		byte *f = fat + y * fatW + pad;
@@ -2039,6 +2057,8 @@ static void agiDemakeInventoryFrame(const SciSpan<const byte> &bitmap, int w, in
 		f[p0] = f[p1] = outer;
 		if (y >= 2 && y < h - 2)
 			f[p0 + 1] = f[p1 - 1] = inner;
+		if (band && y >= 3 && y < h - 3)
+			f[p0 + 2] = f[p1 - 2] = bandColor;
 	}
 }
 
@@ -2050,21 +2070,21 @@ static void agiDemakeInventoryFrame(const SciSpan<const byte> &bitmap, int w, in
 // nothing changes at any other pairing.
 struct AgiDemakeEyeMirror {
 	SciGameId game;
-	int16 view, loop, cel;
+	int16 view, loop, cel;		// loop or cel -1: any
 	int16 startX;
 	int16 firstRow, rows;
 	int16 leftPair;		// first of the left eye's 3 fat pixels; the gap is leftPair + 3
 };
 static const AgiDemakeEyeMirror kAgiDemakeEyeMirrors[] = {
-	{ GID_PQ2, 112, 0, 0, -1, 22, 2, 6 },
-	{ GID_PQ2, 123, 0, 0, -1, 21, 1, 6 },
+	{ GID_PQ2, 112, -1, -1, -1, 22, 2, 6 },	// any loop/cel: this view only holds his photos
+	{ GID_PQ2, 123, -1, -1, -1, 21, 1, 6 },
 	{ GID_PQ2, 701, 0, 4, -1, 22, 2, 6 },	// copy protection photo on loadup (same drawing as 112)
 };
 
 static void agiDemakeMirrorEyes(GuiResourceId view, int16 loop, int16 cel, int startX, int h, byte *fat, int fatW, int pad, int numPairs) {
 	for (uint i = 0; i < ARRAYSIZE(kAgiDemakeEyeMirrors); ++i) {
 		const AgiDemakeEyeMirror &m = kAgiDemakeEyeMirrors[i];
-		if (m.game != g_sci->getGameId() || m.view != view || m.loop != loop || m.cel != cel || m.startX != startX)
+		if (m.game != g_sci->getGameId() || m.view != view || (m.loop >= 0 && m.loop != loop) || (m.cel >= 0 && m.cel != cel) || m.startX != startX)
 			continue;
 		if (m.leftPair + 6 >= numPairs || m.firstRow + m.rows > h)
 			continue;
@@ -2076,14 +2096,46 @@ static void agiDemakeMirrorEyes(GuiResourceId view, int16 loop, int16 cel, int s
 	}
 }
 
+// Fat pixels that should take one colour from the source pair whenever it is there, where the
+// usual darker-wins pick loses it. Pairs are counted at the given pairing (startX) only.
+struct AgiDemakePairPrefer {
+	SciGameId game;
+	int16 view, loop, cel;
+	int16 startX, pair;
+	int16 firstRow, lastRow;
+	byte color;
+};
+static const AgiDemakePairPrefer kAgiDemakePairPrefers[] = {
+	// PQ2 sign on a pole (view 253 cel 0): the pole is a white column with a black shadow column,
+	// which collapses to black. It stays white, as in SCI
+	{ GID_PQ2, 253, 0, 0, 0, 2, 16, 61, 15 },
+};
+
+static void agiDemakeApplyPairPrefers(const SciSpan<const byte> &bitmap, GuiResourceId view, int16 loop, int16 cel, int startX, int w, int h, byte *fat, int fatW, int pad, int numPairs) {
+	for (uint i = 0; i < ARRAYSIZE(kAgiDemakePairPrefers); ++i) {
+		const AgiDemakePairPrefer &pp = kAgiDemakePairPrefers[i];
+		if (pp.game != g_sci->getGameId() || pp.view != view || pp.loop != loop || pp.cel != cel || pp.startX != startX)
+			continue;
+		if (pp.pair < 0 || pp.pair >= numPairs)
+			continue;
+		const int c0 = startX + 2 * pp.pair;
+		for (int y = MAX<int>(pp.firstRow, 0); y <= pp.lastRow && y < h; ++y)
+			for (int k = 0; k < 2; ++k)
+				if (c0 + k >= 0 && c0 + k < w && bitmap[y * w + c0 + k] == pp.color)
+					fat[y * fatW + pad + pp.pair] = pp.color;
+	}
+}
+
 // Diagnostics for adding games: TEMP always on in test builds (normally "agi_demake_debug=true" in the game's section of
 // scummvm.ini). Writes agi_demake_dump.txt (each distinct cel drawn, source and result) next to the exe.
 static void agiDemakeDump(int viewId, int loopNo, int celNo, const CelInfo *ci, bool mirrored, int startX,
-			const SciSpan<const byte> &bitmap, const byte *fat, int fatW) {
+			const SciSpan<const byte> &bitmap, const byte *fat, int fatW, int celLeft, int celTop, int pairStart,
+			const Common::Rect &clip, int priority) {
 	// TEMP: always on for testing, remove before next public release
 	static Common::DumpFile *file = nullptr;
-	static Common::HashMap<uint32, bool> seen;
-	const uint32 key = ((uint32)viewId << 16) | ((loopNo & 0xFF) << 8) | (celNo & 0xFF);
+	static Common::HashMap<Common::String, bool> seen;
+	// one entry per cel, pairing and screen parity, so a cel drawn in two places shows up twice
+	const Common::String key = Common::String::format("%d/%d/%d/%d/%d", viewId, loopNo, celNo, startX, celLeft & 1);
 	if (seen.contains(key))
 		return;
 	seen[key] = true;
@@ -2096,8 +2148,9 @@ static void agiDemakeDump(int viewId, int loopNo, int celNo, const CelInfo *ci, 
 		}
 	}
 	const char *hex = "0123456789abcdef";
-	file->writeString(Common::String::format("view %d loop %d cel %d w %d h %d dx %d clear %d mirrored %d startX %d\n",
-		viewId, loopNo, celNo, ci->width, ci->height, ci->displaceX, ci->clearKey, mirrored ? 1 : 0, startX));
+	file->writeString(Common::String::format("view %d loop %d cel %d w %d h %d dx %d clear %d mirrored %d startX %d at %d,%d pairStart %d clip %d,%d-%d,%d priority %d\n",
+		viewId, loopNo, celNo, ci->width, ci->height, ci->displaceX, ci->clearKey, mirrored ? 1 : 0, startX,
+		celLeft, celTop, pairStart, clip.left, clip.top, clip.right, clip.bottom, priority));
 	for (int y = 0; y < ci->height; ++y) {
 		Common::String line;
 		for (int x = 0; x < ci->width; ++x) {
@@ -2119,6 +2172,10 @@ static void agiDemakeDump(int viewId, int loopNo, int celNo, const CelInfo *ci, 
 // so the same detail survives whatever x position the sprite is drawn at
 void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRect, const Common::Rect &clipRectTranslated,
 			int16 loopNo, int16 celNo, byte priority, uint16 scaleSignal, const Palette *palette) {
+	// Some calls (inventory item windows) pass loop and cel numbers past the end. The cel drawn is the
+	// clamped one, so every per-cel fix below is matched against the clamped numbers too
+	loopNo = CLIP<int16>(loopNo, 0, _loop.size() - 1);
+	celNo = CLIP<int16>(celNo, 0, _loop[loopNo].cel.size() - 1);
 	const CelInfo *celInfo = getCelInfo(loopNo, celNo);
 	const SciSpan<const byte> &origBitmap = getBitmap(loopNo, celNo);
 	const int16 celHeight = celInfo->height;
@@ -2237,10 +2294,25 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		agiDemakeCopyHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatPatches(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatBlocks(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
+	agiDemakeApplyPairPrefers(bitmap, _resourceId, loopNo, celNo, startX, celWidth, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeMirrorEyes(_resourceId, loopNo, celNo, startX, celHeight, fat.data(), fatW, pad, numPairs);
-	if (g_sci->getGameId() == GID_PQ2 && _resourceId >= 100 && _resourceId <= 199)
-		agiDemakeInventoryFrame(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, pad, numPairs, pairStart, rect.left + offsetX);
-	agiDemakeDump(_resourceId, loopNo, celNo, celInfo, mirrored, startX, bitmap, fat.data(), fatW);
+	// PQ2 inventory items: at an odd screen column the item is drawn one column to the left, so it
+	// looks the same as at an even column (whole fat pixels from its left edge, the spare column on
+	// the right). The frame is then rebuilt to fit inside the item
+	int frameLeft = rect.left + offsetX;
+	int clipLeft = clipRectTranslated.left;
+	if (g_sci->getGameId() == GID_PQ2 && _resourceId >= 100 && _resourceId <= 199 &&
+			agiDemakeIsInventoryFrame(bitmap, celWidth, celHeight, clearKey)) {
+		if (frameLeft & 1) {
+			pairStart = frameLeft - 1;	// even, since frameLeft is odd
+			if (clipLeft == frameLeft)
+				clipLeft = frameLeft - 1;
+			frameLeft -= 1;
+		}
+		agiDemakeInventoryFrame(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, pad, numPairs, pairStart, frameLeft);
+	}
+	agiDemakeDump(_resourceId, loopNo, celNo, celInfo, mirrored, startX, bitmap, fat.data(), fatW,
+		rect.left + offsetX, rect.top + offsetY, pairStart, clipRectTranslated, priority);
 
 	for (int cy = clipRect.top - rect.top; cy < MIN<int>(celHeight, clipRect.bottom - rect.top); ++cy) {
 		const int y2 = rect.top + cy + offsetY;
@@ -2250,7 +2322,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 				continue;
 			for (int i = 0; i < 2; ++i) {
 				const int x2 = pairStart + 2 * (f - pad) + i;
-				if (x2 < clipRectTranslated.left || x2 >= clipRectTranslated.right)
+				if (x2 < clipLeft || x2 >= clipRectTranslated.right)
 					continue;
 				if (priority >= _screen->getPriority(x2, y2))
 					_screen->putPixel(x2, y2, drawMask, getMappedColor(color, scaleSignal, palette, x2, y2), priority, 0);

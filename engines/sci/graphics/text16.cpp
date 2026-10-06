@@ -683,18 +683,51 @@ int16 GfxText16::agiDemakeOriginalWidth(const char *text, int16 maxWidth, GuiRes
 
 // AGI demake: game text replaced where the picture it describes can't carry the detail in AGI
 // pixels. Used both when the game sizes the box (kTextSize) and when it draws it, so the box fits.
+static const struct AgiDemakeTextSub {
+	SciGameId game;
+	const char *from, *to;
+} kAgiDemakeTextSubs[] = {
+	// PQ2 envelope corner: the name and address on it are too small for AGI pixels
+	{ GID_PQ2, "Corner of an envelope with name and address.",
+		"Corner of an envelope with name and address: \"Bill Cole, 753 Third St, Lytton City\"" },
+	// PQ2 the envelope it was torn from
+	{ GID_PQ2, "You find an envelope with the corner torn off.",
+		"You find an envelope with the corner torn off. It's addressed to \"Woodrow Roberts, 5556 Oak St, Lytton City, USA\"" },
+	// PQ2 Colby's business card
+	{ GID_PQ2, "Colby's business card, found in Bains' motel room.",
+		"Colby's business card, found in Bains' motel room: \"Colby Imports, Steelton, U.S.A., 407-555-3323\"" },
+};
+
 static const char *agiDemakeSubstituteText(const char *text) {
-	static const struct { SciGameId game; const char *from, *to; } kSubs[] = {
-		// PQ2 envelope corner: the name and address on it are too small for AGI pixels
-		{ GID_PQ2, "Corner of an envelope with name and address.",
-			"Corner of an envelope with name and address: \"Bill Cole, 753 Third St, Lytton City\"" },
-	};
 	if (!text)
 		return text;
-	for (uint i = 0; i < ARRAYSIZE(kSubs); ++i)
-		if (g_sci->getGameId() == kSubs[i].game && !strcmp(text, kSubs[i].from))
-			return kSubs[i].to;
+	for (uint i = 0; i < ARRAYSIZE(kAgiDemakeTextSubs); ++i)
+		if (g_sci->getGameId() == kAgiDemakeTextSubs[i].game && !strcmp(text, kAgiDemakeTextSubs[i].from))
+			return kAgiDemakeTextSubs[i].to;
 	return text;
+}
+
+// AGI demake: messages that come out wider than their window in the 8x8 font, matched on how they
+// start. They are wrapped no wider than the given width when the game sizes their box.
+static const struct AgiDemakeTextWidth {
+	SciGameId game;
+	const char *start;
+	int16 maxWidth;
+} kAgiDemakeTextWidths[] = {
+	// PQ2 reading the envelope beside its picture: 192 wide ran past the window's right edge
+	{ GID_PQ2, "\"Bains mailed the letter hoping to suck Roberts in", 184 },
+};
+
+static int16 agiDemakeCapTextWidth(const char *text, int16 maxWidth) {
+	if (!text)
+		return maxWidth;
+	for (uint i = 0; i < ARRAYSIZE(kAgiDemakeTextWidths); ++i) {
+		const AgiDemakeTextWidth &tw = kAgiDemakeTextWidths[i];
+		if (g_sci->getGameId() == tw.game && !strncmp(text, tw.start, strlen(tw.start)) &&
+				(maxWidth == 0 || maxWidth > tw.maxWidth))	// 0 means the default width (192), below 0 one line
+			return tw.maxWidth;
+	}
+	return maxWidth;
 }
 
 void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const Common::Rect &rectIn, TextAlignment alignment, GuiResourceId fontId) {
@@ -966,8 +999,10 @@ reg_t GfxText16::allocAndFillReferenceRectArray() {
 
 void GfxText16::kernelTextSize(const char *text, uint16 languageSplitter, int16 font, int16 maxWidth, int16 *textWidth, int16 *textHeight) {
 	Common::Rect rect(0, 0, 0, 0);
-	if (_screen->agiDemake())
+	if (_screen->agiDemake()) {
 		text = agiDemakeSubstituteText(text);
+		maxWidth = agiDemakeCapTextWidth(text, maxWidth);
+	}
 	// AGI demake: text with hand-placed line breaks keeps them. If its longest line (trailing
 	// spaces ignored) is wider than the game asked for in the 8x8 font, the box is made wide
 	// enough for it, up to the screen width less a margin, instead of re-wrapping every line.
