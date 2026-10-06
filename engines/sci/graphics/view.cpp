@@ -2029,6 +2029,15 @@ static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
 	{ GID_PQ2, 70, 2, 1, 11, 14, 0xFF, 0 },
 	{ GID_PQ2, 70, 2, 1, 17, 12, 0xFF, 15 },
 	{ GID_PQ2, 70, 2, 1, 17, 13, 0xFF, 15 },
+	// cel 1: frame kept black on both sides where the thin white rule turned it white
+	{ GID_PQ2, 70, 2, 1, 47, 0, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 1, 47, 25, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 1, 48, 0, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 1, 48, 25, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 1, 49, 0, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 1, 49, 25, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 1, 50, 0, 0xFF, 0 },
+	{ GID_PQ2, 70, 2, 1, 50, 25, 0xFF, 0 },
 	// cel 2: 5 fat pixels
 	{ GID_PQ2, 70, 2, 2, 29, 11, 0xFF, 0 },
 	{ GID_PQ2, 70, 2, 2, 30, 11, 0xFF, 0 },
