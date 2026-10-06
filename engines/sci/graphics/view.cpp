@@ -1964,6 +1964,43 @@ static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
 	{ GID_PQ2, 68, 0, 2, 5, 6, 6, 0 },
 	{ GID_PQ2, 68, 0, 2, 6, 4, 6, 12 },
 	{ GID_PQ2, 68, 0, 2, 6, 6, 6, 12 },
+	// PQ2 Narcotics files, front photo eyes made symmetric after the general eye rebuild (rows, pairs
+	// at the files' pairing). Dickey (205 loop 1 cel 2): his right eye (our right) mirrored onto the left
+	{ GID_PQ2, 205, 1, 2, 22, 5, 0xFF, 15 },
+	{ GID_PQ2, 205, 1, 2, 22, 6, 0xFF, 1 },
+	{ GID_PQ2, 205, 1, 2, 22, 7, 0xFF, 15 },
+	{ GID_PQ2, 205, 1, 2, 22, 8, 0xFF, 12 },
+	{ GID_PQ2, 205, 1, 2, 22, 9, 0xFF, 12 },
+	{ GID_PQ2, 205, 1, 2, 22, 10, 0xFF, 15 },
+	{ GID_PQ2, 205, 1, 2, 22, 11, 0xFF, 1 },
+	{ GID_PQ2, 205, 1, 2, 22, 12, 0xFF, 15 },
+	{ GID_PQ2, 205, 1, 2, 23, 5, 0xFF, 15 },
+	{ GID_PQ2, 205, 1, 2, 23, 6, 0xFF, 1 },
+	{ GID_PQ2, 205, 1, 2, 23, 7, 0xFF, 15 },
+	{ GID_PQ2, 205, 1, 2, 23, 8, 0xFF, 12 },
+	{ GID_PQ2, 205, 1, 2, 23, 9, 0xFF, 12 },
+	{ GID_PQ2, 205, 1, 2, 23, 10, 0xFF, 15 },
+	{ GID_PQ2, 205, 1, 2, 23, 11, 0xFF, 1 },
+	{ GID_PQ2, 205, 1, 2, 23, 12, 0xFF, 15 },
+	// Jones (205 loop 0 cel 2): Simms' eyes, two rows of white, pupil, white, skin between
+	{ GID_PQ2, 205, 0, 2, 21, 5, 0xFF, 6 },
+	{ GID_PQ2, 205, 0, 2, 21, 6, 0xFF, 15 },
+	{ GID_PQ2, 205, 0, 2, 21, 7, 0xFF, 0 },
+	{ GID_PQ2, 205, 0, 2, 21, 8, 0xFF, 15 },
+	{ GID_PQ2, 205, 0, 2, 21, 9, 0xFF, 6 },
+	{ GID_PQ2, 205, 0, 2, 21, 10, 0xFF, 15 },
+	{ GID_PQ2, 205, 0, 2, 21, 11, 0xFF, 0 },
+	{ GID_PQ2, 205, 0, 2, 21, 12, 0xFF, 15 },
+	{ GID_PQ2, 205, 0, 2, 21, 13, 0xFF, 6 },
+	{ GID_PQ2, 205, 0, 2, 22, 5, 0xFF, 6 },
+	{ GID_PQ2, 205, 0, 2, 22, 6, 0xFF, 15 },
+	{ GID_PQ2, 205, 0, 2, 22, 7, 0xFF, 0 },
+	{ GID_PQ2, 205, 0, 2, 22, 8, 0xFF, 15 },
+	{ GID_PQ2, 205, 0, 2, 22, 9, 0xFF, 6 },
+	{ GID_PQ2, 205, 0, 2, 22, 10, 0xFF, 15 },
+	{ GID_PQ2, 205, 0, 2, 22, 11, 0xFF, 0 },
+	{ GID_PQ2, 205, 0, 2, 22, 12, 0xFF, 15 },
+	{ GID_PQ2, 205, 0, 2, 22, 13, 0xFF, 6 },
 	// PQ2 sign on a pole (view 253 cel 0): the black marks run into the sign's white edge after the
 	// collapse. One white fat pixel is kept at each side (the red corner can still reach the edge)
 	{ GID_PQ2, 253, 0, 0, 2, 0, 0, 15 },
@@ -1989,7 +2026,7 @@ static void agiDemakeApplyFatPatches(GuiResourceId view, int16 loop, int16 cel, 
 		if (fp.row < 0 || fp.row >= h || fp.pair < 0 || fp.pair >= numPairs)
 			continue;
 		byte &px = fat[fp.row * fatW + pad + fp.pair];
-		if (px == fp.from)
+		if (fp.from == 0xFF || px == fp.from)	// 0xFF: whatever is there
 			px = fp.to;
 	}
 }
@@ -2433,10 +2470,10 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		agiDemakeSpreadEyes(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad);
 	if (towards || away)
 		agiDemakeCopyHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
-	agiDemakeApplyFatPatches(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
-	agiDemakeTidyPaintEdges(textOverride, startX, celHeight, fat.data(), fatW, pad, numPairs);
 	if (g_sci->getGameId() == GID_PQ2 && _resourceId == 205 && celWidth == 73)
 		agiDemakeMugshotEyes(origBitmap, celWidth, celHeight, startX, fat.data(), fatW, pad, numPairs);
+	agiDemakeApplyFatPatches(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
+	agiDemakeTidyPaintEdges(textOverride, startX, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatBlocks(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyPairPrefers(bitmap, _resourceId, loopNo, celNo, startX, celWidth, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeMirrorEyes(_resourceId, loopNo, celNo, startX, celHeight, fat.data(), fatW, pad, numPairs);
