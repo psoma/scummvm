@@ -2197,6 +2197,73 @@ static void agiDemakeApplyPairPrefers(const SciSpan<const byte> &bitmap, GuiReso
 	}
 }
 
+// A painted bar (several paint rows with the same ends, e.g. the mugshot placard bars) whose end
+// falls in the middle of a fat pixel gets that fat pixel from whatever is beside the bar on each
+// row, so the end can step where the picture beside it changes (Snider's file). Those end fat
+// pixels are made the same on every row of the bar as on its first row.
+static void agiDemakeTidyPaintEdges(const AgiDemakeTextOverride *t, int startX, int h, byte *fat, int fatW, int pad, int numPairs) {
+	if (!t || t->paint[0].x0 > t->paint[0].x1)
+		return;
+	const AgiDemakePaint &first = t->paint[0];
+	if (first.y < 0 || first.y >= h)
+		return;
+	int ends[2], n = 0;
+	if ((first.x0 - startX) & 1)
+		ends[n++] = (first.x0 - startX) >> 1;
+	if (!((first.x1 - startX) & 1))
+		ends[n++] = (first.x1 - startX) >> 1;
+	for (int i = 1; i < 8; ++i) {
+		const AgiDemakePaint &pt = t->paint[i];
+		if (pt.x0 > pt.x1)
+			break;
+		if (pt.x0 != first.x0 || pt.x1 != first.x1 || pt.y < 0 || pt.y >= h)
+			continue;
+		for (int e = 0; e < n; ++e)
+			if (ends[e] >= 0 && ends[e] < numPairs)
+				fat[pt.y * fatW + pad + ends[e]] = fat[first.y * fatW + pad + ends[e]];
+	}
+}
+
+// PQ2 Narcotics file mugshots (view 205): each eye is white, a pupil and iris pair, white. Where the
+// pair lands across two fat pixels the collapse keeps one or the other, so the two eyes (and the
+// profile's eye) came out in different colours or with no iris at all. Every eye is rebuilt as
+// white, iris, white: black for dark red (brown) eyes, the iris colour for blue or green ones. The
+// front photo is the left one (columns 0-35); its irises sit towards the nose when the pair has to
+// pick a side, the profile's sits next to its white.
+static void agiDemakeMugshotEyes(const SciSpan<const byte> &bitmap, int w, int h, int startX, byte *fat, int fatW, int pad, int numPairs) {
+	const byte white = 15, black = 0, darkRed = 4, skin = 12, brown = 6;
+	const int frontRight = 36, frontMid = 19;
+	auto isIris = [](byte c) { return c == 1 || c == 2 || c == 3 || c == 4 || c == 5 || c == 9; };
+	for (int y = 15; y < 33 && y < h; ++y) {
+		const byte *row = bitmap.getUnsafeDataAt(y * w, w);
+		byte *f = fat + y * fatW + pad;
+		for (int x = 1; x + 2 < w; ++x) {
+			const byte a = row[x], b = row[x + 1];
+			if (!((a == black && isIris(b)) || (b == black && isIris(a))))
+				continue;
+			if (row[x - 1] != white || (row[x + 2] != white && row[x + 2] != skin && row[x + 2] != brown))
+				continue;
+			const byte iris = (a == black) ? b : a;
+			const bool side = x >= frontRight;
+			const int p0 = (x - startX) >> 1, p1 = (x + 1 - startX) >> 1;
+			int p = p0;
+			if (p0 != p1)
+				p = side ? p0 : (x < frontMid ? p1 : p0);
+			if (p < 1 || p + 1 >= numPairs)
+				continue;
+			f[p] = (iris == darkRed) ? black : iris;
+			const int lc = startX + 2 * (p - 1), rc = startX + 2 * (p + 1);
+			if ((lc >= 0 && row[lc] == white) || (lc + 1 >= 0 && lc + 1 < w && row[lc + 1] == white))
+				f[p - 1] = white;
+			if (rc + 1 < w && (row[rc] == white || row[rc + 1] == white))
+				f[p + 1] = white;
+			else if (side && rc + 1 < w)
+				f[p + 1] = row[x + 2];
+			++x;
+		}
+	}
+}
+
 // Diagnostics for adding games: TEMP always on in test builds (normally "agi_demake_debug=true" in the game's section of
 // scummvm.ini). Writes agi_demake_dump.txt (each distinct cel drawn, source and result) next to the exe.
 static void agiDemakeDump(int viewId, int loopNo, int celNo, const CelInfo *ci, bool mirrored, int startX,
@@ -2309,8 +2376,11 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	} else {
 		const int anchor = (celWidth >> 1) - celInfo->displaceX;
 		startX = ((anchor + agiDemakePhase(loopNo)) & 1) ? -1 : 0;
+		// at an odd column the pairs start one column to the left, not the right: shifting right pushed
+		// the last fat pixel past the cel's right edge, where it was clipped away (the mugshots' right
+		// frame). The half fat pixel this leaves at the left edge is kept whole by the display driver
 		const int pairScreenX = rect.left + offsetX + startX;
-		pairStart = pairScreenX + (pairScreenX & 1);
+		pairStart = pairScreenX - (pairScreenX & 1);
 	}
 
 	// Collapse the whole cel into fat pixels, with spare fat columns each side for repairs
@@ -2364,6 +2434,9 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	if (towards || away)
 		agiDemakeCopyHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatPatches(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
+	agiDemakeTidyPaintEdges(textOverride, startX, celHeight, fat.data(), fatW, pad, numPairs);
+	if (g_sci->getGameId() == GID_PQ2 && _resourceId == 205 && celWidth == 73)
+		agiDemakeMugshotEyes(origBitmap, celWidth, celHeight, startX, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatBlocks(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyPairPrefers(bitmap, _resourceId, loopNo, celNo, startX, celWidth, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeMirrorEyes(_resourceId, loopNo, celNo, startX, celHeight, fat.data(), fatW, pad, numPairs);
@@ -2382,7 +2455,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		}
 		agiDemakeInventoryFrame(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, pad, numPairs, pairStart, frameLeft);
 	}
-	agiDemakeDump(_resourceId, loopNo, celNo, celInfo, mirrored, startX, bitmap, fat.data(), fatW,
+	agiDemakeDump(_resourceId, loopNo, celNo, celInfo, mirrored, startX, origBitmap, fat.data(), fatW,
 		rect.left + offsetX, rect.top + offsetY, pairStart, clipRectTranslated, priority);
 
 	// Sprite fat pixels are marked (map value 3) so the display driver keeps a fat pixel whole when
