@@ -693,6 +693,9 @@ static const struct AgiDemakeTextSub {
 	// PQ2 the envelope it was torn from
 	{ GID_PQ2, "You find an envelope with the corner torn off.",
 		"You find an envelope with the corner torn off. It's addressed to \"Woodrow Roberts, 5556 Oak St, Lytton City, USA\"" },
+	// PQ2 the same envelope, looked at in the inventory
+	{ GID_PQ2, "Envelope with corner torn off.",
+		"Envelope with corner torn off. It's addressed to \"Woodrow Roberts, 5556 Oak St, Lytton City, USA\"" },
 	// PQ2 Colby's business card
 	{ GID_PQ2, "Colby's business card, found in Bains' motel room.",
 		"Colby's business card, found in Bains' motel room: \"Colby Imports, Steelton, U.S.A., 407-555-3323\"" },
@@ -714,8 +717,9 @@ static const struct AgiDemakeTextWidth {
 	const char *start;
 	int16 maxWidth;
 } kAgiDemakeTextWidths[] = {
-	// PQ2 reading the envelope beside its picture: 192 wide ran past the window's right edge
-	{ GID_PQ2, "\"Bains mailed the letter hoping to suck Roberts in", 184 },
+	// PQ2 reading the envelope beside its picture: at 192 (and 184) wide the window, with the AGI
+	// frame, ran past the right edge of the screen
+	{ GID_PQ2, "\"Bains mailed the letter hoping to suck Roberts in", 176 },
 };
 
 static int16 agiDemakeCapTextWidth(const char *text, int16 maxWidth) {

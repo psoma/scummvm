@@ -132,6 +132,13 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 				byte c = lut[s[x + 1]];
 				d[x] = c;
 				d[x + 1] = c;
+			} else if ((fl == 3 && fr == 0) || (fr == 3 && fl == 0)) {
+				// half of a sprite's fat pixel next to background (the sprite's edge cut it on screen):
+				// the sprite pixel takes the whole pair
+				byte c = lut[(fl == 3) ? s[x] : s[x + 1]];
+				d[x] = c;
+				if (hasRight)
+					d[x + 1] = c;
 			} else {
 				byte c = lut[s[x]];
 				// A 1 pixel vertical line in the right half of the pair (left pixel matches its

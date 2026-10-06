@@ -2314,6 +2314,10 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	agiDemakeDump(_resourceId, loopNo, celNo, celInfo, mirrored, startX, bitmap, fat.data(), fatW,
 		rect.left + offsetX, rect.top + offsetY, pairStart, clipRectTranslated, priority);
 
+	// Sprite fat pixels are marked (map value 3) so the display driver keeps a fat pixel whole when
+	// the item's edge cuts it in half on screen, instead of letting the background take the pair
+	const byte oldSpriteMapValue = _screen->getCurPaletteMapValue();
+	_screen->setCurPaletteMapValue(3);
 	for (int cy = clipRect.top - rect.top; cy < MIN<int>(celHeight, clipRect.bottom - rect.top); ++cy) {
 		const int y2 = rect.top + cy + offsetY;
 		for (int f = 0; f < fatW; ++f) {
@@ -2329,6 +2333,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 			}
 		}
 	}
+	_screen->setCurPaletteMapValue(oldSpriteMapValue);
 
 	// Replacement words: backing box, then letters, at full resolution and flagged as text
 	if (textOverride) {
