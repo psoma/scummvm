@@ -2002,6 +2002,9 @@ static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
 	{ GID_PQ2, 205, 0, 2, 22, 11, 0xFF, 15 },
 	{ GID_PQ2, 205, 0, 2, 22, 12, 0xFF, 0 },
 	{ GID_PQ2, 205, 0, 2, 22, 13, 0xFF, 6 },
+	// Jones: pupils 2 fat pixels wide on the top eye row (the extra one on the nose side)
+	{ GID_PQ2, 205, 0, 2, 21, 7, 0xFF, 0 },
+	{ GID_PQ2, 205, 0, 2, 21, 11, 0xFF, 0 },
 	// Jones: the moustache lost its left end in the collapse. Two black fat pixels to the left of his
 	// mouth make it match the right
 	{ GID_PQ2, 205, 0, 2, 32, 7, 6, 0 },
