@@ -2002,6 +2002,10 @@ static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
 	{ GID_PQ2, 205, 0, 2, 22, 11, 0xFF, 15 },
 	{ GID_PQ2, 205, 0, 2, 22, 12, 0xFF, 0 },
 	{ GID_PQ2, 205, 0, 2, 22, 13, 0xFF, 6 },
+	// Jones: the moustache lost its left end in the collapse. Two black fat pixels to the left of his
+	// mouth make it match the right
+	{ GID_PQ2, 205, 0, 2, 32, 7, 6, 0 },
+	{ GID_PQ2, 205, 0, 2, 33, 7, 6, 0 },
 	// PQ2 sign on a pole (view 253 cel 0): the black marks run into the sign's white edge after the
 	// collapse. One white fat pixel is kept at each side (the red corner can still reach the edge)
 	{ GID_PQ2, 253, 0, 0, 2, 0, 0, 15 },
