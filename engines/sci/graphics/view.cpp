@@ -2461,12 +2461,13 @@ static byte agiDemakeThinWhitePick(const byte *row, int w, int cx, byte clearKey
 	return agiDemakePick(a, b, clearKey);
 }
 
-// Diagnostics for adding games: TEMP always on in test builds (normally "agi_demake_debug=true" in the game's section of
-// scummvm.ini). Writes agi_demake_dump.txt (each distinct cel drawn, source and result) next to the exe.
+// Diagnostics for adding games: only when "agi_demake_debug=true" is set in the game's section of
+// scummvm.ini. Writes agi_demake_dump.txt (each distinct cel drawn, source and result) next to the exe.
 static void agiDemakeDump(int viewId, int loopNo, int celNo, const CelInfo *ci, bool mirrored, int startX,
 			const SciSpan<const byte> &bitmap, const byte *fat, int fatW, int celLeft, int celTop, int pairStart,
 			const Common::Rect &clip, int priority) {
-	// TEMP: always on for testing, remove before next public release
+	if (!ConfMan.hasKey("agi_demake_debug") || !ConfMan.getBool("agi_demake_debug"))
+		return;
 	static Common::DumpFile *file = nullptr;
 	static Common::HashMap<Common::String, bool> seen;
 	// one entry per cel, pairing and screen parity, so a cel drawn in two places shows up twice
