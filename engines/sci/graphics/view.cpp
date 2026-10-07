@@ -1436,11 +1436,12 @@ static byte agiDemakePick(byte a, byte b, byte clearKey) {
 	return (kAgiDemakeLuma[b] < kAgiDemakeLuma[a]) ? b : a;
 }
 
-// QfG1 hero (view 0, every loop). Sierra drew him with a 1 pixel dark grey outline, which as fat
-// pixels becomes a thick grey border. Dark grey pixels touching transparency (or the cel's edge)
+// QfG1 hero (view 0 walking, view 4 standing, every loop). Sierra drew him with a 1 pixel dark
+// grey outline, which as fat pixels becomes a thick grey border. Dark grey pixels touching
+// transparency (or the cel's edge)
 // are dropped before the collapse.
 static bool agiDemakeIsQfgHero(int view) {
-	return g_sci->getGameId() == GID_QFG1 && view == 0;
+	return g_sci->getGameId() == GID_QFG1 && (view == 0 || view == 4);
 }
 
 static void agiDemakeHeroSource(int view, const byte *src, int w, int h, byte clearKey, byte *out) {

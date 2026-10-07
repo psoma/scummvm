@@ -1,4 +1,4 @@
-# SCI to AGI Demake (unofficial ScummVM fork) - v0.179
+# SCI to AGI Demake (unofficial ScummVM fork) - v0.180
 
 This fork adds an **AGI-style demake** mode to ScummVM's SCI engine. Early Sierra SCI games (SCI0 / SCI01, 16-colour EGA) are drawn the way Sierra's older AGI games looked: 160-pixel-wide "fat" pixels, no dithering, the 8x8 AGI font, AGI-style message boxes, and optional PCjr sound.
 
@@ -33,7 +33,8 @@ It is an unofficial, personal fork. It is not part of ScummVM and is not endorse
 - **Game-specific fixes (Hero's Quest, in progress):**
   - Title sign lettering: every line re-spaced with a hole in each letter
   - New hero screen: frame all the way round, name box lined up, "Start" button, wider gap before the points values, "points to allocate" pop-up fits the screen
-  - Hero: Sierra's 1 pixel grey outline dropped, eyes split and centred on his face
+  - Hero (walking and standing): Sierra's 1 pixel grey outline dropped, eyes split and centred on his face
+  - Selected button: its second frame line sits above the frame, clear of the text
   - Black dithered with brown shows dark grey instead of black
 
 ## Diagnostics for adding games

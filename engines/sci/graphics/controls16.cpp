@@ -325,6 +325,13 @@ void GfxControls16::kernelDrawButton(Common::Rect rect, reg_t obj, const char *t
 		}
 		rect.grow(1);
 		_paint16->eraseRect(rect);
+		// AGI demake, QfG1: the selected button's second frame line goes above the frame instead of
+		// inside it, where it touched the tops of the letters. The row above is cleared on every draw,
+		// so it goes again when the selection moves to another button
+		const bool agiRaisedSelection = _screen->agiDemake() && g_sci->getGameId() == GID_QFG1;
+		Common::Rect agiFrame = rect;
+		if (agiRaisedSelection)
+			_paint16->eraseRect(Common::Rect(rect.left, rect.top - 1, rect.right, rect.top));
 		if (_screen->agiDemake()) {
 			// AGI demake: pull the frame in to even screen columns, so each side is a whole fat
 			// pixel inside the button and the gap to a neighbouring button stays white
@@ -333,6 +340,7 @@ void GfxControls16::kernelDrawButton(Common::Rect rect, reg_t obj, const char *t
 			frameR.left = ((frameR.left + off + 1) & ~1) - off;
 			frameR.right = ((frameR.right + off) & ~1) - off;
 			_paint16->frameRect(frameR);
+			agiFrame = frameR;
 		} else {
 			_paint16->frameRect(rect);
 		}
@@ -368,10 +376,20 @@ void GfxControls16::kernelDrawButton(Common::Rect rect, reg_t obj, const char *t
 			rect.grow(1);
 			// AGI demake: the selected button's inner frame is not a fat frame line, so it
 			// cannot spill into the gap next to the button
-			if (style & SCI_CONTROLS_STYLE_SELECTED)
-				_paint16->frameRect(rect, false);
+			if (style & SCI_CONTROLS_STYLE_SELECTED) {
+				if (agiRaisedSelection) {
+					Common::Rect sel = rect;
+					sel.top -= 1;	// inner sides and bottom as before, its top line on the frame's
+					_paint16->frameRect(sel, false);
+					_paint16->frameRect(Common::Rect(agiFrame.left, agiFrame.top - 1, agiFrame.right, agiFrame.top));
+				} else {
+					_paint16->frameRect(rect, false);
+				}
+			}
 			if (!getPicNotValid()) {
 				rect.grow(1);
+				if (agiRaisedSelection)
+					rect.top -= 1;
 				_paint16->bitsShow(rect);
 			}
 		}

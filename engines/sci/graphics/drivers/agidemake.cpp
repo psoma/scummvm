@@ -98,12 +98,12 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 	// motel room (room 26): the floor is dithered black and brown, which snaps to black. It is shown
 	// dark grey instead, which also keeps it apart from the brown bed
 	// QfG1 (every room, kAnyRoom): black dithered with brown is everywhere (tree trunks, wood, earth)
-	// and also snapped to black, so it is shown dark grey too
+	// and also snapped to black, so it is shown dark grey too. Dithers with black are always stored
+	// with black in the low nibble (0x60), so this never touches solid brown (6)
 	static const uint16 kAnyRoom = 0xFFFF;
 	static const struct { SciGameId game; uint16 room; byte pair; byte color; } kRoomPairColors[] = {
 		{ GID_PQ2, 26, 0x60, 8 },
 		{ GID_QFG1, kAnyRoom, 0x60, 8 },
-		{ GID_QFG1, kAnyRoom, 0x06, 8 },
 	};
 	const byte *lut = _lut;
 	byte roomLut[256];
