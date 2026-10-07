@@ -2116,9 +2116,13 @@ static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
 	{ GID_PQ2, 282, 2, 2, 17, 6, 6, 7 },
 	{ GID_PQ2, 282, 2, 4, 17, 5, 7, 0 },
 	{ GID_PQ2, 282, 2, 4, 17, 6, 6, 7 },
-	// Keith in the band scene (view 282 loop 0 cel 2): the Chief's eye in blue, one row (blue pupil in
-	// front, grey white behind), skin on the row above
-	{ GID_PQ2, 282, 0, 2, 14, 3, 1, 12 },
+	// talking head: pupil 2 rows high, as on the body cels
+	{ GID_PQ2, 282, 2, 0, 16, 5, 6, 0 },
+	{ GID_PQ2, 282, 2, 1, 16, 5, 6, 0 },
+	{ GID_PQ2, 282, 2, 2, 16, 5, 6, 0 },
+	{ GID_PQ2, 282, 2, 4, 16, 5, 6, 0 },
+	// Keith in the band scene (view 282 loop 0 cel 2): the Chief's eye in blue. Blue pupil 2 rows high in
+	// front, grey white behind on the lower row
 	{ GID_PQ2, 282, 0, 2, 14, 4, 0, 12 },
 	{ GID_PQ2, 282, 0, 2, 15, 3, 1, 1 },
 	{ GID_PQ2, 282, 0, 2, 15, 4, 0, 7 },
