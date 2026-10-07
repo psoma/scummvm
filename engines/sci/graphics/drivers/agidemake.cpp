@@ -97,13 +97,9 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 	// Per-room colour for an undithered pair, where the nearest single colour reads wrongly. PQ2
 	// motel room (room 26): the floor is dithered black and brown, which snaps to black. It is shown
 	// dark grey instead, which also keeps it apart from the brown bed
-	// QfG1 (every room, kAnyRoom): black dithered with brown is everywhere (tree trunks, wood, earth)
-	// and also snapped to black, so it is shown dark grey too. Dithers with black are always stored
-	// with black in the low nibble (0x60), so this never touches solid brown (6)
 	static const uint16 kAnyRoom = 0xFFFF;
 	static const struct { SciGameId game; uint16 room; byte pair; byte color; } kRoomPairColors[] = {
 		{ GID_PQ2, 26, 0x60, 8 },
-		{ GID_QFG1, kAnyRoom, 0x60, 8 },
 	};
 	const byte *lut = _lut;
 	byte roomLut[256];
@@ -120,19 +116,33 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 		}
 	}
 
+	// QfG1: every dithered pair in the room pictures is drawn as a checkerboard of fat pixels (one
+	// colour, then the other, alternating along each row and down each column) instead of being
+	// snapped to the nearest single colour, which turned everything dithered with black to black.
+	// Pairs are any picture value of 0x10 or more (0xFF is plain white). The pattern is fixed to the
+	// screen, so it doesn't crawl when part of the screen is redrawn
+	const bool fatChecker = g_sci && g_sci->getGameId() == GID_QFG1;
+	auto px = [&](byte code, int col, int row) -> byte {
+		if (fatChecker && code >= 0x10 && code != 0xFF)
+			return (((col >> 1) + row) & 1) ? (code >> 4) : (code & 0x0F);
+		return lut[code];
+	};
+
 	// palModMapping is the full-screen map buffer: 1 marks text, 2 marks window frames
 	const byte *s = src + srcY * pitch + srcX;
 	const byte *m = palModMapping ? palModMapping + destY * _screenW + destX : nullptr;
 	byte *d = _demakeBuffer;
 	for (int y = 0; y < h; ++y) {
+		const int row = destY + y;
 		for (int x = 0; x < w; x += 2) {
 			bool hasRight = (x + 1 < w);
+			const int scol = destX + x;
 			byte fl = m ? m[x] : 0;
 			byte fr = (m && hasRight) ? m[x + 1] : 0;
 			if (fl == 1 || fr == 1) {
-				d[x] = lut[s[x]];
+				d[x] = px(s[x], scol, row);
 				if (hasRight)
-					d[x + 1] = lut[s[x + 1]];
+					d[x + 1] = px(s[x + 1], scol + 1, row);
 			} else if (fr == 2 && fl != 2) {
 				byte c = lut[s[x + 1]];
 				d[x] = c;
@@ -145,7 +155,7 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 				if (hasRight)
 					d[x + 1] = c;
 			} else {
-				byte c = lut[s[x]];
+				byte c = px(s[x], scol, row);
 				// A 1 pixel vertical line in the right half of the pair (left pixel matches its
 				// left neighbour, right pixel differs from its right neighbour) wins the pair, so
 				// thin picture lines on odd columns are not lost. Neighbours are only read from a
@@ -153,10 +163,10 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 				// on which rectangle is being updated.
 				if (hasRight && pitch == _screenW) {
 					const int col = srcX + x;
-					const byte b = lut[s[x + 1]];
+					const byte b = px(s[x + 1], scol + 1, row);
 					if (b != c && col - 1 >= 0 && col + 2 < _screenW) {
-						const byte leftN = lut[s[x - 1]];
-						const byte rightN = lut[s[x + 2]];
+						const byte leftN = px(s[x - 1], scol - 1, row);
+						const byte rightN = px(s[x + 2], scol + 2, row);
 						if (c == leftN && b != rightN)
 							c = b;
 					}
