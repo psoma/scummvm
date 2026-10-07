@@ -214,20 +214,29 @@ GfxScreen::GfxScreen(ResourceManager *resMan, Common::RenderMode renderMode) : _
 	_backupScreen = nullptr;
 }
 
-// QfG1, Flat approximation: on walkable ground (control colour other than white, white being
-// Sierra's barrier) green with dark grey shows green, and green with black shows dark grey. Done on
-// the picture's colour pairs as drawn, so sprites restoring the background keep it
+// QfG1, Flat approximation: some colour pairs show differently on walkable ground (control colour
+// other than white, white being Sierra's barrier) and off it. Done on the picture's colour pairs as
+// drawn, so sprites restoring the background keep it. Walkable: green with dark grey shows green,
+// green with black shows dark grey. Not walkable: red with black shows red, brown with black shows
+// brown, light grey with brown shows light grey
 void GfxScreen::agiDemakeRecolourWalkable() {
 	if (_upscaledHires != GFX_SCREEN_UPSCALED_DISABLED || _displayPixels != _pixels)
 		return;
 	for (uint o = 0; o < _pixels; ++o) {
-		if (_controlScreen[o] == 15)
-			continue;
 		byte &c = _displayScreen[o];
-		if (c == 0x28 || c == 0x82)
-			c = 0x02;
-		else if (c == 0x20)
-			c = 0x08;
+		if (_controlScreen[o] != 15) {
+			if (c == 0x28 || c == 0x82)
+				c = 0x02;
+			else if (c == 0x20)
+				c = 0x08;
+		} else {
+			if (c == 0x40)
+				c = 0x04;
+			else if (c == 0x60)
+				c = 0x06;
+			else if (c == 0x76 || c == 0x67)
+				c = 0x07;
+		}
 	}
 }
 
