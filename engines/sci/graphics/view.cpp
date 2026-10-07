@@ -2098,6 +2098,30 @@ static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
 	// the face's left edge, skin between
 	{ GID_PQ2, 26, 2, -1, 6, 2, 12, 0 },
 	{ GID_PQ2, 26, 2, -1, 6, 3, 0, 12 },
+	// PQ2 the Chief in the band scene (view 282): his eye kept only its grey white. Black pupil in
+	// front, grey white behind, as in SCI. Body cels (loop 1) and talking head cels (loop 2)
+	{ GID_PQ2, 282, 1, 0, 17, 10, 7, 0 },
+	{ GID_PQ2, 282, 1, 0, 17, 11, 6, 7 },
+	{ GID_PQ2, 282, 1, 1, 17, 10, 7, 0 },
+	{ GID_PQ2, 282, 1, 1, 17, 11, 6, 7 },
+	{ GID_PQ2, 282, 1, 4, 17, 10, 7, 0 },
+	{ GID_PQ2, 282, 1, 4, 17, 11, 6, 7 },
+	{ GID_PQ2, 282, 1, 5, 17, 10, 7, 0 },
+	{ GID_PQ2, 282, 1, 5, 17, 11, 6, 7 },
+	{ GID_PQ2, 282, 2, 0, 17, 5, 7, 0 },
+	{ GID_PQ2, 282, 2, 0, 17, 6, 6, 7 },
+	{ GID_PQ2, 282, 2, 1, 17, 5, 7, 0 },
+	{ GID_PQ2, 282, 2, 1, 17, 6, 6, 7 },
+	{ GID_PQ2, 282, 2, 2, 17, 5, 7, 0 },
+	{ GID_PQ2, 282, 2, 2, 17, 6, 6, 7 },
+	{ GID_PQ2, 282, 2, 4, 17, 5, 7, 0 },
+	{ GID_PQ2, 282, 2, 4, 17, 6, 6, 7 },
+	// Keith in the band scene (view 282 loop 0 cel 2): the Chief's eye in blue, one row (blue pupil in
+	// front, grey white behind), skin on the row above
+	{ GID_PQ2, 282, 0, 2, 14, 3, 1, 12 },
+	{ GID_PQ2, 282, 0, 2, 14, 4, 0, 12 },
+	{ GID_PQ2, 282, 0, 2, 15, 3, 1, 1 },
+	{ GID_PQ2, 282, 0, 2, 15, 4, 0, 7 },
 	// PQ2 sign on a pole (view 253 cel 0): the black marks run into the sign's white edge after the
 	// collapse. One white fat pixel is kept at each side (the red corner can still reach the edge)
 	{ GID_PQ2, 253, 0, 0, 2, 0, 0, 15 },
@@ -2525,8 +2549,11 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	// Towards and away use the v4 pairing (from the cel's left edge, odd mirrored cels from the
 	// right). Side views use the per-loop phase and nose repair.
 	const bool fourLoops = _loop.size() >= 4;
-	const bool towards = fourLoops && loopNo == 2;
-	const bool away = fourLoops && loopNo == 3;
+	// PQ2 view 99 (sewer: water streams, Sonny falling) has 4+ loops but they aren't facing
+	// directions, and the away-head rebuild turned the top of a water stream into a green block
+	const bool notWalker = g_sci->getGameId() == GID_PQ2 && _resourceId == 99;
+	const bool towards = fourLoops && loopNo == 2 && !notWalker;
+	const bool away = fourLoops && loopNo == 3 && !notWalker;
 	const bool mirrored = _loop[CLIP<int16>(loopNo, 0, _loop.size() - 1)].mirrorFlag;
 	const bool still = _screen->agiDemakeStill();
 	// Wide side-view sprites (cars and similar): lighter pixel wins, which keeps wheels round

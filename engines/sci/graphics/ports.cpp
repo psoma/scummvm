@@ -37,6 +37,8 @@
 
 namespace Sci {
 
+void agiDemakeLogLine(const Common::String &line);	// text16.cpp, AGI demake diagnostics
+
 GfxPorts::GfxPorts(SegManager *segMan, GfxScreen *screen)
 	: _segMan(segMan), _screen(screen) {
 }
@@ -480,6 +482,13 @@ Window *GfxPorts::addWindow(const Common::Rect &dims, const Common::Rect *restor
 	// All SCI0 games till kq4 .502 (not including) did not adjust against _wmgrPort, we set _wmgrPort->top to 0 in that case
 	setOrigin(pwnd->rect.left, pwnd->rect.top + _wmgrPort->top);
 	pwnd->rect.moveTo(0, 0);
+	// AGI demake diagnostics: where each window sits on screen and what its close will restore
+	if (_screen->agiDemake())
+		agiDemakeLogLine(Common::String::format("room %d window open %d dims %d,%d-%d,%d rect %d,%d-%d,%d restore %d,%d-%d,%d style %d priority %d",
+			g_sci->getEngineState() ? g_sci->getEngineState()->currentRoomNumber() : -1, pwnd->id,
+			pwnd->dims.left, pwnd->dims.top, pwnd->dims.right, pwnd->dims.bottom,
+			pwnd->rect.left, pwnd->rect.top, pwnd->rect.right, pwnd->rect.bottom,
+			pwnd->restoreRect.left, pwnd->restoreRect.top, pwnd->restoreRect.right, pwnd->restoreRect.bottom, style, priority));
 	return pwnd;
 }
 
@@ -576,6 +585,11 @@ void GfxPorts::drawWindow(Window *pWnd) {
 }
 
 void GfxPorts::removeWindow(Window *pWnd, bool reanimate) {
+	if (_screen->agiDemake())
+		agiDemakeLogLine(Common::String::format("room %d window close %d dims %d,%d-%d,%d restore %d,%d-%d,%d reanimate %d",
+			g_sci->getEngineState() ? g_sci->getEngineState()->currentRoomNumber() : -1, pWnd->id,
+			pWnd->dims.left, pWnd->dims.top, pWnd->dims.right, pWnd->dims.bottom,
+			pWnd->restoreRect.left, pWnd->restoreRect.top, pWnd->restoreRect.right, pWnd->restoreRect.bottom, reanimate ? 1 : 0));
 	setPort(_wmgrPort);
 	_paint16->bitsRestore(pWnd->hSaved1);
 	pWnd->hSaved1 = NULL_REG;
