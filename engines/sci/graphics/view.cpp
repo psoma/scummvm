@@ -2130,8 +2130,8 @@ static void agiDemakeApplyFatPatches(GuiResourceId view, int16 loop, int16 cel, 
 
 // Hand-drawn blocks of fat pixels, for lettering that has to stay handwriting (no font) but
 // does not survive the collapse. A block replaces the cel's fat pixels at the given row and pair,
-// one string per row ('.' keeps the pixel). Only pixels that are already the block's two colours
-// change, so the block never paints over the card's frame if the pairing ever shifts.
+// one string per row ('.' keeps the pixel). Only pixels that are already the block's two colours,
+// or see-through, change, so the block never paints over the card's frame if the pairing shifts.
 struct AgiDemakeFatBlock {
 	SciGameId game;
 	int16 view, loop, cel;
@@ -2165,6 +2165,20 @@ static const AgiDemakeFatBlock kAgiDemakeFatBlocks[] = {
 		  "fffffffffffffffffffff1",
 		  "fffffffffffffffffffff1",
 		  "ffffffffffffffffffffff" } },
+	// PQ2 Burt Park sign (view 190 loop 1): "BURT PARK" hand-drawn, black border all round, moved out
+	// one fat pixel each side so there is a brown gap between the lettering and the border
+	{ GID_PQ2, 190, 1, 0, 0, 0, 6, 0,
+		{ "111111111111111111111111111111111111",
+		  "1ffffffffffffffffffffffffffffffffff1",
+		  "1f11ff1f1f11ff111ff11fff1ff11ff1f1f1",
+		  "1f1f1f1f1f1f1ff1fff1f1f1f1f1f1f1f1f1",
+		  "1f1f1f1f1f1f1ff1fff1f1f1f1f1f1f11ff1",
+		  "1f11ff1f1f11fff1fff11ff111f11ff1fff1",
+		  "1f1f1f1f1f1f1ff1fff1fff1f1f1f1f11ff1",
+		  "1f1f1f1f1f1f1ff1fff1fff1f1f1f1f1f1f1",
+		  "1f11ff111f1f1ff1fff1fff1f1f1f1f1f1f1",
+		  "1ffffffffffffffffffffffffffffffffff1",
+		  "111111111111111111111111111111111111" } },
 	// PQ2 back of Sonny's business card: "36-4-12" handwritten, redrawn legibly in fat pixels
 	{ GID_PQ2, 137, 0, 1, 15, 5, 15, 1,
 		{ "ff11fff11ffffffffffffffff",
@@ -2179,7 +2193,7 @@ static const AgiDemakeFatBlock kAgiDemakeFatBlocks[] = {
 		  "fffffffffffffffffffffffff" } },
 };
 
-static void agiDemakeApplyFatBlocks(GuiResourceId view, int16 loop, int16 cel, int h, byte *fat, int fatW, int pad, int numPairs) {
+static void agiDemakeApplyFatBlocks(GuiResourceId view, int16 loop, int16 cel, int h, byte clearKey, byte *fat, int fatW, int pad, int numPairs) {
 	for (uint i = 0; i < ARRAYSIZE(kAgiDemakeFatBlocks); ++i) {
 		const AgiDemakeFatBlock &b = kAgiDemakeFatBlocks[i];
 		if (b.game != g_sci->getGameId() || b.view != view || b.loop != loop || b.cel != cel)
@@ -2191,10 +2205,10 @@ static void agiDemakeApplyFatBlocks(GuiResourceId view, int16 loop, int16 cel, i
 			for (int x = 0; b.rows[r][x]; ++x) {
 				const int p = b.pair + x;
 				const char ch = b.rows[r][x];
-				if (ch == '.' || p < 0 || p >= numPairs)
+				if (ch == '.' || p < -pad || p >= numPairs + pad)
 					continue;
 				byte &px = fat[y * fatW + pad + p];
-				if (px == b.paper || px == b.ink)
+				if (px == b.paper || px == b.ink || px == clearKey)
 					px = (ch == '1') ? b.ink : b.paper;
 			}
 		}
@@ -2314,12 +2328,15 @@ static const AgiDemakePairPrefer kAgiDemakePairPrefers[] = {
 	// PQ2 sign on a pole (view 253 cel 0): the pole is a white column with a black shadow column,
 	// which collapses to black. It stays white, as in SCI
 	{ GID_PQ2, 253, 0, 0, 0, 2, 16, 61, 15 },
+	// PQ2 bomb timer digits (view 250 loop 8, any digit): each digit's 1 pixel left stroke shares its pair
+	// with black and was lost. The first fat pixel keeps the red
+	{ GID_PQ2, 250, 8, -1, 0, 0, 0, 8, 12 },
 };
 
 static void agiDemakeApplyPairPrefers(const SciSpan<const byte> &bitmap, GuiResourceId view, int16 loop, int16 cel, int startX, int w, int h, byte *fat, int fatW, int pad, int numPairs) {
 	for (uint i = 0; i < ARRAYSIZE(kAgiDemakePairPrefers); ++i) {
 		const AgiDemakePairPrefer &pp = kAgiDemakePairPrefers[i];
-		if (pp.game != g_sci->getGameId() || pp.view != view || pp.loop != loop || pp.cel != cel || pp.startX != startX)
+		if (pp.game != g_sci->getGameId() || pp.view != view || pp.loop != loop || (pp.cel >= 0 && pp.cel != cel) || pp.startX != startX)
 			continue;
 		if (pp.pair < 0 || pp.pair >= numPairs)
 			continue;
@@ -2603,7 +2620,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		agiDemakeMugshotEyes(origBitmap, celWidth, celHeight, startX, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatPatches(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeTidyPaintEdges(textOverride, startX, celHeight, fat.data(), fatW, pad, numPairs);
-	agiDemakeApplyFatBlocks(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
+	agiDemakeApplyFatBlocks(_resourceId, loopNo, celNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyPairPrefers(bitmap, _resourceId, loopNo, celNo, startX, celWidth, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeMirrorEyes(_resourceId, loopNo, celNo, startX, celHeight, fat.data(), fatW, pad, numPairs);
 	// PQ2 inventory items: at an odd screen column the item is drawn one column to the left, so it

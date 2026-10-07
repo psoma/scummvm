@@ -701,12 +701,34 @@ static const struct AgiDemakeTextSub {
 		"Colby's business card, found in Bains' motel room: \"Colby Imports, Steelton, U.S.A., 407-555-3323\"" },
 };
 
+// AGI demake: part of a longer message changed, matched on how the message starts. Used where only
+// a line needs to change and the rest must stay exactly as the game has it.
+static const struct AgiDemakeTextEdit {
+	SciGameId game;
+	const char *start, *find, *replace;
+} kAgiDemakeTextEdits[] = {
+	// PQ2 bomb instructions: the WARNING line is indented like the rest, and broken by hand so the
+	// part that wraps stays indented too
+	{ GID_PQ2, "      KUDOFI'S", "\nWARNING: Only connect same color wires.", "\n  WARNING: Only connect same color\n  wires." },
+};
+
 static const char *agiDemakeSubstituteText(const char *text) {
 	if (!text)
 		return text;
 	for (uint i = 0; i < ARRAYSIZE(kAgiDemakeTextSubs); ++i)
 		if (g_sci->getGameId() == kAgiDemakeTextSubs[i].game && !strcmp(text, kAgiDemakeTextSubs[i].from))
 			return kAgiDemakeTextSubs[i].to;
+	static Common::String edited;
+	for (uint i = 0; i < ARRAYSIZE(kAgiDemakeTextEdits); ++i) {
+		const AgiDemakeTextEdit &e = kAgiDemakeTextEdits[i];
+		if (g_sci->getGameId() != e.game || strncmp(text, e.start, strlen(e.start)))
+			continue;
+		const char *at = strstr(text, e.find);
+		if (!at)
+			continue;
+		edited = Common::String(text, at - text) + e.replace + (at + strlen(e.find));
+		return edited.c_str();
+	}
 	return text;
 }
 
@@ -716,10 +738,14 @@ static const struct AgiDemakeTextWidth {
 	SciGameId game;
 	const char *start;
 	int16 maxWidth;
+	bool force;		// true: this width whatever the game asks for (wider), false: no wider than this
 } kAgiDemakeTextWidths[] = {
 	// PQ2 reading the envelope beside its picture: at 192 (and 184) wide the window, with the AGI
 	// frame, ran past the right edge of the screen
-	{ GID_PQ2, "\"Bains mailed the letter hoping to suck Roberts in", 176 },
+	{ GID_PQ2, "\"Bains mailed the letter hoping to suck Roberts in", 176, false },
+	// PQ2 bomb instructions: sized for SCI's small font at 184 wide, which wraps nearly every line in
+	// the 8x8 font. 296 is the widest that still fits on screen with the window frame
+	{ GID_PQ2, "      KUDOFI'S", 296, true },
 };
 
 static int16 agiDemakeCapTextWidth(const char *text, int16 maxWidth) {
@@ -728,7 +754,7 @@ static int16 agiDemakeCapTextWidth(const char *text, int16 maxWidth) {
 	for (uint i = 0; i < ARRAYSIZE(kAgiDemakeTextWidths); ++i) {
 		const AgiDemakeTextWidth &tw = kAgiDemakeTextWidths[i];
 		if (g_sci->getGameId() == tw.game && !strncmp(text, tw.start, strlen(tw.start)) &&
-				(maxWidth == 0 || maxWidth > tw.maxWidth))	// 0 means the default width (192), below 0 one line
+				((tw.force && maxWidth >= 0) || maxWidth == 0 || maxWidth > tw.maxWidth))	// 0 means the default width (192), below 0 one line
 			return tw.maxWidth;
 	}
 	return maxWidth;
