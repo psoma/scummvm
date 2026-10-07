@@ -88,7 +88,7 @@ public:
 	// AGI demake: a copy of the room picture as drawn (visual, display, priority, map), so a sprite
 	// fix can put a few background pixels back over another sprite
 	void agiDemakeSnapshotPicture();
-	void agiDemakeRestorePicturePixel(int x, int y);
+	void agiDemakeRestorePicturePixel(int x, int y, int priority = -1);	// priority >= 0: also set it
 	byte getColorWhite() { return _colorWhite; }
 	byte getColorDefaultVectorData() { return _colorDefaultVectorData; }
 

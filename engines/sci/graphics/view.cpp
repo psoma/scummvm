@@ -2639,6 +2639,19 @@ static void agiDemakeDump(int viewId, int loopNo, int celNo, const CelInfo *ci, 
 
 // AGI demake: collapse cel pixel pairs in cel space and snap to even screen columns,
 // so the same detail survives whatever x position the sprite is drawn at
+// QfG1 look-around (room 300): fat pixels of his standing-away frame's hair that poke out beside
+// the turned head, given in screen pixels from the head cel's top-left (each is 2 screen pixels wide)
+static const struct { int8 cel, dx, dy; } kAgiDemakeQfgHeadHide[] = {
+	// looking left: the column right of the head
+	{ 0, 12, 3 }, { 0, 12, 4 }, { 0, 12, 5 }, { 0, 12, 6 }, { 0, 12, 7 }, { 0, 12, 8 },
+	// looking right: the same column, the hair above and in front of his face, and the two brown
+	// pixels under his nose
+	{ 1, 11, 3 }, { 1, 11, 4 }, { 1, 11, 5 }, { 1, 11, 6 }, { 1, 11, 7 }, { 1, 11, 8 },
+	{ 1, 9, 1 }, { 1, 9, 5 }, { 1, 9, 7 }, { 1, 9, 8 }
+};
+// where the turned head was last drawn
+static struct { bool valid; uint32 picGeneration; int cel, left, top, priority; } g_agiDemakeQfgHead = { false, 0, 0, 0, 0, 0 };
+
 void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRect, const Common::Rect &clipRectTranslated,
 			int16 loopNo, int16 celNo, byte priority, uint16 scaleSignal, const Palette *palette) {
 	// Some calls (inventory item windows) pass loop and cel numbers past the end. The cel drawn is the
@@ -2817,6 +2830,27 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	agiDemakeDump(_resourceId, loopNo, celNo, celInfo, mirrored, startX, origBitmap, fat.data(), fatW,
 		rect.left + offsetX, rect.top + offsetY, pairStart, clipRectTranslated, priority);
 
+	// QfG1 look-around: the standing-away frame leaves out the hair that would poke out beside the
+	// turned head, when that head is on screen right now (drawn earlier this cycle: its priority is
+	// still on the priority screen at a pixel of its face)
+	if (g_sci->getGameId() == GID_QFG1 && _resourceId == 4 && loopNo == 3 && g_agiDemakeQfgHead.valid &&
+			g_agiDemakeQfgHead.picGeneration == _screen->_agiPicGeneration &&
+			_screen->getPriority(g_agiDemakeQfgHead.left + 4, g_agiDemakeQfgHead.top + 4) == g_agiDemakeQfgHead.priority) {
+		const int top = rect.top + offsetY;
+		for (uint i = 0; i < ARRAYSIZE(kAgiDemakeQfgHeadHide); ++i) {
+			if (kAgiDemakeQfgHeadHide[i].cel != g_agiDemakeQfgHead.cel)
+				continue;
+			const int x2 = g_agiDemakeQfgHead.left + kAgiDemakeQfgHeadHide[i].dx;
+			const int y2 = g_agiDemakeQfgHead.top + kAgiDemakeQfgHeadHide[i].dy;
+			const int cy = y2 - top, f = ((x2 - pairStart) >> 1) + pad;
+			if (x2 >= pairStart && cy >= 0 && cy < celHeight && f < fatW) {
+				byte &v = fat[cy * fatW + f];
+				if (v == 6 || v == 14)
+					v = clearKey;
+			}
+		}
+	}
+
 	// Sprite fat pixels are marked (map value 3) so the display driver keeps a fat pixel whole when
 	// the item's edge cuts it in half on screen, instead of letting the background take the pair
 	const byte oldSpriteMapValue = _screen->getCurPaletteMapValue();
@@ -2839,26 +2873,23 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	_screen->setCurPaletteMapValue(oldSpriteMapValue);
 
 	// QfG1 look-around (room 300): the turned head (view 300 loop 8) is drawn over his standing-away
-	// frame, and as fat pixels that frame's own hair pokes out beside the turned head. These fat
-	// pixels (2 screen pixels each, given from the head cel's top-left) go back to the room picture,
-	// only where they really are his hair (yellow or brown)
+	// frame (view 4 loop 3), and as fat pixels that frame's own hair pokes out beside the turned
+	// head. Those fat pixels (see kAgiDemakeQfgHeadHide) are hidden whichever of the two is drawn
+	// second: drawn after the body, the head puts the room picture back there (only over his
+	// yellow or brown hair). Drawn before it, the head is remembered and the body leaves them out
 	if (g_sci->getGameId() == GID_QFG1 && _resourceId == 300 && loopNo == 8 && celNo <= 1) {
-		static const struct { int8 cel, dx, dy; } kHide[] = {
-			// looking left: the column right of the head
-			{ 0, 12, 3 }, { 0, 12, 4 }, { 0, 12, 5 }, { 0, 12, 6 }, { 0, 12, 7 }, { 0, 12, 8 },
-			// looking right: the same column, the hair above and in front of his face, and the two
-			// brown pixels under his nose
-			{ 1, 11, 3 }, { 1, 11, 4 }, { 1, 11, 5 }, { 1, 11, 6 }, { 1, 11, 7 }, { 1, 11, 8 },
-			{ 1, 9, 1 }, { 1, 9, 5 }, { 1, 9, 7 }, { 1, 9, 8 }
-		};
 		const int left = rect.left + offsetX, top = rect.top + offsetY;
-		for (uint i = 0; i < ARRAYSIZE(kHide); ++i) {
-			if (kHide[i].cel != celNo)
+		g_agiDemakeQfgHead.valid = true;
+		g_agiDemakeQfgHead.picGeneration = _screen->_agiPicGeneration;
+		g_agiDemakeQfgHead.cel = celNo;
+		g_agiDemakeQfgHead.left = left;
+		g_agiDemakeQfgHead.top = top;
+		g_agiDemakeQfgHead.priority = priority;
+		for (uint i = 0; i < ARRAYSIZE(kAgiDemakeQfgHeadHide); ++i) {
+			if (kAgiDemakeQfgHeadHide[i].cel != celNo)
 				continue;
 			for (int d = 0; d < 2; ++d) {
-				const int x2 = left + kHide[i].dx + d, y2 = top + kHide[i].dy;
-				if (x2 < clipRectTranslated.left || x2 >= clipRectTranslated.right + 2 || y2 < clipRectTranslated.top || y2 >= clipRectTranslated.bottom)
-					continue;
+				const int x2 = left + kAgiDemakeQfgHeadHide[i].dx + d, y2 = top + kAgiDemakeQfgHeadHide[i].dy;
 				const byte c = _screen->getVisual(x2, y2);
 				if (c == 6 || c == 14)
 					_screen->agiDemakeRestorePicturePixel(x2, y2);

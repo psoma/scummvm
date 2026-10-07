@@ -224,12 +224,12 @@ void GfxScreen::agiDemakeSnapshotPicture() {
 		_agiPicMap = Common::Array<byte>(_paletteMapScreen, _displayPixels);
 }
 
-void GfxScreen::agiDemakeRestorePicturePixel(int x, int y) {
+void GfxScreen::agiDemakeRestorePicturePixel(int x, int y, int priority) {
 	if (x < 0 || y < 0 || x >= _width || y >= _height || _agiPicVisual.empty())
 		return;
 	const int o = y * _width + x;
 	_visualScreen[o] = _agiPicVisual[o];
-	_priorityScreen[o] = _agiPicPriority[o];
+	_priorityScreen[o] = (priority >= 0) ? (byte)priority : _agiPicPriority[o];
 	_displayScreen[o] = _agiPicDisplay[o];
 	if (_paletteMapScreen && !_agiPicMap.empty())
 		_paletteMapScreen[o] = _agiPicMap[o];
