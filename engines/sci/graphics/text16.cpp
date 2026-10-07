@@ -746,6 +746,10 @@ static const struct AgiDemakeTextWidth {
 	// PQ2 bomb instructions: sized for SCI's small font at 184 wide, which wraps nearly every line in
 	// the 8x8 font. 296 is the widest that still fits on screen with the window frame
 	{ GID_PQ2, "KUDOFI'S DO-IT-YOURSELF BOMB", 296, true },
+	// PQ2 ending, on the plane: with the AGI frame this box reached x 208, into the see-through edge of
+	// the animated plane window (from x 199), which then put the box's edge back after it closed.
+	// One word narrower keeps it clear (right edge 192)
+	{ GID_PQ2, "While high in the sky, bound for the warm", 168, false },
 };
 
 static int16 agiDemakeCapTextWidth(const char *text, int16 maxWidth) {
