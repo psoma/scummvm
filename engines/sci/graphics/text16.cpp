@@ -753,6 +753,9 @@ static const struct AgiDemakeTextWidth {
 	// the animated plane window (from x 199), which then put the box's edge back after it closed.
 	// One word narrower keeps it clear (right edge 192)
 	{ GID_PQ2, "While high in the sky, bound for the warm", 168, false },
+	// QfG1 "You still have points to allocate." pop-up: the window is sized from the message plus the
+	// button column, and at 192 wide it ran past the right edge. At 160 it still takes two lines
+	{ GID_QFG1, "You still have points to allocate.", 160, false },
 };
 
 static int16 agiDemakeCapTextWidth(const char *text, int16 maxWidth) {
