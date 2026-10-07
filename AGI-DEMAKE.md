@@ -1,4 +1,4 @@
-# SCI to AGI Demake (unofficial ScummVM fork) - v0.176
+# SCI to AGI Demake (unofficial ScummVM fork) - v0.177
 
 This fork adds an **AGI-style demake** mode to ScummVM's SCI engine. Early Sierra SCI games (SCI0 / SCI01, 16-colour EGA) are drawn the way Sierra's older AGI games looked: 160-pixel-wide "fat" pixels, no dithering, the 8x8 AGI font, AGI-style message boxes, and optional PCjr sound.
 
@@ -30,6 +30,9 @@ It is an unofficial, personal fork. It is not part of ScummVM and is not endorse
   - Addresses and phone numbers on envelopes and Colby's card are added to their description text
   - Faces where the eyes merged, the shooting range targets, inventory item frames, and Sonny's head on his diving suits
   - The police computer screen, and a few text boxes re-wrapped to fit
+- **Game-specific fixes (Hero's Quest, in progress):**
+  - Title sign lettering: holes in the letters restored, "Village of Spielburg" re-spaced
+  - New hero screen: frame all the way round, name box lined up, "Start" button, wider gap before the points values
 
 ## Diagnostics for adding games
 

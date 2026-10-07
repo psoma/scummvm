@@ -399,6 +399,19 @@ Window *GfxPorts::addWindow(const Common::Rect &dims, const Common::Rect *restor
 
 	// Clip window, if needed
 	Common::Rect wmprect = _wmgrPort->rect;
+	// AGI demake: a window that only outgrows the screen because of the wider AGI frame (QfG1 new
+	// hero screen, full screen) has its frame pulled in to the screen edges instead of being moved.
+	// Moving it shifted everything inside it away from text the game draws in other ports.
+	if (_screen->agiDemake() && (style != _styleUser) && !(style & SCI_WINDOWMGR_STYLE_NOFRAME)) {
+		if (pwnd->dims.width() > wmprect.width()) {
+			pwnd->dims.left = MAX(pwnd->dims.left, wmprect.left);
+			pwnd->dims.right = MIN(pwnd->dims.right, wmprect.right);
+		}
+		if (pwnd->dims.height() > wmprect.height()) {
+			pwnd->dims.top = MAX(pwnd->dims.top, wmprect.top);
+			pwnd->dims.bottom = MIN(pwnd->dims.bottom, wmprect.bottom);
+		}
+	}
 	// Handle a special case for Dr. Brain 1 Mac. When hovering the mouse cursor
 	// over the status line on top, the game scripts try to draw the game's icon
 	// bar above the current port, by specifying a negative window top, so that

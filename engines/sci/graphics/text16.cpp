@@ -711,6 +711,8 @@ static const struct AgiDemakeTextEdit {
 	// PQ2 bomb instructions: the WARNING line is indented like the rest, and broken by hand so the
 	// part that wraps stays indented too
 	{ GID_PQ2, "KUDOFI'S DO-IT-YOURSELF BOMB", "\nWARNING: Only connect same color wires.", "\n  WARNING: Only connect same color\n  wires." },
+	// QfG1 new hero screen: the Start Game button is sized from its text and ran off the right edge
+	{ GID_QFG1, "Start Game", "Start Game", "Start" },
 };
 
 static const char *agiDemakeSubstituteText(const char *text) {

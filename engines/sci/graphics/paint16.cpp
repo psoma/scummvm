@@ -699,6 +699,19 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 		}
 	}
 
+	// AGI demake: QfG1 new hero screen (room 203). The Health, Stamina and Magic Points values sit at
+	// x 103, which the tight AGI font reaches with "Stamina Points". They are moved 8 pixels right, and
+	// their box keeps its right edge (clear of the "values." line above) unless the value needs more.
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_QFG1 && g_sci->getEngineState() &&
+			g_sci->getEngineState()->currentRoomNumber() == 203) {
+		Port *port = _ports->getPort();
+		if (port->curLeft == 103 && (port->curTop == 148 || port->curTop == 160 || port->curTop == 172)) {
+			port->curLeft += 8;
+			if (width > 8)
+				width = MAX<int16>(width - 8, _text16->agiWidth(text, true));
+		}
+	}
+
 	// now drawing the text
 	_text16->Size(rect, text, languageSplitter, -1, width);
 	rect.moveTo(_ports->getPort()->curLeft, _ports->getPort()->curTop);
