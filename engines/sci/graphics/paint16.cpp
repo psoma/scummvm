@@ -120,6 +120,17 @@ void GfxPaint16::agiDemakeDumpPicture(GuiResourceId pictureId, bool addToFlag) {
 		line += '\n';
 		file->writeString(line);
 	}
+	// control screen (which areas are walkable), one hex digit per pixel
+	const int cw = _screen->getWidth(), ch = _screen->getHeight();
+	const byte *c = _screen->agiDemakeControlScreen();
+	file->writeString(Common::String::format("control %d room %d w %d h %d\n", pictureId, room, cw, ch));
+	for (int y = 0; y < ch; ++y) {
+		Common::String line;
+		for (int x = 0; x < cw; ++x)
+			line += hex[c[y * cw + x] & 15];
+		line += '\n';
+		file->writeString(line);
+	}
 	file->flush();
 }
 
@@ -137,7 +148,7 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 	picture.draw(mirroredFlag, addToFlag, paletteId);
 
 	// AGI demake debug capture (only with agi_demake_debug=true): each picture once, as the colour
-	// pairs it was drawn with, into agi_demake_pic.txt next to the exe
+	// pairs it was drawn with plus its control screen, into agi_demake_pic.txt next to the exe
 	if (_screen->agiDemake() && ConfMan.hasKey("agi_demake_debug") && ConfMan.getBool("agi_demake_debug"))
 		agiDemakeDumpPicture(pictureId, addToFlag);
 

@@ -1,4 +1,4 @@
-# SCI to AGI Demake (unofficial ScummVM fork) - v0.183
+# SCI to AGI Demake (unofficial ScummVM fork) - v0.184
 
 This fork adds an **AGI-style demake** mode to ScummVM's SCI engine. Early Sierra SCI games (SCI0 / SCI01, 16-colour EGA) are drawn the way Sierra's older AGI games looked: 160-pixel-wide "fat" pixels, no dithering, the 8x8 AGI font, AGI-style message boxes, and optional PCjr sound.
 
@@ -30,7 +30,7 @@ It is an unofficial, personal fork. It is not part of ScummVM and is not endorse
   - Addresses and phone numbers on envelopes and Colby's card are added to their description text
   - Faces where the eyes merged, the shooting range targets, inventory item frames, and Sonny's head on his diving suits
   - The police computer screen, and a few text boxes re-wrapped to fit
-- **Dither handler** (pulldown under the AGI demake option, any game): *Flat approximation* (default) shows each dithered colour pair as one colour. *Chunky dither* draws it as a checkerboard of fat pixels in its two colours. Takes effect next time the game starts
+- **Dither handler** (pulldown directly under the AGI demake option, any game): *Flat approximation* (default) shows each dithered colour pair as one colour. *Chunky dither* draws it as a checkerboard of fat pixels in its two colours. Takes effect next time the game starts
 - **Game-specific fixes (Hero's Quest, in progress):**
   - Title sign lettering: every line re-spaced with a hole in each letter
   - New hero screen: frame all the way round, name box lined up, "Start" button, wider gap before the points values, "points to allocate" pop-up fits the screen
@@ -47,7 +47,7 @@ To help tune a new game, add this line to the game's section of `scummvm.ini`:
 agi_demake_debug=true
 ```
 
-ScummVM then writes `agi_demake_dump.txt` (sprites: source, result, screen position) and `agi_demake_text.txt` (text boxes and windows) and `agi_demake_pic.txt` (each room picture as drawn, before sprites) next to the executable, overwritten each session. Leave it off for normal play.
+ScummVM then writes `agi_demake_dump.txt` (sprites: source, result, screen position) and `agi_demake_text.txt` (text boxes and windows) and `agi_demake_pic.txt` (each room picture as drawn, before sprites, plus its walkable-area control screen) next to the executable, overwritten each session. Leave it off for normal play.
 
 ## Building
 

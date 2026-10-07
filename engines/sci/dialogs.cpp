@@ -68,10 +68,19 @@ void OptionsWidget::defineLayout(GUI::ThemeEval &layouts, const Common::String &
 	layouts.addDialog(layoutName, overlayedLayout);
 	layouts.addLayout(GUI::ThemeLayout::kLayoutVertical).addPadding(0, 0, 0, 0);
 
-	for (const ADExtraGuiOptionsMap *entry = optionsList; entry->guioFlag; ++entry)
+	// the AGI dither handler pulldown sits directly under the AGI demake checkbox it belongs to
+	for (const ADExtraGuiOptionsMap *entry = optionsList; entry->guioFlag; ++entry) {
 		layouts.addWidget(entry->option.configOption, "Checkbox");
+		if (!strcmp(entry->option.configOption, "agi_demake")) {
+			layouts.addLayout(GUI::ThemeLayout::kLayoutHorizontal).addPadding(0, 0, 0, 0);
+			layouts.addWidget("agi_dither_desc", "OptionsLabel");
+			layouts.addWidget("agi_dither", "PopUp").closeLayout();
+		}
+	}
 
 	for (const PopUpOptionsMap *entry = popUpOptionsList; entry->guioFlag; ++entry) {
+		if (!strcmp(entry->configOption, "agi_dither"))
+			continue;
 		layouts.addLayout(GUI::ThemeLayout::kLayoutHorizontal).addPadding(0, 0, 0, 0);
 		layouts.addWidget(Common::String(entry->configOption) + "_desc", "OptionsLabel");
 		layouts.addWidget(entry->configOption, "PopUp").closeLayout();

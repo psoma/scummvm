@@ -82,6 +82,8 @@ public:
 	uint16 getDisplayHeight() { return _displayHeight; }
 	// AGI demake debug capture: the undithered picture (colour pairs) as drawn
 	const byte *agiDemakeDisplayScreen() const { return _displayScreen; }
+	// and the control screen (walkable areas and barriers), one byte per pixel, getWidth() x getHeight()
+	const byte *agiDemakeControlScreen() const { return _controlScreen; }
 	byte getColorWhite() { return _colorWhite; }
 	byte getColorDefaultVectorData() { return _colorDefaultVectorData; }
 
