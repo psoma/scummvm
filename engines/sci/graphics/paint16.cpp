@@ -120,6 +120,24 @@ void GfxPaint16::agiDemakeDumpPicture(GuiResourceId pictureId, bool addToFlag) {
 		line += '\n';
 		file->writeString(line);
 	}
+	// priority screen (what is in front of whom), one hex digit per pixel, then the priority band per row
+	const byte *pr = _screen->agiDemakePriorityScreen();
+	file->writeString(Common::String::format("priority %d room %d w %d h %d\n", pictureId, room, _screen->getWidth(), _screen->getHeight()));
+	for (int y = 0; y < _screen->getHeight(); ++y) {
+		Common::String line;
+		for (int x = 0; x < _screen->getWidth(); ++x)
+			line += hex[pr[y * _screen->getWidth() + x] & 15];
+		line += '\n';
+		file->writeString(line);
+	}
+	{
+		Common::String line = "bands";
+		const int portTop = _ports->_picWind ? _ports->_picWind->top : 0;
+		for (int y = 0; y < _screen->getHeight(); ++y)
+			line += Common::String::format(" %d", y < portTop ? 0 : _ports->kernelCoordinateToPriority(y - portTop));
+		line += '\n';
+		file->writeString(line);
+	}
 	// control screen (which areas are walkable), one hex digit per pixel
 	const int cw = _screen->getWidth(), ch = _screen->getHeight();
 	const byte *c = _screen->agiDemakeControlScreen();
@@ -154,8 +172,14 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 
 	if (_screen->agiDemake() && g_sci->getGameId() == GID_QFG1) {
 		// Flat approximation (agi_dither 0) only: walkable ground gets its own dither colours
-		if (!(ConfMan.hasKey("agi_dither") && ConfMan.getInt("agi_dither") == 1))
-			_screen->agiDemakeRecolourWalkable();
+		if (!(ConfMan.hasKey("agi_dither") && ConfMan.getInt("agi_dither") == 1)) {
+			// priority band per screen row (the picture port starts _picWind->top rows down)
+			Common::Array<byte> band(_screen->getHeight(), 0);
+			const int portTop = _ports->_picWind ? _ports->_picWind->top : 0;
+			for (int y = portTop; y < (int)band.size(); ++y)
+				band[y] = _ports->kernelCoordinateToPriority(y - portTop);
+			_screen->agiDemakeRecolourWalkable(band.data());
+		}
 		// keep a copy of the room picture for sprite fixes that put background back
 		_screen->agiDemakeSnapshotPicture();
 	}

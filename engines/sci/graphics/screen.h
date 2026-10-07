@@ -89,7 +89,9 @@ public:
 	// fix can put a few background pixels back over another sprite
 	void agiDemakeSnapshotPicture();
 	// AGI demake, QfG1 Flat approximation: different colours for dithers on walkable ground
-	void agiDemakeRecolourWalkable();
+	// band[y]: the priority a walker standing on screen row y gets (picture pixels above it are in front)
+	void agiDemakeRecolourWalkable(const byte *band);
+	const byte *agiDemakePriorityScreen() const { return _priorityScreen; }
 	void agiDemakeRestorePicturePixel(int x, int y, int priority = -1);	// priority >= 0: also set it
 	byte getColorWhite() { return _colorWhite; }
 	byte getColorDefaultVectorData() { return _colorDefaultVectorData; }

@@ -214,17 +214,19 @@ GfxScreen::GfxScreen(ResourceManager *resMan, Common::RenderMode renderMode) : _
 	_backupScreen = nullptr;
 }
 
-// QfG1, Flat approximation: some colour pairs show differently on walkable ground (control colour
-// other than white, white being Sierra's barrier) and off it. Done on the picture's colour pairs as
-// drawn, so sprites restoring the background keep it. Walkable: green with dark grey shows green,
-// green with black shows dark grey. Not walkable: red with black shows red, brown with black shows
-// brown, light grey with brown shows light grey
-void GfxScreen::agiDemakeRecolourWalkable() {
+// QfG1, Flat approximation: some colour pairs show differently on walkable ground and off it. Done
+// on the picture's colour pairs as drawn, so sprites restoring the background keep it. Walkable
+// ground is any control colour but white (Sierra's barrier), unless the picture pixel is in front of
+// someone walking there (its priority is above the band for that row: a bush he walks behind).
+// Walkable: green with dark grey shows green, green with black shows dark grey. Not walkable: red
+// with black shows red, brown with black shows brown, light grey with brown shows light grey
+void GfxScreen::agiDemakeRecolourWalkable(const byte *band) {
 	if (_upscaledHires != GFX_SCREEN_UPSCALED_DISABLED || _displayPixels != _pixels)
 		return;
 	for (uint o = 0; o < _pixels; ++o) {
 		byte &c = _displayScreen[o];
-		if (_controlScreen[o] != 15) {
+		const bool inFront = _priorityScreen[o] > band[o / _width];
+		if (_controlScreen[o] != 15 && !inFront) {
 			if (c == 0x28 || c == 0x82)
 				c = 0x02;
 			else if (c == 0x20)
