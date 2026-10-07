@@ -40,6 +40,9 @@
 #include "sci/graphics/transitions.h"
 
 #include "sci/graphics/scifx.h"
+#include "common/config-manager.h"
+#include "common/file.h"
+#include "common/hashmap.h"
 
 namespace Sci {
 
@@ -87,6 +90,39 @@ void GfxPaint16::debugSetEGAdrawingVisualize(bool state) {
 	_EGAdrawingVisualize = state;
 }
 
+void GfxPaint16::agiDemakeDumpPicture(GuiResourceId pictureId, bool addToFlag) {
+	static Common::DumpFile *file = nullptr;
+	static Common::HashMap<int, bool> seen;
+	const int key = pictureId * 2 + (addToFlag ? 1 : 0);
+	if (seen.contains(key) || _screen->getUpscaledHires() != GFX_SCREEN_UPSCALED_DISABLED)
+		return;
+	seen[key] = true;
+	if (!file) {
+		file = new Common::DumpFile();
+		if (!file->open(Common::Path("agi_demake_pic.txt"))) {
+			delete file;
+			file = nullptr;
+			return;
+		}
+	}
+	const int w = _screen->getDisplayWidth(), h = _screen->getDisplayHeight();
+	const int room = g_sci->getEngineState() ? g_sci->getEngineState()->currentRoomNumber() : -1;
+	file->writeString(Common::String::format("pic %d room %d addTo %d w %d h %d\n", pictureId, room, addToFlag ? 1 : 0, w, h));
+	const byte *d = _screen->agiDemakeDisplayScreen();
+	const char *hex = "0123456789abcdef";
+	for (int y = 0; y < h; ++y) {
+		Common::String line;
+		for (int x = 0; x < w; ++x) {
+			const byte c = d[y * w + x];
+			line += hex[c >> 4];
+			line += hex[c & 15];
+		}
+		line += '\n';
+		file->writeString(line);
+	}
+	file->flush();
+}
+
 void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool addToFlag, GuiResourceId paletteId) {
 	_screen->_agiPicGeneration++;
 	// Set up custom per-picture palette mod
@@ -99,6 +135,11 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 	// Draw the picture
 	GfxPicture picture(_resMan, _coordAdjuster, _ports, _screen, _palette, pictureId, _EGAdrawingVisualize);
 	picture.draw(mirroredFlag, addToFlag, paletteId);
+
+	// AGI demake debug capture (only with agi_demake_debug=true): each picture once, as the colour
+	// pairs it was drawn with, into agi_demake_pic.txt next to the exe
+	if (_screen->agiDemake() && ConfMan.hasKey("agi_demake_debug") && ConfMan.getBool("agi_demake_debug"))
+		agiDemakeDumpPicture(pictureId, addToFlag);
 
 	// We make a call to SciPalette here, for increasing sys timestamp and also loading targetpalette, if palvary active
 	//  (SCI1.1 only)

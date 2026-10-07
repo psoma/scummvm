@@ -80,6 +80,8 @@ public:
 	uint16 getScriptHeight() { return _scriptHeight; }
 	uint16 getDisplayWidth() { return _displayWidth; }
 	uint16 getDisplayHeight() { return _displayHeight; }
+	// AGI demake debug capture: the undithered picture (colour pairs) as drawn
+	const byte *agiDemakeDisplayScreen() const { return _displayScreen; }
 	byte getColorWhite() { return _colorWhite; }
 	byte getColorDefaultVectorData() { return _colorDefaultVectorData; }
 

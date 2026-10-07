@@ -1,4 +1,4 @@
-# SCI to AGI Demake (unofficial ScummVM fork) - v0.180
+# SCI to AGI Demake (unofficial ScummVM fork) - v0.181
 
 This fork adds an **AGI-style demake** mode to ScummVM's SCI engine. Early Sierra SCI games (SCI0 / SCI01, 16-colour EGA) are drawn the way Sierra's older AGI games looked: 160-pixel-wide "fat" pixels, no dithering, the 8x8 AGI font, AGI-style message boxes, and optional PCjr sound.
 
@@ -35,6 +35,7 @@ It is an unofficial, personal fork. It is not part of ScummVM and is not endorse
   - New hero screen: frame all the way round, name box lined up, "Start" button, wider gap before the points values, "points to allocate" pop-up fits the screen
   - Hero (walking and standing): Sierra's 1 pixel grey outline dropped, eyes split and centred on his face
   - Selected button: its second frame line sits above the frame, clear of the text
+  - Name box text centred in the box, "Start" centred over "Cancel"
   - Black dithered with brown shows dark grey instead of black
 
 ## Diagnostics for adding games
@@ -45,7 +46,7 @@ To help tune a new game, add this line to the game's section of `scummvm.ini`:
 agi_demake_debug=true
 ```
 
-ScummVM then writes `agi_demake_dump.txt` (sprites: source, result, screen position) and `agi_demake_text.txt` (text boxes and windows) next to the executable, overwritten each session. Leave it off for normal play.
+ScummVM then writes `agi_demake_dump.txt` (sprites: source, result, screen position) and `agi_demake_text.txt` (text boxes and windows) and `agi_demake_pic.txt` (each room picture as drawn, before sprites) next to the executable, overwritten each session. Leave it off for normal play.
 
 ## Building
 

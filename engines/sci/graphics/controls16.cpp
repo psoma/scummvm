@@ -287,9 +287,11 @@ void GfxControls16::kernelTexteditChange(reg_t controlObject, reg_t eventObject)
 			g_sci->getVocabulary()->checkAltInput(text, cursorPos);
 		texteditCursorErase();
 		_paint16->eraseRect(rect);
-		_text16->Box(text.c_str(), false, rect, SCI_TEXT16_ALIGNMENT_LEFT, -1);
+		Common::Rect textRect = rect;
+		textRect.top += agiDemakeEditDrop(rect);
+		_text16->Box(text.c_str(), false, textRect, SCI_TEXT16_ALIGNMENT_LEFT, -1);
 		_paint16->bitsShow(rect);
-		texteditCursorDraw(rect, text.c_str(), cursorPos);
+		texteditCursorDraw(textRect, text.c_str(), cursorPos);
 		_text16->SetFont(oldFontId);
 		// Write back string
 		_segMan->strcpy_(textReference, text.c_str());
@@ -313,6 +315,20 @@ int GfxControls16::getPicNotValid() {
 
 void GfxControls16::kernelDrawButton(Common::Rect rect, reg_t obj, const char *text, uint16 languageSplitter, int16 fontId, int16 style, bool hilite) {
 	g_sci->_tts->button(text);
+
+	// AGI demake, QfG1 new hero screen: "Start Game" is shown as "Start" (see text16), but the script
+	// still sets the button's left edge for the longer label, so it sat left of Cancel. It is moved
+	// to centre over Cancel (centred at x 266), and written back so clicks and selection follow it
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_QFG1 && g_sci->getEngineState() &&
+			g_sci->getEngineState()->currentRoomNumber() == 203 && text && strstr(text, "Start Game") && !obj.isNull()) {
+		const int16 cancelCentre = 266;
+		const int16 shift = cancelCentre - (rect.left + rect.right) / 2;
+		if (shift != 0) {
+			rect.translate(shift, 0);
+			writeSelectorValue(_segMan, obj, SELECTOR(nsLeft), rect.left);
+			writeSelectorValue(_segMan, obj, SELECTOR(nsRight), rect.right);
+		}
+	}
 
 	if (!hilite) {
 		int16 sci0EarlyPen = 0, sci0EarlyBack = 0;
@@ -457,8 +473,18 @@ void GfxControls16::kernelDrawText(Common::Rect rect, reg_t obj, const char *tex
 	}
 }
 
+// AGI demake, QfG1: the name box is sized for Sierra's taller font, so the 8 pixel AGI text sat at
+// its top. Typed text and the cursor are dropped to centre the 7 rows of letters in the box
+int16 GfxControls16::agiDemakeEditDrop(const Common::Rect &rect) {
+	if (!_screen->agiDemake() || g_sci->getGameId() != GID_QFG1)
+		return 0;
+	return MAX<int16>(0, (rect.height() - 7) / 2);
+}
+
 void GfxControls16::kernelDrawTextEdit(Common::Rect rect, reg_t obj, const char *text, uint16 languageSplitter, int16 fontId, int16 mode, int16 style, int16 cursorPos, int16 maxChars, bool hilite) {
 	Common::Rect textRect = rect;
+	const int16 agiDrop = agiDemakeEditDrop(rect);
+	textRect.top += agiDrop;
 	uint16 oldFontId = _text16->GetFontId();
 
 	rect.grow(1);
@@ -474,7 +500,9 @@ void GfxControls16::kernelDrawTextEdit(Common::Rect rect, reg_t obj, const char 
 	if (style & SCI_CONTROLS_STYLE_SELECTED) {
 		_text16->SetFont(fontId);
 		rect.grow(-1);
+		rect.top += agiDrop;
 		texteditCursorDraw(rect, text, cursorPos);
+		rect.top -= agiDrop;
 		_text16->SetFont(oldFontId);
 		rect.grow(1);
 

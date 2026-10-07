@@ -63,6 +63,7 @@ public:
 	void kernelTexteditChange(reg_t controlObject, reg_t eventObject);
 
 private:
+	int16 agiDemakeEditDrop(const Common::Rect &rect);
 	void texteditSetBlinkTime();
 
 	void drawListControl(Common::Rect rect, reg_t obj, int16 maxChars, int16 count, const Common::String *entries, GuiResourceId fontId, int16 upperPos, int16 cursorPos, bool isAlias);
