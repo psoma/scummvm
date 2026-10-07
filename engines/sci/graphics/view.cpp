@@ -1436,6 +1436,84 @@ static byte agiDemakePick(byte a, byte b, byte clearKey) {
 	return (kAgiDemakeLuma[b] < kAgiDemakeLuma[a]) ? b : a;
 }
 
+// QfG1 hero (view 0, every loop). Sierra drew him with a 1 pixel dark grey outline, which as fat
+// pixels becomes a thick grey border. Dark grey pixels touching transparency (or the cel's edge)
+// are dropped before the collapse.
+static bool agiDemakeIsQfgHero(int view) {
+	return g_sci->getGameId() == GID_QFG1 && view == 0;
+}
+
+static void agiDemakeHeroSource(int view, const byte *src, int w, int h, byte clearKey, byte *out) {
+	const byte darkGrey = 8;
+	for (int i = 0; i < w * h; ++i)
+		out[i] = src[i];
+	if (!agiDemakeIsQfgHero(view))
+		return;
+	for (int y = 0; y < h; ++y)
+		for (int x = 0; x < w; ++x) {
+			if (src[y * w + x] != darkGrey)
+				continue;
+			const bool edge = x == 0 || y == 0 || x == w - 1 || y == h - 1 ||
+				src[y * w + x - 1] == clearKey || src[y * w + x + 1] == clearKey ||
+				src[(y - 1) * w + x] == clearKey || src[(y + 1) * w + x] == clearKey;
+			if (edge)
+				out[y * w + x] = clearKey;
+		}
+}
+
+// QfG1 hero facing you: his eyes (black, the left one black and cyan) sit 2 to 3 pixels apart with
+// red or grey shading beside them, so the general eye rule misses them and they merge into one
+// fat block. On the first row with two short dark runs and face between them, each eye gets its own
+// fat pixel, one to the right of where the collapse puts them, with face colour between and beside.
+static void agiDemakeHeroEyes(int view, const SciSpan<const byte> &bitmap, int w, int h, byte clearKey, byte *fat, int fatW, int startX, int pad, int numPairs) {
+	if (!agiDemakeIsQfgHero(view))
+		return;
+	const byte black = 0, cyan = 3, skin = 12;
+	for (int y = 0; y < h / 3; ++y) {
+		const byte *row = bitmap.getUnsafeDataAt(y * w, w);
+		int runs[2][2], n = 0;
+		for (int x = 1; x + 1 < w && n <= 2; ) {
+			if (row[x] != black && row[x] != cyan) {
+				++x;
+				continue;
+			}
+			int e = x;
+			while (e + 1 < w && (row[e + 1] == black || row[e + 1] == cyan))
+				++e;
+			const bool flanked = e - x < 2 && e + 1 < w && row[x - 1] != clearKey && row[e + 1] != clearKey;
+			if (flanked) {
+				if (n < 2) {
+					runs[n][0] = x;
+					runs[n][1] = e;
+				}
+				++n;
+			}
+			x = e + 1;
+		}
+		if (n != 2 || runs[1][0] - runs[0][1] < 2)
+			continue;
+		bool face = false;
+		for (int x = runs[0][1] + 1; x < runs[1][0]; ++x)
+			if (row[x] == skin)
+				face = true;
+		if (!face)
+			continue;
+		// both eyes then go one fat pixel right, which centres them on his face
+		const int shift = 1;
+		const int pl = (runs[0][0] - startX) >> 1, pr = (runs[1][1] - startX) >> 1;
+		if (pr - pl < 2 || pl < 0 || pr + shift >= numPairs)
+			return;
+		byte *f = fat + y * fatW + pad;
+		if (f[pr + shift] == clearKey)
+			return;
+		for (int p = pl; p <= pr + shift; ++p)
+			f[p] = skin;
+		f[pl + shift] = black;
+		f[pr + shift] = black;
+		return;
+	}
+}
+
 // Still images: an eye white is a run of 1 or 2 white pixels, at least 3 pixels in from the
 // picture's sides (so the photo border never counts), with a non-white, non-transparent pixel
 // on both sides
@@ -2190,36 +2268,36 @@ static const AgiDemakeFatBlock kAgiDemakeFatBlocks[] = {
 		  "ffffffffffffffffffffffffffffffffffffffffffffffffff" } },
 	// QfG1 title sign "for the" (view 100 cel 1): letters re-spaced and drawn one by one like "Village of Spielburg"
 	{ GID_QFG1, 100, 0, 1, 0, 0, 2, 0,
-		{ "11fffffffff1ff1fffffff",
-		  "11fffffffff1ff1fffffff",
-		  "1ffff1f11ff1ff1fffff1f",
-		  "1ffff1f11ff11f1f1f111f",
-		  "11f111f1fff11f111f1f1f",
-		  "1ff1f1f1fff1ff1f1f1f1f",
-		  "1ff1f1f1fff1ff1f1f1f1f",
-		  "1ff1f1f1fff1ff1f1f11ff",
-		  "1ff1f1f1fff1ff1f1f1f1f",
-		  "1ff1f1f1fff1ff1f1f111f",
-		  "1ff11ff1fff1ff1f1f1fff" } },
+		{ "f11fffffffff1ff1ffffff",
+		  "f11fffffffff1ff1ffffff",
+		  "f1ffff1f11ff1ff1fffff1",
+		  "f1ffff1f11ff11f1f1f111",
+		  "f11f111f1fff11f111f1f1",
+		  "f1ff1f1f1fff1ff1f1f1f1",
+		  "f1ff1f1f1fff1ff1f1f1f1",
+		  "f1ff1f1f1fff1ff1f1f11f",
+		  "f1ff1f1f1fff1ff1f1f1f1",
+		  "f1ff1f1f1fff1ff1f1f111",
+		  "f1ff11ff1fff1ff1f1f1ff" } },
 	// QfG1 title sign "Village of Spielburg" (view 100 cel 2): letters re-spaced and drawn one by one so each keeps its hole, V and S
-	// hand-drawn narrower, less space round "of"
+	// hand-drawn narrower, less space round "of". Starts one fat pixel in, so the V is on the parchment
 	{ GID_QFG1, 100, 0, 2, 0, 0, 2, 0,
-		{ "1ff1fff1f1fffffffffffffffffffffffff111fffffffffff1f1ffffffffffffff",
-		  "11f1fff1f1fffffffffffffffffff11fff11f1fffffffffff1f1ffffffffffffff",
-		  "1ff1f1f1f1fffffffffffffffffff11fff1ffffffff1fffff1f1ffffffffffffff",
-		  "1ff1fff1f1fff1fff1fff1fffff1f1ffff11fff1f1fffff1f1f1fffff1f11fff1f",
-		  "1ff1f1f1f1ff11fff1f111fffff1f1ffff111ff111f1f111f1f1f1f1f1f11fff1f",
-		  "1ff1f1f1f1f1f1f111f1f1fff111f11ffff11ff1f1f1f1f1f1f111f1f1f1ff111f",
-		  "f1f1f1f1f1fff1f1f1f1f1fff1f1f1fffff111f1f1f1f1f1f1f1f1f1f1f1ff1f1f",
-		  "f1f1f1f1f1f111f1f1f1f1fff1f1f1ffffff11f1f1f1f1f1f1f1f1f1f1f1ff1f1f",
-		  "f1f1f1f1f1f1f1f1f1f11ffff1f1f1fffffff1f1f1f1f11ff1f1f1f1f1f1ff1f1f",
-		  "f11ff1f1f1f1f1f1f1f1f1fff1f1f1ffff1ff1f1f1f1f1f1f1f1f1f1f1f1ff1f1f",
-		  "f11ff1f1f1f111f111f111fff1f1f1ffff1111f1f1f1f111f1f111f111f1ff111f",
-		  "ff1ff1f1f1f1fff1f1f1fffff11ff1ffff111ff111f1f1fff1f1fff1fff1ff1f1f",
-		  "fffffffffffffffff1fffffffffffffffffffff1ffffffffffffffffffffffff1f",
-		  "ffffffffffffff1ff1fffffffffffffffffffff1fffffffffffffffffffff1ff1f",
-		  "fffffffffffffff111fffffffffffffffffffff1ffffffffffffffffffffff111f",
-		  "fffffffffffffffff1ffffffffffffffffffffffffffffffffffffffffffffff1f" } },
+		{ "f1ff1fff1f1fffffffffffffffffffffffff111fffffffffff1f1fffffffffffff",
+		  "f11f1fff1f1fffffffffffffffffff11fff11f1fffffffffff1f1fffffffffffff",
+		  "f1ff1f1f1f1fffffffffffffffffff11fff1ffffffff1fffff1f1fffffffffffff",
+		  "f1ff1fff1f1fff1fff1fff1fffff1f1ffff11fff1f1fffff1f1f1fffff1f11fff1",
+		  "f1ff1f1f1f1ff11fff1f111fffff1f1ffff111ff111f1f111f1f1f1f1f1f11fff1",
+		  "f1ff1f1f1f1f1f1f111f1f1fff111f11ffff11ff1f1f1f1f1f1f111f1f1f1ff111",
+		  "ff1f1f1f1f1fff1f1f1f1f1fff1f1f1fffff111f1f1f1f1f1f1f1f1f1f1f1ff1f1",
+		  "ff1f1f1f1f1f111f1f1f1f1fff1f1f1ffffff11f1f1f1f1f1f1f1f1f1f1f1ff1f1",
+		  "ff1f1f1f1f1f1f1f1f1f11ffff1f1f1fffffff1f1f1f1f11ff1f1f1f1f1f1ff1f1",
+		  "ff11ff1f1f1f1f1f1f1f1f1fff1f1f1ffff1ff1f1f1f1f1f1f1f1f1f1f1f1ff1f1",
+		  "ff11ff1f1f1f111f111f111fff1f1f1ffff1111f1f1f1f111f1f111f111f1ff111",
+		  "fff1ff1f1f1f1fff1f1f1fffff11ff1ffff111ff111f1f1fff1f1fff1fff1ff1f1",
+		  "ffffffffffffffffff1fffffffffffffffffffff1ffffffffffffffffffffffff1",
+		  "fffffffffffffff1ff1fffffffffffffffffffff1fffffffffffffffffffff1ff1",
+		  "ffffffffffffffff111fffffffffffffffffffff1ffffffffffffffffffffff111",
+		  "ffffffffffffffffff1ffffffffffffffffffffffffffffffffffffffffffffff1" } },
 	// PQ2 note pinned to the door (view 136 cel 1): "Sonny" handwritten, redrawn in fat pixels
 	{ GID_PQ2, 136, 0, 1, 21, 7, 15, 0,
 		{ "ff111fffffffffffffffff",
@@ -2600,8 +2678,17 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 					strippedData[pt.y * celWidth + x] = pt.color;
 		}
 	}
+	// QfG1 hero: his dark grey outline is dropped before the collapse
+	const bool qfgHero = agiDemakeIsQfgHero(_resourceId);
+	if (qfgHero && !textOverride) {
+		Common::Array<byte> orig(celWidth * celHeight);
+		for (int i = 0; i < celWidth * celHeight; ++i)
+			orig[i] = origBitmap[i];
+		strippedData.resize(celWidth * celHeight);
+		agiDemakeHeroSource(_resourceId, orig.data(), celWidth, celHeight, clearKey, strippedData.data());
+	}
 	const SciSpan<const byte> strippedSpan(strippedData.data(), strippedData.size());
-	const SciSpan<const byte> &bitmap = textOverride ? strippedSpan : origBitmap;
+	const SciSpan<const byte> &bitmap = (textOverride || qfgHero) ? strippedSpan : origBitmap;
 	// SCI direction loops (kDirLoop): 0 right, 1 left, 2 towards, 3 away, for views with 4+ loops.
 	// Towards and away use the v4 pairing (from the cel's left edge, odd mirrored cels from the
 	// right). Side views use the per-loop phase and nose repair.
@@ -2698,6 +2785,8 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		agiDemakeRepairBumps(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX);
 	if (towards && !rangeTarget)
 		agiDemakeSpreadEyes(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad);
+	if (towards && !rangeTarget)
+		agiDemakeHeroEyes(_resourceId, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad, numPairs);
 	if (towards || away)
 		agiDemakeCopyHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	if (g_sci->getGameId() == GID_PQ2 && _resourceId == 205 && celWidth == 73)

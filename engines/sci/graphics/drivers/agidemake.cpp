@@ -97,15 +97,20 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 	// Per-room colour for an undithered pair, where the nearest single colour reads wrongly. PQ2
 	// motel room (room 26): the floor is dithered black and brown, which snaps to black. It is shown
 	// dark grey instead, which also keeps it apart from the brown bed
+	// QfG1 (every room, kAnyRoom): black dithered with brown is everywhere (tree trunks, wood, earth)
+	// and also snapped to black, so it is shown dark grey too
+	static const uint16 kAnyRoom = 0xFFFF;
 	static const struct { SciGameId game; uint16 room; byte pair; byte color; } kRoomPairColors[] = {
 		{ GID_PQ2, 26, 0x60, 8 },
+		{ GID_QFG1, kAnyRoom, 0x60, 8 },
+		{ GID_QFG1, kAnyRoom, 0x06, 8 },
 	};
 	const byte *lut = _lut;
 	byte roomLut[256];
 	if (g_sci && g_sci->getEngineState()) {
 		const uint16 room = g_sci->getEngineState()->currentRoomNumber();
 		for (uint i = 0; i < ARRAYSIZE(kRoomPairColors); ++i) {
-			if (kRoomPairColors[i].game != g_sci->getGameId() || kRoomPairColors[i].room != room)
+			if (kRoomPairColors[i].game != g_sci->getGameId() || (kRoomPairColors[i].room != room && kRoomPairColors[i].room != kAnyRoom))
 				continue;
 			if (lut == _lut) {
 				memcpy(roomLut, _lut, sizeof(roomLut));
