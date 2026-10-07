@@ -701,7 +701,7 @@ static const struct AgiDemakeTextSub {
 		"Colby's business card, found in Bains' motel room: \"Colby Imports, Steelton, U.S.A., 407-555-3323\"" },
 };
 
-// AGI demake: part of a longer message changed, matched on how the message starts. Used where only
+// AGI demake: part of a longer message changed, matched on a distinctive part of the message. Used where only
 // a line needs to change and the rest must stay exactly as the game has it.
 static const struct AgiDemakeTextEdit {
 	SciGameId game;
@@ -709,7 +709,7 @@ static const struct AgiDemakeTextEdit {
 } kAgiDemakeTextEdits[] = {
 	// PQ2 bomb instructions: the WARNING line is indented like the rest, and broken by hand so the
 	// part that wraps stays indented too
-	{ GID_PQ2, "      KUDOFI'S", "\nWARNING: Only connect same color wires.", "\n  WARNING: Only connect same color\n  wires." },
+	{ GID_PQ2, "KUDOFI'S DO-IT-YOURSELF BOMB", "\nWARNING: Only connect same color wires.", "\n  WARNING: Only connect same color\n  wires." },
 };
 
 static const char *agiDemakeSubstituteText(const char *text) {
@@ -721,7 +721,7 @@ static const char *agiDemakeSubstituteText(const char *text) {
 	static Common::String edited;
 	for (uint i = 0; i < ARRAYSIZE(kAgiDemakeTextEdits); ++i) {
 		const AgiDemakeTextEdit &e = kAgiDemakeTextEdits[i];
-		if (g_sci->getGameId() != e.game || strncmp(text, e.start, strlen(e.start)))
+		if (g_sci->getGameId() != e.game || !strstr(text, e.start))
 			continue;
 		const char *at = strstr(text, e.find);
 		if (!at)
@@ -732,8 +732,8 @@ static const char *agiDemakeSubstituteText(const char *text) {
 	return text;
 }
 
-// AGI demake: messages that come out wider than their window in the 8x8 font, matched on how they
-// start. They are wrapped no wider than the given width when the game sizes their box.
+// AGI demake: messages whose box width is changed for the 8x8 font, matched on a distinctive part
+// of the message. They are wrapped no wider than the given width when the game sizes their box.
 static const struct AgiDemakeTextWidth {
 	SciGameId game;
 	const char *start;
@@ -745,7 +745,7 @@ static const struct AgiDemakeTextWidth {
 	{ GID_PQ2, "\"Bains mailed the letter hoping to suck Roberts in", 176, false },
 	// PQ2 bomb instructions: sized for SCI's small font at 184 wide, which wraps nearly every line in
 	// the 8x8 font. 296 is the widest that still fits on screen with the window frame
-	{ GID_PQ2, "      KUDOFI'S", 296, true },
+	{ GID_PQ2, "KUDOFI'S DO-IT-YOURSELF BOMB", 296, true },
 };
 
 static int16 agiDemakeCapTextWidth(const char *text, int16 maxWidth) {
@@ -753,7 +753,7 @@ static int16 agiDemakeCapTextWidth(const char *text, int16 maxWidth) {
 		return maxWidth;
 	for (uint i = 0; i < ARRAYSIZE(kAgiDemakeTextWidths); ++i) {
 		const AgiDemakeTextWidth &tw = kAgiDemakeTextWidths[i];
-		if (g_sci->getGameId() == tw.game && !strncmp(text, tw.start, strlen(tw.start)) &&
+		if (g_sci->getGameId() == tw.game && strstr(text, tw.start) &&
 				((tw.force && maxWidth >= 0) || maxWidth == 0 || maxWidth > tw.maxWidth))	// 0 means the default width (192), below 0 one line
 			return tw.maxWidth;
 	}
