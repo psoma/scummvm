@@ -111,7 +111,8 @@ bool OptionsWidget::save() {
 	return true;
 }
 
-// AGI demake always undithers: while it is ticked, the EGA undither box is ticked and greyed out.
+// AGI demake always undithers: while it is ticked, the EGA undither box is ticked and greyed out,
+// and the dither handler pulldown is only usable while it is ticked.
 // AGI sound never uses digital samples: while it is ticked, that box is unticked and greyed out.
 void OptionsWidget::updateDemakeDependents() {
 	if (_checkboxes.contains("agi_demake") && _checkboxes.contains("disable_dithering")) {
@@ -120,6 +121,9 @@ void OptionsWidget::updateDemakeDependents() {
 			_checkboxes["disable_dithering"]->setState(true);
 		_checkboxes["disable_dithering"]->setEnabled(!demake);
 	}
+	// the dither handler only applies to AGI demake, so it is greyed out while that is unticked
+	if (_checkboxes.contains("agi_demake") && _popUps.contains("agi_dither"))
+		_popUps["agi_dither"]->setEnabled(_checkboxes["agi_demake"]->getState());
 	// AGI sound is PCjr only, so digital sound effects are switched off while it is ticked
 	if (_checkboxes.contains("agi_sound") && _checkboxes.contains("prefer_digitalsfx")) {
 		const bool agiSound = _checkboxes["agi_sound"]->getState();

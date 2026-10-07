@@ -310,6 +310,24 @@ const PopUpOptionsMap popUpOptionsList[] = {
 			POPUP_OPTIONS_ITEMS_TERMINATOR
 		}
 	},
+	{
+		GAMEOPTION_AGI_DEMAKE,
+		_s("Dither handler:"),
+		_s("How AGI-style demake graphics show Sierra's dithered colours: one flat colour, or a chunky checkerboard of fat pixels"),
+		"agi_dither",
+		0,
+		{
+			{
+				_s("Flat approximation"),
+				0
+			},
+			{
+				_s("Chunky dither"),
+				1
+			},
+			POPUP_OPTIONS_ITEMS_TERMINATOR
+		}
+	},
 	POPUP_OPTIONS_TERMINATOR
 };
 

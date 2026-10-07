@@ -19,6 +19,7 @@
  *
  */
 
+#include "common/config-manager.h"
 #include "common/system.h"
 #include "sci/sci.h"
 #include "sci/graphics/drivers/gfxdriver_intern.h"
@@ -39,10 +40,12 @@ public:
 private:
 	byte _lut[256];
 	byte *_demakeBuffer;
+	bool _chunkyDither;	// agi_dither = 1 (Chunky dither) rather than 0 (Flat approximation)
 };
 
 SCI0_AGIDemakeDriver::SCI0_AGIDemakeDriver(uint16 screenWidth, uint16 screenHeight, bool rgbRendering) :
-	GfxDefaultDriver(screenWidth, screenHeight, true, rgbRendering), _demakeBuffer(nullptr) {
+	GfxDefaultDriver(screenWidth, screenHeight, true, rgbRendering), _demakeBuffer(nullptr),
+	_chunkyDither(ConfMan.hasKey("agi_dither") && ConfMan.getInt("agi_dither") == 1) {
 	static const byte ega[16][3] = {
 		{ 0x00, 0x00, 0x00 }, { 0x00, 0x00, 0xAA }, { 0x00, 0xAA, 0x00 }, { 0x00, 0xAA, 0xAA },
 		{ 0xAA, 0x00, 0x00 }, { 0xAA, 0x00, 0xAA }, { 0xAA, 0x55, 0x00 }, { 0xAA, 0xAA, 0xAA },
@@ -98,8 +101,12 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 	// motel room (room 26): the floor is dithered black and brown, which snaps to black. It is shown
 	// dark grey instead, which also keeps it apart from the brown bed
 	static const uint16 kAnyRoom = 0xFFFF;
+	// QfG1 (every room, kAnyRoom): black dithered with brown is everywhere (tree trunks, wood, earth)
+	// and also snaps to black, so it is shown dark grey too. Dithers with black are always stored
+	// with black in the low nibble (0x60), so this never touches solid brown (6)
 	static const struct { SciGameId game; uint16 room; byte pair; byte color; } kRoomPairColors[] = {
 		{ GID_PQ2, 26, 0x60, 8 },
+		{ GID_QFG1, kAnyRoom, 0x60, 8 },
 	};
 	const byte *lut = _lut;
 	byte roomLut[256];
@@ -116,12 +123,14 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 		}
 	}
 
-	// QfG1: every dithered pair in the room pictures is drawn as a checkerboard of fat pixels (one
-	// colour, then the other, alternating along each row and down each column) instead of being
-	// snapped to the nearest single colour, which turned everything dithered with black to black.
-	// Pairs are any picture value of 0x10 or more (0xFF is plain white). The pattern is fixed to the
-	// screen, so it doesn't crawl when part of the screen is redrawn
-	const bool fatChecker = g_sci && g_sci->getGameId() == GID_QFG1;
+	// Dither handler (agi_dither, a pulldown under the AGI demake option, read at start-up):
+	// 0 Flat approximation (default): each dithered pair is snapped to the nearest single colour,
+	//   with the per-room colours above
+	// 1 Chunky dither: each dithered pair in the room pictures is drawn as a checkerboard of fat
+	//   pixels (one colour, then the other, along each row and down each column). Pairs are any
+	//   picture value of 0x10 or more (0xFF is plain white). The pattern is fixed to the screen, so
+	//   it doesn't crawl when part of the screen is redrawn
+	const bool fatChecker = _chunkyDither;
 	auto px = [&](byte code, int col, int row) -> byte {
 		if (fatChecker && code >= 0x10 && code != 0xFF)
 			return (((col >> 1) + row) & 1) ? (code >> 4) : (code & 0x0F);
