@@ -147,6 +147,10 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 	GfxPicture picture(_resMan, _coordAdjuster, _ports, _screen, _palette, pictureId, _EGAdrawingVisualize);
 	picture.draw(mirroredFlag, addToFlag, paletteId);
 
+	// AGI demake, QfG1: keep a copy of the room picture for sprite fixes that put background back
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_QFG1)
+		_screen->agiDemakeSnapshotPicture();
+
 	// AGI demake debug capture (only with agi_demake_debug=true): each picture once, as the colour
 	// pairs it was drawn with plus its control screen, into agi_demake_pic.txt next to the exe
 	if (_screen->agiDemake() && ConfMan.hasKey("agi_demake_debug") && ConfMan.getBool("agi_demake_debug"))

@@ -1440,15 +1440,17 @@ static byte agiDemakePick(byte a, byte b, byte clearKey) {
 // grey outline, which as fat pixels becomes a thick grey border. Dark grey pixels touching
 // transparency (or the cel's edge)
 // are dropped before the collapse.
-static bool agiDemakeIsQfgHero(int view) {
-	return g_sci->getGameId() == GID_QFG1 && (view == 0 || view == 4);
+static bool agiDemakeIsQfgHero(int view, int loop = 0) {
+	// view 300 loop 8: his head turned left or right, drawn over the standing-away frame when he
+	// looks around at the start of the game (room 300)
+	return g_sci->getGameId() == GID_QFG1 && (view == 0 || view == 4 || (view == 300 && loop == 8));
 }
 
-static void agiDemakeHeroSource(int view, const byte *src, int w, int h, byte clearKey, byte *out) {
+static void agiDemakeHeroSource(int view, int loop, const byte *src, int w, int h, byte clearKey, byte *out) {
 	const byte darkGrey = 8;
 	for (int i = 0; i < w * h; ++i)
 		out[i] = src[i];
-	if (!agiDemakeIsQfgHero(view))
+	if (!agiDemakeIsQfgHero(view, loop))
 		return;
 	for (int y = 0; y < h; ++y)
 		for (int x = 0; x < w; ++x) {
@@ -2680,13 +2682,13 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		}
 	}
 	// QfG1 hero: his dark grey outline is dropped before the collapse
-	const bool qfgHero = agiDemakeIsQfgHero(_resourceId);
+	const bool qfgHero = agiDemakeIsQfgHero(_resourceId, loopNo);
 	if (qfgHero && !textOverride) {
 		Common::Array<byte> orig(celWidth * celHeight);
 		for (int i = 0; i < celWidth * celHeight; ++i)
 			orig[i] = origBitmap[i];
 		strippedData.resize(celWidth * celHeight);
-		agiDemakeHeroSource(_resourceId, orig.data(), celWidth, celHeight, clearKey, strippedData.data());
+		agiDemakeHeroSource(_resourceId, loopNo, orig.data(), celWidth, celHeight, clearKey, strippedData.data());
 	}
 	const SciSpan<const byte> strippedSpan(strippedData.data(), strippedData.size());
 	const SciSpan<const byte> &bitmap = (textOverride || qfgHero) ? strippedSpan : origBitmap;
@@ -2835,6 +2837,34 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		}
 	}
 	_screen->setCurPaletteMapValue(oldSpriteMapValue);
+
+	// QfG1 look-around (room 300): the turned head (view 300 loop 8) is drawn over his standing-away
+	// frame, and as fat pixels that frame's own hair pokes out beside the turned head. These fat
+	// pixels (2 screen pixels each, given from the head cel's top-left) go back to the room picture,
+	// only where they really are his hair (yellow or brown)
+	if (g_sci->getGameId() == GID_QFG1 && _resourceId == 300 && loopNo == 8 && celNo <= 1) {
+		static const struct { int8 cel, dx, dy; } kHide[] = {
+			// looking left: the column right of the head
+			{ 0, 12, 3 }, { 0, 12, 4 }, { 0, 12, 5 }, { 0, 12, 6 }, { 0, 12, 7 }, { 0, 12, 8 },
+			// looking right: the same column, the hair above and in front of his face, and the two
+			// brown pixels under his nose
+			{ 1, 11, 3 }, { 1, 11, 4 }, { 1, 11, 5 }, { 1, 11, 6 }, { 1, 11, 7 }, { 1, 11, 8 },
+			{ 1, 9, 1 }, { 1, 9, 5 }, { 1, 9, 7 }, { 1, 9, 8 }
+		};
+		const int left = rect.left + offsetX, top = rect.top + offsetY;
+		for (uint i = 0; i < ARRAYSIZE(kHide); ++i) {
+			if (kHide[i].cel != celNo)
+				continue;
+			for (int d = 0; d < 2; ++d) {
+				const int x2 = left + kHide[i].dx + d, y2 = top + kHide[i].dy;
+				if (x2 < clipRectTranslated.left || x2 >= clipRectTranslated.right + 2 || y2 < clipRectTranslated.top || y2 >= clipRectTranslated.bottom)
+					continue;
+				const byte c = _screen->getVisual(x2, y2);
+				if (c == 6 || c == 14)
+					_screen->agiDemakeRestorePicturePixel(x2, y2);
+			}
+		}
+	}
 
 	// Replacement words: backing box, then letters, at full resolution and flagged as text
 	if (textOverride) {

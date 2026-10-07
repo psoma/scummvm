@@ -22,6 +22,7 @@
 #ifndef SCI_GRAPHICS_SCREEN_H
 #define SCI_GRAPHICS_SCREEN_H
 
+#include "common/array.h"
 #include "sci/sci.h"
 #include "sci/graphics/helpers.h"
 #include "sci/graphics/view.h"
@@ -84,6 +85,10 @@ public:
 	const byte *agiDemakeDisplayScreen() const { return _displayScreen; }
 	// and the control screen (walkable areas and barriers), one byte per pixel, getWidth() x getHeight()
 	const byte *agiDemakeControlScreen() const { return _controlScreen; }
+	// AGI demake: a copy of the room picture as drawn (visual, display, priority, map), so a sprite
+	// fix can put a few background pixels back over another sprite
+	void agiDemakeSnapshotPicture();
+	void agiDemakeRestorePicturePixel(int x, int y);
 	byte getColorWhite() { return _colorWhite; }
 	byte getColorDefaultVectorData() { return _colorDefaultVectorData; }
 
@@ -239,6 +244,7 @@ private:
 
 	// For RGB per-view/pic palette mods
 	byte *_paletteMapScreen;
+	Common::Array<byte> _agiPicVisual, _agiPicDisplay, _agiPicPriority, _agiPicMap;
 	byte _curPaletteMapValue;
 	PaletteMod _paletteMods[256];
 	bool _paletteModsEnabled;

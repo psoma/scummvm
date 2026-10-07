@@ -214,6 +214,27 @@ GfxScreen::GfxScreen(ResourceManager *resMan, Common::RenderMode renderMode) : _
 	_backupScreen = nullptr;
 }
 
+void GfxScreen::agiDemakeSnapshotPicture() {
+	if (_upscaledHires != GFX_SCREEN_UPSCALED_DISABLED)
+		return;
+	_agiPicVisual = Common::Array<byte>(_visualScreen, _pixels);
+	_agiPicPriority = Common::Array<byte>(_priorityScreen, _pixels);
+	_agiPicDisplay = Common::Array<byte>(_displayScreen, _displayPixels);
+	if (_paletteMapScreen)
+		_agiPicMap = Common::Array<byte>(_paletteMapScreen, _displayPixels);
+}
+
+void GfxScreen::agiDemakeRestorePicturePixel(int x, int y) {
+	if (x < 0 || y < 0 || x >= _width || y >= _height || _agiPicVisual.empty())
+		return;
+	const int o = y * _width + x;
+	_visualScreen[o] = _agiPicVisual[o];
+	_priorityScreen[o] = _agiPicPriority[o];
+	_displayScreen[o] = _agiPicDisplay[o];
+	if (_paletteMapScreen && !_agiPicMap.empty())
+		_paletteMapScreen[o] = _agiPicMap[o];
+}
+
 GfxScreen::~GfxScreen() {
 	free(_visualScreen);
 	free(_priorityScreen);
