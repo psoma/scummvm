@@ -107,6 +107,13 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 	static const struct { SciGameId game; uint16 room; byte pair; byte color; } kRoomPairColors[] = {
 		{ GID_PQ2, 26, 0x60, 8 },
 		{ GID_QFG1, kAnyRoom, 0x60, 8 },
+		// QfG1 forest (every room): light green with green shows light green (was green), cyan with
+		// black shows cyan (was black), green with dark grey shows dark grey (was green)
+		{ GID_QFG1, kAnyRoom, 0x2A, 10 },
+		{ GID_QFG1, kAnyRoom, 0xA2, 10 },
+		{ GID_QFG1, kAnyRoom, 0x30, 3 },
+		{ GID_QFG1, kAnyRoom, 0x28, 8 },
+		{ GID_QFG1, kAnyRoom, 0x82, 8 },
 	};
 	const byte *lut = _lut;
 	byte roomLut[256];
