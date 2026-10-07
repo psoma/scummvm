@@ -147,14 +147,18 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 	GfxPicture picture(_resMan, _coordAdjuster, _ports, _screen, _palette, pictureId, _EGAdrawingVisualize);
 	picture.draw(mirroredFlag, addToFlag, paletteId);
 
-	// AGI demake, QfG1: keep a copy of the room picture for sprite fixes that put background back
-	if (_screen->agiDemake() && g_sci->getGameId() == GID_QFG1)
-		_screen->agiDemakeSnapshotPicture();
-
 	// AGI demake debug capture (only with agi_demake_debug=true): each picture once, as the colour
 	// pairs it was drawn with plus its control screen, into agi_demake_pic.txt next to the exe
 	if (_screen->agiDemake() && ConfMan.hasKey("agi_demake_debug") && ConfMan.getBool("agi_demake_debug"))
 		agiDemakeDumpPicture(pictureId, addToFlag);
+
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_QFG1) {
+		// Flat approximation (agi_dither 0) only: walkable ground gets its own dither colours
+		if (!(ConfMan.hasKey("agi_dither") && ConfMan.getInt("agi_dither") == 1))
+			_screen->agiDemakeRecolourWalkable();
+		// keep a copy of the room picture for sprite fixes that put background back
+		_screen->agiDemakeSnapshotPicture();
+	}
 
 	// We make a call to SciPalette here, for increasing sys timestamp and also loading targetpalette, if palvary active
 	//  (SCI1.1 only)

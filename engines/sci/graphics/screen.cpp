@@ -214,6 +214,23 @@ GfxScreen::GfxScreen(ResourceManager *resMan, Common::RenderMode renderMode) : _
 	_backupScreen = nullptr;
 }
 
+// QfG1, Flat approximation: on walkable ground (control colour other than white, white being
+// Sierra's barrier) green with dark grey shows green, and green with black shows dark grey. Done on
+// the picture's colour pairs as drawn, so sprites restoring the background keep it
+void GfxScreen::agiDemakeRecolourWalkable() {
+	if (_upscaledHires != GFX_SCREEN_UPSCALED_DISABLED || _displayPixels != _pixels)
+		return;
+	for (uint o = 0; o < _pixels; ++o) {
+		if (_controlScreen[o] == 15)
+			continue;
+		byte &c = _displayScreen[o];
+		if (c == 0x28 || c == 0x82)
+			c = 0x02;
+		else if (c == 0x20)
+			c = 0x08;
+	}
+}
+
 void GfxScreen::agiDemakeSnapshotPicture() {
 	if (_upscaledHires != GFX_SCREEN_UPSCALED_DISABLED)
 		return;
