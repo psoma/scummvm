@@ -211,10 +211,10 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 				}
 		}
 		// picture areas moved (screen pixels): guild hall (picture 311), the notice board with its
-		// "QUESTS" plate goes 2 pixels down and 2 left. What it uncovers becomes the wall (light
+		// "QUESTS" plate goes 2 pixels down and 4 left. What it uncovers becomes the wall (light
 		// grey dithered with dark grey)
 		static const struct { int16 pic, left, top, right, bottom, dx, dy; byte fill; } kMove[] = {
-			{ 311, 104, 76, 168, 104, -2, 2, 0x78 }
+			{ 311, 104, 76, 168, 104, -4, 2, 0x78 }
 		};
 		for (uint i = 0; i < ARRAYSIZE(kMove); ++i) {
 			if (kMove[i].pic != pictureId || addToFlag)

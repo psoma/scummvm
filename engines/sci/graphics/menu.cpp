@@ -1050,8 +1050,12 @@ void GfxMenu::kernelDrawStatus(const char *text, int16 colorPen, int16 colorBack
 					left.deleteLastChar();
 				while (!right.empty() && right.lastChar() == ' ')
 					right.deleteLastChar();
-				if (left.size() + 1 + right.size() <= maxChars)
-					agiText = left + Common::String(' ', maxChars - left.size() - right.size()) + right;
+				if (left.size() + 1 + right.size() <= maxChars) {
+					agiText = left;
+					while (agiText.size() + right.size() < maxChars)
+						agiText += ' ';
+					agiText += right;
+				}
 			}
 		}
 		while (agiText.size() > maxChars) {
