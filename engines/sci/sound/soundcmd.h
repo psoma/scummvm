@@ -105,6 +105,9 @@ public:
 	reg_t kDoSoundSetLoop(EngineState *s, int argc, reg_t *argv);
 	reg_t kDoSoundSuspend(EngineState *s, int argc, reg_t *argv);
 
+	// AGI demake status line: is the game's sound switched on
+	bool agiDemakeSoundOn() const;
+
 private:
 	ResourceManager *_resMan;
 	SegManager *_segMan;

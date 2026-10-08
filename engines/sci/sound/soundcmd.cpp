@@ -1038,4 +1038,8 @@ bool SoundCommandParser::isUninterruptableSoundPlaying(reg_t obj) {
 	return false;
 }
 
+bool SoundCommandParser::agiDemakeSoundOn() const {
+	return _music && _music->soundGetSoundOn();
+}
+
 } // End of namespace Sci

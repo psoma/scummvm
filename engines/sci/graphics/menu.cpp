@@ -37,6 +37,7 @@
 #include "sci/graphics/text16.h"
 #include "sci/graphics/screen.h"
 #include "sci/graphics/menu.h"
+#include "sci/sound/soundcmd.h"
 
 namespace Sci {
 
@@ -1032,30 +1033,48 @@ void GfxMenu::kernelDrawStatus(const char *text, int16 colorPen, int16 colorBack
 		// line fits the 8 pixel font (PQ2 pads with spaces for SCI's narrower font)
 		agiText = text;
 		uint maxChars = (_screen->getWidth() - 4) / 8;
-		// QfG1 (the EGA game, sold as Hero's Quest and later as Quest for Glory I, both "qfg1" to
-		// ScummVM): the title on the left is too long for the 8 pixel font, so it says "Hero's Quest",
-		// or "Quest for Glory" if the game was added under that name, and the score in brackets is
-		// right-aligned a character in from the edge, so it stays on screen even at 500 of 500
-		if (g_sci->getGameId() == GID_QFG1) {
-			maxChars -= 1;
-			const Common::String desc = ConfMan.get("description");
-			const char *title = desc.contains("Quest for Glory") ? "Quest for Glory" : "Hero's Quest";
-			const char *bracket = strchr(agiText.c_str(), '[');
-			if (bracket) {
-				Common::String left(agiText.c_str(), bracket - agiText.c_str());
-				Common::String right(bracket);
-				if (left.contains("Hero") || left.contains("Glory"))
-					left = title;
-				while (!left.empty() && left.lastChar() == ' ')
-					left.deleteLastChar();
-				while (!right.empty() && right.lastChar() == ' ')
-					right.deleteLastChar();
-				if (left.size() + 1 + right.size() <= maxChars) {
-					agiText = left;
-					while (agiText.size() + right.size() < maxChars)
-						agiText += ' ';
-					agiText += right;
-				}
+		// Status lines with a score ("[score 9 of 500]", "Score: 0 of 300") are rewritten the AGI way:
+		// "Score: 9 out of 500" on the left and "Sound: on" or "Sound: off" (the game's sound setting,
+		// or ScummVM's mute) on the right, a character in from the edge. Lines without a score are left
+		// as the game wrote them
+		{
+			const char *t = agiText.c_str();
+			const int n = agiText.size();
+			int scoreA = -1, scoreB = -1;
+			for (int i = 0; i < n && scoreB < 0; ++i) {
+				if (!Common::isDigit(t[i]) || (i > 0 && Common::isDigit(t[i - 1])))
+					continue;
+				int j = i, a = 0;
+				while (j < n && Common::isDigit(t[j]))
+					a = a * 10 + (t[j++] - '0');
+				while (j < n && t[j] == ' ')
+					++j;
+				if (j + 6 <= n && !scumm_strnicmp(t + j, "out of", 6))
+					j += 6;
+				else if (j + 2 <= n && !scumm_strnicmp(t + j, "of", 2))
+					j += 2;
+				else
+					continue;
+				while (j < n && t[j] == ' ')
+					++j;
+				if (j >= n || !Common::isDigit(t[j]))
+					continue;
+				int b = 0;
+				while (j < n && Common::isDigit(t[j]))
+					b = b * 10 + (t[j++] - '0');
+				scoreA = a;
+				scoreB = b;
+			}
+			if (scoreB >= 0) {
+				const uint width = maxChars - 1;
+				const bool soundOn = g_sci->_soundCmd && g_sci->_soundCmd->agiDemakeSoundOn() &&
+					!(ConfMan.hasKey("mute") && ConfMan.getBool("mute"));
+				const Common::String left = Common::String::format("Score: %d out of %d", scoreA, scoreB);
+				const Common::String right = soundOn ? "Sound: on" : "Sound: off";
+				agiText = left;
+				while (agiText.size() + right.size() < width)
+					agiText += ' ';
+				agiText += right;
 			}
 		}
 		while (agiText.size() > maxChars) {

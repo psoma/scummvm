@@ -1,4 +1,4 @@
-# SCI to AGI Demake (unofficial ScummVM fork) - v0.201
+# SCI to AGI Demake (unofficial ScummVM fork) - v0.202
 
 This fork adds an **AGI-style demake** mode to ScummVM's SCI engine. Early Sierra SCI games (SCI0 / SCI01, 16-colour EGA) are drawn the way Sierra's older AGI games looked: 160-pixel-wide "fat" pixels, no dithering, the 8x8 AGI font, AGI-style message boxes, and optional PCjr sound.
 
@@ -30,6 +30,7 @@ It is an unofficial, personal fork. It is not part of ScummVM and is not endorse
   - Addresses and phone numbers on envelopes and Colby's card are added to their description text
   - Faces where the eyes merged, the shooting range targets, inventory item frames, and Sonny's head on his diving suits
   - The police computer screen, and a few text boxes re-wrapped to fit
+- **Status line** (every game): written the AGI way, "Score: X out of Y" on the left and "Sound: on" or "Sound: off" on the right. Lines without a score are left as the game wrote them
 - **Dither handler** (pulldown directly under the AGI demake option, any game): *Flat approximation* (default) shows each dithered colour pair as one colour. *Chunky dither* draws it as a checkerboard of fat pixels in its two colours. Takes effect next time the game starts
 - **Game-specific fixes (Hero's Quest, in progress):**
   - Title sign lettering: every line re-spaced with a hole in each letter
@@ -39,7 +40,7 @@ It is an unofficial, personal fork. It is not part of ScummVM and is not endorse
   - Name box text centred in the box, "Start" centred over "Cancel"
   - Look-around at the start: turned head without the grey outline or a double row of hair
   - Town signs: "DRY GOODS" (second O fixed), "MART" (fruit stall), "INN" (Hero's Tale), "Sheriff". Katta's green eyes (behind the bar and the waitress), the hero sitting down (inn, and facing right in room 83) without the grey outline, stray red pixels at the Sheriff's steps
-  - Town square ground shows Sierra's cobble lines in dark grey. Guild hall notice board moved to sit under a wider, readable "QUESTS" plate, saurus trophy readable. Status line says "Hero's Quest" (or "Quest for Glory", by the game's name in the launcher) with the score right-aligned. Ice man's red eyes
+  - Town square ground shows Sierra's cobble lines in dark grey. Guild hall notice board moved to sit under a wider, readable "QUESTS" plate, saurus trophy readable. Ice man's red eyes
   - "Spielburg" sign letters solid black. Brown+green foliage shows green. Path texture straying under a barrier stays path coloured
   - Flat approximation colours: brown+black and green+dark grey show dark grey, light green+green shows light green, cyan+black shows cyan. On walkable ground green+dark grey shows green and green+black shows dark grey. Off it (including anything he walks behind) red+black shows red, brown+black shows brown and light grey+brown shows light grey
 
