@@ -1464,6 +1464,28 @@ static void agiDemakeHeroSource(int view, int loop, const byte *src, int w, int 
 		}
 }
 
+// QfG1 "Spielburg" sign outside the town gate (view 165): the letters are black strokes with a
+// light red and red highlight beside them, which collapse to a mix of black and pink. Light red and
+// red pixels touching black (left, right, above or below) are made black, so the letters come out
+// solid black. The sign's frame down its left edge (first 3 columns) is left alone
+static bool agiDemakeIsQfgSign(int view, int loop) {
+	return g_sci->getGameId() == GID_QFG1 && view == 165 && loop == 0;
+}
+
+static void agiDemakeSignLetters(const byte *src, int w, int h, byte *out) {
+	const byte black = 0, red = 4, lightRed = 12;
+	for (int i = 0; i < w * h; ++i)
+		out[i] = src[i];
+	for (int y = 0; y < h; ++y)
+		for (int x = 3; x < w; ++x) {
+			if (src[y * w + x] != lightRed && src[y * w + x] != red)
+				continue;
+			if ((x > 0 && src[y * w + x - 1] == black) || (x + 1 < w && src[y * w + x + 1] == black) ||
+					(y > 0 && src[(y - 1) * w + x] == black) || (y + 1 < h && src[(y + 1) * w + x] == black))
+				out[y * w + x] = black;
+		}
+}
+
 // QfG1 hero facing you: his eyes (black, the left one black and cyan) sit 2 to 3 pixels apart with
 // red or grey shading beside them, so the general eye rule misses them and they merge into one
 // fat block. On the first row with two short dark runs and face between them, each eye gets its own
@@ -2696,15 +2718,19 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	}
 	// QfG1 hero: his dark grey outline is dropped before the collapse
 	const bool qfgHero = agiDemakeIsQfgHero(_resourceId, loopNo);
-	if (qfgHero && !textOverride) {
+	const bool qfgSign = agiDemakeIsQfgSign(_resourceId, loopNo);
+	if ((qfgHero || qfgSign) && !textOverride) {
 		Common::Array<byte> orig(celWidth * celHeight);
 		for (int i = 0; i < celWidth * celHeight; ++i)
 			orig[i] = origBitmap[i];
 		strippedData.resize(celWidth * celHeight);
-		agiDemakeHeroSource(_resourceId, loopNo, orig.data(), celWidth, celHeight, clearKey, strippedData.data());
+		if (qfgHero)
+			agiDemakeHeroSource(_resourceId, loopNo, orig.data(), celWidth, celHeight, clearKey, strippedData.data());
+		else
+			agiDemakeSignLetters(orig.data(), celWidth, celHeight, strippedData.data());
 	}
 	const SciSpan<const byte> strippedSpan(strippedData.data(), strippedData.size());
-	const SciSpan<const byte> &bitmap = (textOverride || qfgHero) ? strippedSpan : origBitmap;
+	const SciSpan<const byte> &bitmap = (textOverride || qfgHero || qfgSign) ? strippedSpan : origBitmap;
 	// SCI direction loops (kDirLoop): 0 right, 1 left, 2 towards, 3 away, for views with 4+ loops.
 	// Towards and away use the v4 pairing (from the cel's left edge, odd mirrored cels from the
 	// right). Side views use the per-loop phase and nose repair.

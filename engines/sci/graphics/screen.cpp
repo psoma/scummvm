@@ -219,25 +219,70 @@ GfxScreen::GfxScreen(ResourceManager *resMan, Common::RenderMode renderMode) : _
 // ground is any control colour but white (Sierra's barrier), unless the picture pixel is in front of
 // someone walking there (its priority is above the band for that row: a bush he walks behind).
 // Walkable: green with dark grey shows green, green with black shows dark grey. Not walkable: red
-// with black shows red, brown with black shows brown, light grey with brown shows light grey
+// with black shows red, brown with black shows brown, light grey with brown shows light grey.
+// A patch of one of those not-walkable pairs that is mostly on walkable ground (counting the whole
+// patch, touching diagonally included) is ground that strays under a barrier, and is left alone
+static byte agiDemakeNotWalkableColour(byte c) {
+	switch (c) {
+	case 0x40: return 0x04;
+	case 0x60: return 0x06;
+	case 0x76:
+	case 0x67: return 0x07;
+	default: return 0;
+	}
+}
+
 void GfxScreen::agiDemakeRecolourWalkable(const byte *band) {
 	if (_upscaledHires != GFX_SCREEN_UPSCALED_DISABLED || _displayPixels != _pixels)
 		return;
+	const int w = _width, h = _height;
+	Common::Array<bool> walk(_pixels);
+	for (uint o = 0; o < _pixels; ++o)
+		walk[o] = _controlScreen[o] != 15 && _priorityScreen[o] <= band[o / w];
+
+	// patches of the not-walkable pairs, and whether each is mostly on walkable ground
+	Common::Array<int> patch(_pixels, -1);
+	Common::Array<bool> ground;
+	Common::Array<uint> queue;
+	for (uint o = 0; o < _pixels; ++o) {
+		const byte c = _displayScreen[o];
+		if (patch[o] >= 0 || !agiDemakeNotWalkableColour(c))
+			continue;
+		const int id = ground.size();
+		int onWalk = 0, count = 0;
+		queue.clear();
+		queue.push_back(o);
+		patch[o] = id;
+		for (uint i = 0; i < queue.size(); ++i) {
+			const uint q = queue[i];
+			++count;
+			if (walk[q])
+				++onWalk;
+			const int qx = q % w, qy = q / w;
+			for (int dy = -1; dy <= 1; ++dy)
+				for (int dx = -1; dx <= 1; ++dx) {
+					const int nx = qx + dx, ny = qy + dy;
+					if (nx < 0 || ny < 0 || nx >= w || ny >= h)
+						continue;
+					const uint n = ny * w + nx;
+					if (patch[n] < 0 && _displayScreen[n] == c) {
+						patch[n] = id;
+						queue.push_back(n);
+					}
+				}
+		}
+		ground.push_back(onWalk * 2 > count);
+	}
+
 	for (uint o = 0; o < _pixels; ++o) {
 		byte &c = _displayScreen[o];
-		const bool inFront = _priorityScreen[o] > band[o / _width];
-		if (_controlScreen[o] != 15 && !inFront) {
+		if (walk[o]) {
 			if (c == 0x28 || c == 0x82)
 				c = 0x02;
 			else if (c == 0x20)
 				c = 0x08;
-		} else {
-			if (c == 0x40)
-				c = 0x04;
-			else if (c == 0x60)
-				c = 0x06;
-			else if (c == 0x76 || c == 0x67)
-				c = 0x07;
+		} else if (patch[o] >= 0 && !ground[patch[o]]) {
+			c = agiDemakeNotWalkableColour(c);
 		}
 	}
 }

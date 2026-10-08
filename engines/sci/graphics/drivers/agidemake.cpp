@@ -114,6 +114,10 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 		{ GID_QFG1, kAnyRoom, 0x30, 3 },
 		{ GID_QFG1, kAnyRoom, 0x28, 8 },
 		{ GID_QFG1, kAnyRoom, 0x82, 8 },
+		// QfG1: brown with green is dark foliage (bushes, leaves in front of the path), shown green
+		// (it was brown)
+		{ GID_QFG1, kAnyRoom, 0x26, 2 },
+		{ GID_QFG1, kAnyRoom, 0x62, 2 },
 	};
 	const byte *lut = _lut;
 	byte roomLut[256];
