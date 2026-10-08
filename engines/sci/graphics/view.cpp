@@ -1442,8 +1442,9 @@ static byte agiDemakePick(byte a, byte b, byte clearKey) {
 // are dropped before the collapse.
 static bool agiDemakeIsQfgHero(int view, int loop = 0) {
 	// view 300 loop 8: his head turned left or right, drawn over the standing-away frame when he
-	// looks around at the start of the game (room 300)
-	return g_sci->getGameId() == GID_QFG1 && (view == 0 || view == 4 || (view == 300 && loop == 8));
+	// looks around at the start of the game (room 300). View 301 loop 6: sitting down at the inn
+	return g_sci->getGameId() == GID_QFG1 && (view == 0 || view == 4 || (view == 300 && loop == 8) ||
+		(view == 301 && loop == 6));
 }
 
 static void agiDemakeHeroSource(int view, int loop, const byte *src, int w, int h, byte clearKey, byte *out) {
@@ -1452,7 +1453,10 @@ static void agiDemakeHeroSource(int view, int loop, const byte *src, int w, int 
 		out[i] = src[i];
 	if (!agiDemakeIsQfgHero(view, loop))
 		return;
-	for (int y = 0; y < h; ++y)
+	// sitting down (view 301): only his head is outlined, and the stool beside him is dark grey too,
+	// so only the top third of the cel is touched
+	const int rows = (view == 301) ? h / 3 : h;
+	for (int y = 0; y < rows; ++y)
 		for (int x = 0; x < w; ++x) {
 			if (src[y * w + x] != darkGrey)
 				continue;
@@ -1484,6 +1488,52 @@ static void agiDemakeSignLetters(const byte *src, int w, int h, byte *out) {
 					(y > 0 && src[(y - 1) * w + x] == black) || (y + 1 < h && src[(y + 1) * w + x] == black))
 				out[y * w + x] = black;
 		}
+}
+
+// QfG1 Katta behind the inn's bar (view 302 loops 2, 4 and 5): her eyes are light green and green
+// pixels beside black, and the collapse turns them black. On the first head row with light green,
+// her eyes go one fat pixel in from each side of her face (two eyes), or where it is (one eye,
+// when she turns her head)
+static void agiDemakeKattaEyes(int view, int loop, const SciSpan<const byte> &bitmap, int w, int h, byte clearKey, byte *fat, int fatW, int startX, int pad, int numPairs) {
+	if (g_sci->getGameId() != GID_QFG1 || view != 302 || (loop != 2 && loop != 4 && loop != 5))
+		return;
+	const byte green = 2, lightGreen = 10;
+	for (int y = 0; y < h && y < 12; ++y) {
+		const byte *row = bitmap.getUnsafeDataAt(y * w, w);
+		bool hasLight = false;
+		for (int x = 0; x < w; ++x)
+			if (row[x] == lightGreen)
+				hasLight = true;
+		if (!hasLight)
+			continue;
+		// her eyes on this row: light green, and the green beside it
+		int first = -1, last = -1;
+		for (int x = 0; x < w; ++x)
+			if (row[x] == lightGreen || row[x] == green) {
+				if (first < 0)
+					first = x;
+				last = x;
+			}
+		if (first < 0)
+			continue;
+		byte *f = fat + y * fatW + pad;
+		if (last - first >= 3) {
+			int left = 0, right = numPairs - 1;
+			while (left < numPairs && f[left] == clearKey)
+				++left;
+			while (right >= 0 && f[right] == clearKey)
+				--right;
+			if (right - left >= 3) {
+				f[left + 1] = lightGreen;
+				f[right - 1] = lightGreen;
+			}
+		} else {
+			const int p = (first - startX) >> 1;
+			if (p >= 0 && p < numPairs && f[p] != clearKey)
+				f[p] = lightGreen;
+		}
+		return;
+	}
 }
 
 // QfG1 hero facing you: his eyes (black, the left one black and cyan) sit 2 to 3 pixels apart with
@@ -2048,6 +2098,27 @@ struct AgiDemakeFatPatch {
 	byte from, to;
 };
 static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
+	// QfG1 Sheriff's door board (view 300 loop 2 cel 2): its two rosettes go, to make room for "Sheriff"
+	{ GID_QFG1, 300, 2, 2, 5, 2, 0xFF, 4 },
+	{ GID_QFG1, 300, 2, 2, 5, 3, 0xFF, 4 },
+	{ GID_QFG1, 300, 2, 2, 5, 22, 0xFF, 4 },
+	{ GID_QFG1, 300, 2, 2, 5, 23, 0xFF, 4 },
+	{ GID_QFG1, 300, 2, 2, 6, 2, 0xFF, 4 },
+	{ GID_QFG1, 300, 2, 2, 6, 3, 0xFF, 4 },
+	{ GID_QFG1, 300, 2, 2, 6, 22, 0xFF, 4 },
+	{ GID_QFG1, 300, 2, 2, 6, 23, 0xFF, 4 },
+	{ GID_QFG1, 300, 2, 2, 7, 2, 0xFF, 4 },
+	{ GID_QFG1, 300, 2, 2, 7, 3, 0xFF, 4 },
+	{ GID_QFG1, 300, 2, 2, 7, 22, 0xFF, 4 },
+	{ GID_QFG1, 300, 2, 2, 7, 23, 0xFF, 4 },
+	{ GID_QFG1, 300, 2, 2, 8, 2, 0xFF, 4 },
+	{ GID_QFG1, 300, 2, 2, 8, 3, 0xFF, 4 },
+	{ GID_QFG1, 300, 2, 2, 8, 22, 0xFF, 4 },
+	{ GID_QFG1, 300, 2, 2, 8, 23, 0xFF, 4 },
+	{ GID_QFG1, 300, 2, 2, 9, 2, 0xFF, 4 },
+	{ GID_QFG1, 300, 2, 2, 9, 3, 0xFF, 4 },
+	{ GID_QFG1, 300, 2, 2, 9, 22, 0xFF, 4 },
+	{ GID_QFG1, 300, 2, 2, 9, 23, 0xFF, 4 },
 	// QfG1 "Spielburg" sign (view 165): letter pixels the collapse leaves pink or brown, made black.
 	// P: middle bar, and the right side of its bowl
 	{ GID_QFG1, 165, 0, 0, 19, 9, 12, 0 },
@@ -2286,6 +2357,65 @@ struct AgiDemakeFatBlock {
 	const char *rows[24];
 };
 static const AgiDemakeFatBlock kAgiDemakeFatBlocks[] = {
+	// QfG1 "DRY GOODS" above the store (view 320 loop 2): redrawn in 4 pixel wide letters. The first block
+	// clears the old dark red, the second draws the light red letters
+	{ GID_QFG1, 320, 2, 0, 0, 3, 9, 4,
+		{ "ffffffffffffffffffffffffffffffffffffffff",
+		  "ffffffffffffffffffffffffffffffffffffffff",
+		  "ffffffffffffffffffffffffffffffffffffffff",
+		  "ffffffffffffffffffffffffffffffffffffffff",
+		  "ffffffffffffffffffffffffffffffffffffffff",
+		  "ffffffffffffffffffffffffffffffffffffffff",
+		  "ffffffffffffffffffffffffffffffffffffffff",
+		  "ffffffffffffffffffffffffffffffffffffffff",
+		  "ffffffffffffffffffffffffffffffffffffffff" } },
+	{ GID_QFG1, 320, 2, 0, 0, 3, 9, 12,
+		{ "ffffffffffffffffffffffffffffffffffffffff",
+		  "111ff111ff1ff1fff11fff11fff11ff111fff111",
+		  "1ff1f1ff1f1ff1ff1ff1f1ff1f1ff1f1ff1f1fff",
+		  "1ff1f1ff1f1ff1ff1ffff1ff1f1ff1f1ff1f1fff",
+		  "1ff1f111fff11fff1f11f1ff1f1ff1f1ff1ff11f",
+		  "1ff1f1f1fff11fff1ff1f1ff1f1ff1f1ff1ffff1",
+		  "1ff1f1ff1ff11fff1ff1f1ff1f1ff1f1ff1ffff1",
+		  "111ff1ff1ff11ffff11fff11fff11ff111ff111f",
+		  "ffffffffffffffffffffffffffffffffffffffff" } },
+	// QfG1 "FARMERS MART" on the fruit stall (view 320 loop 3 cel 4) cannot fit, so it says "MART"
+	{ GID_QFG1, 320, 3, 4, 3, 3, 9, 14,
+		{ "ff1fff1ff11ff111ff111fff",
+		  "ff11f11f1ff1f1ff1ff1ffff",
+		  "ff1f1f1f1111f111fff1ffff",
+		  "ff1fff1f1ff1f1f1fff1ffff",
+		  "ff1fff1f1ff1f1ff1ff1ffff" } },
+	// QfG1 "HERO'S TALE INN" sign (view 300 loop 2 cel 0) cannot be read at this size, so it says "INN"
+	{ GID_QFG1, 300, 2, 0, 7, 1, 1, 14,
+		{ ".fffffffffff.",
+		  ".ffffffffffff",
+		  ".ffffffffffff",
+		  ".ffffffffffff",
+		  ".ffffffffffff",
+		  ".1f1ff1f1ff1f",
+		  ".1f11f1f11f1f",
+		  ".1f11f1f11f1f",
+		  ".1f1f11f1f11f",
+		  ".1f1f11f1f11f",
+		  ".1f1ff1f1ff1f",
+		  ".1f1ff1f1ff1f",
+		  ".ffffffffffff",
+		  ".ffffffffffff",
+		  ".ffffffffffff",
+		  ".ffffffffffff",
+		  ".ffffffffffff",
+		  "..ffffffffff.",
+		  "..fffffffff.." } },
+	// QfG1 Sheriff's door board (view 300 loop 2 cel 2) says "Sheriff" in small letters, across where
+	// its two rosettes were (cleared by the patches above)
+	{ GID_QFG1, 300, 2, 2, 3, 2, 4, 14,
+		{ "..ffffffffffffffffff..",
+		  "f11f1ffffffffff1ff1ff1",
+		  "1fff1ffff1ff11fff1f.1f",
+		  "f1ff11ff1f1f1ff1f11.11",
+		  "ff1f1f1f11ff1ff1f1f.1f",
+		  "11ff1f1ff11f1ff1f1f.1f" } },
 	// QfG1 title sign "Wanted: Hero" (view 100 cel 0): letters re-spaced and drawn one by one like "Village of Spielburg",
 	// W and H hand-drawn narrower
 	{ GID_QFG1, 100, 0, 0, 0, 0, 2, 0,
@@ -2848,6 +2978,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		agiDemakeCopyHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	if (g_sci->getGameId() == GID_PQ2 && _resourceId == 205 && celWidth == 73)
 		agiDemakeMugshotEyes(origBitmap, celWidth, celHeight, startX, fat.data(), fatW, pad, numPairs);
+	agiDemakeKattaEyes(_resourceId, loopNo, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad, numPairs);
 	agiDemakeApplyFatPatches(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeTidyPaintEdges(textOverride, startX, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatBlocks(_resourceId, loopNo, celNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);

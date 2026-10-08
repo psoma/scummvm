@@ -88,6 +88,8 @@ public:
 	// AGI demake: a copy of the room picture as drawn (visual, display, priority, map), so a sprite
 	// fix can put a few background pixels back over another sprite
 	void agiDemakeSnapshotPicture();
+	// AGI demake: set one picture pixel's colour pair (stray pixel fixes)
+	void agiDemakeSetPictureCode(int x, int y, byte code) { if (x >= 0 && y >= 0 && x < _width && y < _height && _displayPixels == _pixels) _displayScreen[y * _width + x] = code; }
 	// AGI demake, QfG1 Flat approximation: different colours for dithers on walkable ground
 	// band[y]: the priority a walker standing on screen row y gets (picture pixels above it are in front)
 	void agiDemakeRecolourWalkable(const byte *band);

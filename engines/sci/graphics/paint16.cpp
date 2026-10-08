@@ -171,6 +171,17 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 		agiDemakeDumpPicture(pictureId, addToFlag);
 
 	if (_screen->agiDemake() && g_sci->getGameId() == GID_QFG1) {
+		// stray picture pixels, in screen coordinates, given their neighbours' colour pair
+		static const struct { int16 pic, x, y, w; byte code; } kStray[] = {
+			// town, Sheriff's office steps (picture 300): red at both ends of the bottom step and on the
+			// step corner above the right end, and one in the dirt in front
+			{ 300, 144, 169, 2, 0x68 }, { 300, 198, 169, 4, 0x68 }, { 300, 200, 163, 2, 0x07 },
+			{ 300, 210, 190, 1, 0x76 }
+		};
+		for (uint i = 0; i < ARRAYSIZE(kStray); ++i)
+			if (kStray[i].pic == pictureId && !addToFlag)
+				for (int d = 0; d < kStray[i].w; ++d)
+					_screen->agiDemakeSetPictureCode(kStray[i].x + d, kStray[i].y, kStray[i].code);
 		// Flat approximation (agi_dither 0) only: walkable ground gets its own dither colours
 		if (!(ConfMan.hasKey("agi_dither") && ConfMan.getInt("agi_dither") == 1)) {
 			// priority band per screen row (the picture port starts _picWind->top rows down)
