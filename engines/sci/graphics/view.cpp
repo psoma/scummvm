@@ -3001,7 +3001,12 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 				else
 					v = agiDemakePickLighter(a, b, clearKey);
 			} else {
-				v = agiDemakePick(a, b, clearKey);
+				// QfG1 saurus head trophy in the guild hall (view 311 loop 2 cel 3): its black mouth lines
+				// swallowed the head, so the lighter colour wins on it
+				if (g_sci->getGameId() == GID_QFG1 && _resourceId == 311 && loopNo == 2 && celNo == 3)
+					v = agiDemakePickLighter(a, b, clearKey);
+				else
+					v = agiDemakePick(a, b, clearKey);
 			}
 			fat[cy * fatW + p + pad] = v;
 		}
