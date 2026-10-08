@@ -1442,9 +1442,10 @@ static byte agiDemakePick(byte a, byte b, byte clearKey) {
 // are dropped before the collapse.
 static bool agiDemakeIsQfgHero(int view, int loop = 0) {
 	// view 300 loop 8: his head turned left or right, drawn over the standing-away frame when he
-	// looks around at the start of the game (room 300). View 301 loop 6: sitting down at the inn
+	// looks around at the start of the game (room 300). View 301 loop 6: sitting down at the inn.
+	// View 83 loop 8: sitting on a chair facing right (room 83)
 	return g_sci->getGameId() == GID_QFG1 && (view == 0 || view == 4 || (view == 300 && loop == 8) ||
-		(view == 301 && loop == 6));
+		(view == 301 && loop == 6) || (view == 83 && loop == 8));
 }
 
 static void agiDemakeHeroSource(int view, int loop, const byte *src, int w, int h, byte clearKey, byte *out) {
@@ -1455,9 +1456,12 @@ static void agiDemakeHeroSource(int view, int loop, const byte *src, int w, int 
 		return;
 	// sitting down (view 301): only his head is outlined, and the stool beside him is dark grey too,
 	// so only the top third of the cel is touched
-	const int rows = (view == 301) ? h / 3 : h;
+	// sitting facing right (view 83): his head only (top 11 rows), and the chair back on his left (first 3 columns) is
+	// left alone too
+	const int rows = (view == 301) ? h / 3 : (view == 83) ? 11 : h;
+	const int firstX = (view == 83) ? 3 : 0;
 	for (int y = 0; y < rows; ++y)
-		for (int x = 0; x < w; ++x) {
+		for (int x = firstX; x < w; ++x) {
 			if (src[y * w + x] != darkGrey)
 				continue;
 			const bool edge = x == 0 || y == 0 || x == w - 1 || y == h - 1 ||
@@ -1612,6 +1616,34 @@ static void agiDemakeIceManEyes(int view, const SciSpan<const byte> &bitmap, int
 		if (p1 >= 0 && p1 < numPairs && f[p1] != clearKey)
 			f[p1] = lightRed;
 		return;
+	}
+}
+
+// QfG1 hero sitting facing right (view 83 loop 8): as when sitting down at the inn, with the
+// outline gone his head is a fat pixel too wide, so the column at the back of his head (the
+// leftmost one his head reaches, from fat pixel 2 so the chair back is left alone, down to the last
+// row with skin) is cleared where it is his hair (yellow or brown) or grey
+static void agiDemakeHeroSittingRightHead(int view, int loop, int h, byte clearKey, byte *fat, int fatW, int pad, int numPairs) {
+	if (g_sci->getGameId() != GID_QFG1 || view != 83 || loop != 8)
+		return;
+	const byte skin = 12;
+	const int firstP = 2;
+	int lastSkin = -1;
+	for (int y = 0; y < h && y < 11; ++y)
+		for (int p = firstP + 1; p < numPairs; ++p)
+			if (fat[y * fatW + pad + p] == skin)
+				lastSkin = y;
+	int left = numPairs;
+	for (int y = 0; y <= lastSkin; ++y)
+		for (int p = firstP; p < left; ++p)
+			if (fat[y * fatW + pad + p] != clearKey) {
+				left = p;
+				break;
+			}
+	for (int y = 0; y <= lastSkin && left < numPairs; ++y) {
+		byte &v = fat[y * fatW + pad + left];
+		if (v == 6 || v == 14 || v == 8)
+			v = clearKey;
 	}
 }
 
@@ -3036,6 +3068,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	agiDemakeKattaEyes(_resourceId, loopNo, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad, numPairs);
 	agiDemakeIceManEyes(_resourceId, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad, numPairs);
 	agiDemakeHeroSittingHead(_resourceId, loopNo, celNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
+	agiDemakeHeroSittingRightHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatPatches(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
 	// QfG1 guild hall: the "QUESTS" plate (view 311 loop 2 cel 0) is painted wider on the wall
 	// instead (see GfxPaint16::drawPicture), so the sprite itself is left out
