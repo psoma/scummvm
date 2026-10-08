@@ -1540,10 +1540,11 @@ static void agiDemakeKattaEyes(int view, int loop, const SciSpan<const byte> &bi
 }
 
 // QfG1 hero sitting down (view 301 loop 6): with the outline gone his head is a fat pixel too wide,
-// so on each head row (down to the last row with skin, in the top third) the rightmost pixel goes
-// if it is his hair (yellow or brown) or grey
-static void agiDemakeHeroSittingHead(int view, int loop, int h, byte clearKey, byte *fat, int fatW, int pad, int numPairs) {
-	if (g_sci->getGameId() != GID_QFG1 || view != 301 || loop != 6)
+// so the rightmost column his head reaches (rows down to the last row with skin, in the top third)
+// is cleared where it is his hair (yellow or brown) or grey
+static void agiDemakeHeroSittingHead(int view, int loop, int cel, int h, byte clearKey, byte *fat, int fatW, int pad, int numPairs) {
+	// cel 1 is left as it is (looks right already)
+	if (g_sci->getGameId() != GID_QFG1 || view != 301 || loop != 6 || cel == 1)
 		return;
 	const byte skin = 12;
 	int lastSkin = -1;
@@ -1551,13 +1552,38 @@ static void agiDemakeHeroSittingHead(int view, int loop, int h, byte clearKey, b
 		for (int p = 0; p < numPairs; ++p)
 			if (fat[y * fatW + pad + p] == skin)
 				lastSkin = y;
+	int right = -1;
+	for (int y = 0; y <= lastSkin; ++y)
+		for (int p = numPairs - 1; p > right; --p)
+			if (fat[y * fatW + pad + p] != clearKey) {
+				right = p;
+				break;
+			}
+	for (int y = 0; y <= lastSkin && right >= 0; ++y) {
+		byte &v = fat[y * fatW + pad + right];
+		if (v == 6 || v == 14 || v == 8)
+			v = clearKey;
+	}
+	// the brown on the top row of his head moves one fat pixel left
+	const byte brown = 6;
 	for (int y = 0; y <= lastSkin; ++y) {
 		byte *f = fat + y * fatW + pad;
-		int p = numPairs - 1;
-		while (p >= 0 && f[p] == clearKey)
-			--p;
-		if (p >= 0 && (f[p] == 6 || f[p] == 14 || f[p] == 8))
-			f[p] = clearKey;
+		bool any = false;
+		for (int p = 0; p < numPairs; ++p)
+			if (f[p] != clearKey)
+				any = true;
+		if (!any)
+			continue;
+		Common::Array<bool> isBrown(numPairs, false);
+		for (int p = 0; p < numPairs; ++p)
+			if (f[p] == brown) {
+				isBrown[p] = true;
+				f[p] = clearKey;
+			}
+		for (int p = 1; p < numPairs; ++p)
+			if (isBrown[p] && f[p - 1] == clearKey)
+				f[p - 1] = brown;
+		break;
 	}
 }
 
@@ -2123,6 +2149,10 @@ struct AgiDemakeFatPatch {
 	byte from, to;
 };
 static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
+	// QfG1 "DRY GOODS" above the store (view 320 loop 2 cel 0): Sierra's letters, with the second O
+	// made a copy of the first (it read as a B). The first O is a pixel wider, so the copy covers the
+	// left edge of the D
+	{ GID_QFG1, 320, 2, 0, 0, 29, 0xFF, 9 }, { GID_QFG1, 320, 2, 0, 0, 33, 0xFF, 9 }, { GID_QFG1, 320, 2, 0, 1, 30, 0xFF, 4 }, { GID_QFG1, 320, 2, 0, 1, 32, 0xFF, 12 }, { GID_QFG1, 320, 2, 0, 2, 30, 0xFF, 12 }, { GID_QFG1, 320, 2, 0, 2, 33, 0xFF, 12 }, { GID_QFG1, 320, 2, 0, 3, 30, 0xFF, 12 }, { GID_QFG1, 320, 2, 0, 3, 33, 0xFF, 12 }, { GID_QFG1, 320, 2, 0, 4, 30, 0xFF, 12 }, { GID_QFG1, 320, 2, 0, 4, 31, 0xFF, 4 }, { GID_QFG1, 320, 2, 0, 4, 33, 0xFF, 12 }, { GID_QFG1, 320, 2, 0, 5, 30, 0xFF, 12 }, { GID_QFG1, 320, 2, 0, 5, 33, 0xFF, 12 }, { GID_QFG1, 320, 2, 0, 6, 30, 0xFF, 12 }, { GID_QFG1, 320, 2, 0, 6, 33, 0xFF, 12 }, { GID_QFG1, 320, 2, 0, 7, 30, 0xFF, 12 }, { GID_QFG1, 320, 2, 0, 7, 33, 0xFF, 12 }, { GID_QFG1, 320, 2, 0, 8, 29, 0xFF, 9 }, { GID_QFG1, 320, 2, 0, 8, 30, 0xFF, 4 }, { GID_QFG1, 320, 2, 0, 8, 33, 0xFF, 9 },
 	// QfG1 "MART" sign: red in the gap of its top and bottom border
 	{ GID_QFG1, 320, 3, 4, 1, 14, 0xFF, 4 }, { GID_QFG1, 320, 3, 4, 9, 14, 0xFF, 4 },
 	// QfG1 "INN" sign: blue instead of red left of the I, and red in the cyan edge opposite the pink one
@@ -2370,28 +2400,6 @@ struct AgiDemakeFatBlock {
 	const char *rows[24];
 };
 static const AgiDemakeFatBlock kAgiDemakeFatBlocks[] = {
-	// QfG1 "DRY GOODS" above the store (view 320 loop 2): redrawn in 4 pixel wide letters (3 wide O's), clear
-	// of the end ornaments. The first block clears the old dark red, the second draws the light red letters
-	{ GID_QFG1, 320, 2, 0, 0, 3, 9, 4,
-		{ "ffffffffffffffffffffffffffffffffffffffff",
-		  "ffffffffffffffffffffffffffffffffffffffff",
-		  "ffffffffffffffffffffffffffffffffffffffff",
-		  "ffffffffffffffffffffffffffffffffffffffff",
-		  "ffffffffffffffffffffffffffffffffffffffff",
-		  "ffffffffffffffffffffffffffffffffffffffff",
-		  "ffffffffffffffffffffffffffffffffffffffff",
-		  "ffffffffffffffffffffffffffffffffffffffff",
-		  "ffffffffffffffffffffffffffffffffffffffff" } },
-	{ GID_QFG1, 320, 2, 0, 0, 3, 9, 12,
-		{ "ffffffffffffffffffffffffffffffffffffffff",
-		  "f111ff111ff1ff1fff11fff1fff1ff111fff111f",
-		  "f1ff1f1ff1f1ff1ff1ff1f1f1f1f1f1ff1f1ffff",
-		  "f1ff1f1ff1f1ff1ff1ffff1f1f1f1f1ff1f1ffff",
-		  "f1ff1f111fff11fff1f11f1f1f1f1f1ff1ff11ff",
-		  "f1ff1f1f1fff11fff1ff1f1f1f1f1f1ff1ffff1f",
-		  "f1ff1f1ff1ff11fff1ff1f1f1f1f1f1ff1ffff1f",
-		  "f111ff1ff1ff11ffff11fff1fff1ff111ff111ff",
-		  "ffffffffffffffffffffffffffffffffffffffff" } },
 	// QfG1 "FARMERS MART" on the fruit stall (view 320 loop 3 cel 4) cannot fit, so it says "MART"
 	{ GID_QFG1, 320, 3, 4, 3, 3, 9, 14,
 		{ "ff1fff1ff11ff111ff111fff",
@@ -2993,7 +3001,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	if (g_sci->getGameId() == GID_PQ2 && _resourceId == 205 && celWidth == 73)
 		agiDemakeMugshotEyes(origBitmap, celWidth, celHeight, startX, fat.data(), fatW, pad, numPairs);
 	agiDemakeKattaEyes(_resourceId, loopNo, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad, numPairs);
-	agiDemakeHeroSittingHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
+	agiDemakeHeroSittingHead(_resourceId, loopNo, celNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatPatches(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeTidyPaintEdges(textOverride, startX, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatBlocks(_resourceId, loopNo, celNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
