@@ -92,7 +92,7 @@ public:
 	void agiDemakeSetPictureCode(int x, int y, byte code) { if (x >= 0 && y >= 0 && x < _width && y < _height && _displayPixels == _pixels) _displayScreen[y * _width + x] = code; }
 	// AGI demake, QfG1 Flat approximation: different colours for dithers on walkable ground
 	// band[y]: the priority a walker standing on screen row y gets (picture pixels above it are in front)
-	void agiDemakeRecolourWalkable(const byte *band);
+	void agiDemakeRecolourWalkable(const byte *band, int pictureId);
 	const byte *agiDemakePriorityScreen() const { return _priorityScreen; }
 	void agiDemakeRestorePicturePixel(int x, int y, int priority = -1);	// priority >= 0: also set it
 	byte getColorWhite() { return _colorWhite; }

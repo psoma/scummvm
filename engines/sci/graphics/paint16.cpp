@@ -174,14 +174,42 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 		// stray picture pixels, in screen coordinates, given their neighbours' colour pair
 		static const struct { int16 pic, x, y, w; byte code; } kStray[] = {
 			// town, Sheriff's office steps (picture 300): red at both ends of the bottom step and on the
-			// step corner above the right end, and one in the dirt in front
+			// step corner above the right end, and two in the dirt in front
 			{ 300, 144, 169, 2, 0x68 }, { 300, 198, 169, 4, 0x68 }, { 300, 200, 163, 2, 0x07 },
-			{ 300, 210, 190, 1, 0x76 }
+			{ 300, 210, 190, 1, 0x76 }, { 300, 211, 189, 1, 0x76 }
 		};
 		for (uint i = 0; i < ARRAYSIZE(kStray); ++i)
 			if (kStray[i].pic == pictureId && !addToFlag)
 				for (int d = 0; d < kStray[i].w; ++d)
 					_screen->agiDemakeSetPictureCode(kStray[i].x + d, kStray[i].y, kStray[i].code);
+		// pictures painted over in fat pixels (each character is 2 screen pixels, a hex colour, '.' left
+		// alone). Guild hall (picture 311): the "QUESTS" plate above the notice board is too narrow for
+		// six readable letters, so a wider plate with them is painted on the wall here, and the plate
+		// sprite itself (view 311 loop 2 cel 0) is left out
+		static const struct { int16 pic, x, y; const char *rows[8]; } kArt[] = {
+			{ 311, 108, 76, {
+				"000000000000000000000000000",
+				"ccccccccccccccccccccccccc40",
+				"c66666666666666666666666640",
+				"c66e66e6e6eee6eee6eee6eee40",
+				"c6e6e6e6e6e666e6666e66e6640",
+				"c6e6e6e6e6ee66eee66e66eee40",
+				"c6ee66e6e6e66666e66e6666e40",
+				"c66ee6eee6eee6eee66e66eee6." } }
+		};
+		for (uint i = 0; i < ARRAYSIZE(kArt); ++i) {
+			if (kArt[i].pic != pictureId || addToFlag)
+				continue;
+			for (int r = 0; r < 8 && kArt[i].rows[r]; ++r)
+				for (int c = 0; kArt[i].rows[r][c]; ++c) {
+					const char ch = kArt[i].rows[r][c];
+					if (ch == '.')
+						continue;
+					const byte code = (ch >= 'a') ? (ch - 'a' + 10) : (ch - '0');
+					for (int d = 0; d < 2; ++d)
+						_screen->agiDemakeSetPictureCode(kArt[i].x + 2 * c + d, kArt[i].y + r, code);
+				}
+		}
 		// Flat approximation (agi_dither 0) only: walkable ground gets its own dither colours
 		if (!(ConfMan.hasKey("agi_dither") && ConfMan.getInt("agi_dither") == 1)) {
 			// priority band per screen row (the picture port starts _picWind->top rows down)
@@ -189,7 +217,7 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 			const int portTop = _ports->_picWind ? _ports->_picWind->top : 0;
 			for (int y = portTop; y < (int)band.size(); ++y)
 				band[y] = _ports->kernelCoordinateToPriority(y - portTop);
-			_screen->agiDemakeRecolourWalkable(band.data());
+			_screen->agiDemakeRecolourWalkable(band.data(), pictureId);
 		}
 		// keep a copy of the room picture for sprite fixes that put background back
 		_screen->agiDemakeSnapshotPicture();

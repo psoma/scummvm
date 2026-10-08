@@ -1587,6 +1587,34 @@ static void agiDemakeHeroSittingHead(int view, int loop, int cel, int h, byte cl
 	}
 }
 
+// QfG1 ice man (view 59, every loop): his two eyes are single light red pixels between black ones,
+// and the collapse turns them black. On the first head row with light red, each eye gets its fat
+// pixel back in light red, with at least one pixel between them
+static void agiDemakeIceManEyes(int view, const SciSpan<const byte> &bitmap, int w, int h, byte clearKey, byte *fat, int fatW, int startX, int pad, int numPairs) {
+	if (g_sci->getGameId() != GID_QFG1 || view != 59)
+		return;
+	const byte lightRed = 12;
+	for (int y = 0; y < h && y < 20; ++y) {
+		const byte *row = bitmap.getUnsafeDataAt(y * w, w);
+		int eyes[2], n = 0;
+		for (int x = 0; x < w && n < 2; ++x)
+			if (row[x] == lightRed)
+				eyes[n++] = x;
+		if (!n)
+			continue;
+		byte *f = fat + y * fatW + pad;
+		int p0 = (eyes[0] - startX) >> 1;
+		int p1 = (n == 2) ? ((eyes[1] - startX) >> 1) : -1;
+		if (p1 >= 0 && p1 < p0 + 2)
+			p1 = p0 + 2;
+		if (p0 >= 0 && p0 < numPairs && f[p0] != clearKey)
+			f[p0] = lightRed;
+		if (p1 >= 0 && p1 < numPairs && f[p1] != clearKey)
+			f[p1] = lightRed;
+		return;
+	}
+}
+
 // QfG1 hero facing you: his eyes (black, the left one black and cyan) sit 2 to 3 pixels apart with
 // red or grey shading beside them, so the general eye rule misses them and they merge into one
 // fat block. On the first row with two short dark runs and face between them, each eye gets its own
@@ -3001,8 +3029,14 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	if (g_sci->getGameId() == GID_PQ2 && _resourceId == 205 && celWidth == 73)
 		agiDemakeMugshotEyes(origBitmap, celWidth, celHeight, startX, fat.data(), fatW, pad, numPairs);
 	agiDemakeKattaEyes(_resourceId, loopNo, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad, numPairs);
+	agiDemakeIceManEyes(_resourceId, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad, numPairs);
 	agiDemakeHeroSittingHead(_resourceId, loopNo, celNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatPatches(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
+	// QfG1 guild hall: the "QUESTS" plate (view 311 loop 2 cel 0) is painted wider on the wall
+	// instead (see GfxPaint16::drawPicture), so the sprite itself is left out
+	if (g_sci->getGameId() == GID_QFG1 && _resourceId == 311 && loopNo == 2 && celNo == 0)
+		for (uint i = 0; i < fat.size(); ++i)
+			fat[i] = clearKey;
 	agiDemakeTidyPaintEdges(textOverride, startX, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatBlocks(_resourceId, loopNo, celNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyPairPrefers(bitmap, _resourceId, loopNo, celNo, startX, celWidth, celHeight, fat.data(), fatW, pad, numPairs);

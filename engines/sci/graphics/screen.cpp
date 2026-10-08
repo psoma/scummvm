@@ -232,7 +232,7 @@ static byte agiDemakeNotWalkableColour(byte c) {
 	}
 }
 
-void GfxScreen::agiDemakeRecolourWalkable(const byte *band) {
+void GfxScreen::agiDemakeRecolourWalkable(const byte *band, int pictureId) {
 	if (_upscaledHires != GFX_SCREEN_UPSCALED_DISABLED || _displayPixels != _pixels)
 		return;
 	const int w = _width, h = _height;
@@ -280,6 +280,10 @@ void GfxScreen::agiDemakeRecolourWalkable(const byte *band) {
 			if (c == 0x28 || c == 0x82)
 				c = 0x02;
 			else if (c == 0x20)
+				c = 0x08;
+			// town square (picture 300): brown with dark grey on the ground is Sierra's cobble lines
+			// and shading, shown dark grey so the ground isn't plain brown
+			else if (pictureId == 300 && (c == 0x68 || c == 0x86))
 				c = 0x08;
 		} else if (patch[o] >= 0 && !ground[patch[o]]) {
 			c = agiDemakeNotWalkableColour(c);
