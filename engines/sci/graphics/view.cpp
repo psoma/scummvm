@@ -2057,9 +2057,10 @@ static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
 	{ GID_QFG1, 165, 0, 0, 13, 12, 12, 0 },
 	{ GID_QFG1, 165, 0, 0, 12, 15, 12, 0 },
 	{ GID_QFG1, 165, 0, 0, 6, 27, 12, 0 },
-	// R: top right, and the bottom of its bowl
+	// R: top right, and the bottom of its bowl (right side, then the pixel left of it that closes it)
 	{ GID_QFG1, 165, 0, 0, 5, 31, 12, 0 },
 	{ GID_QFG1, 165, 0, 0, 8, 31, 6, 0 },
+	{ GID_QFG1, 165, 0, 0, 9, 30, 6, 0 },
 	// G: the bar turning in from its right side
 	{ GID_QFG1, 165, 0, 0, 8, 34, 6, 0 },
 	// PQ2 Keith facing you (view 20): his face is 4 fat pixels wide, so the eyes merge. The
