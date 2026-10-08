@@ -2048,6 +2048,20 @@ struct AgiDemakeFatPatch {
 	byte from, to;
 };
 static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
+	// QfG1 "Spielburg" sign (view 165): letter pixels the collapse leaves pink or brown, made black.
+	// P: middle bar, and the right side of its bowl
+	{ GID_QFG1, 165, 0, 0, 19, 9, 12, 0 },
+	{ GID_QFG1, 165, 0, 0, 16, 10, 6, 0 },
+	{ GID_QFG1, 165, 0, 0, 17, 10, 6, 0 },
+	// I, E, U: top pixel
+	{ GID_QFG1, 165, 0, 0, 13, 12, 12, 0 },
+	{ GID_QFG1, 165, 0, 0, 12, 15, 12, 0 },
+	{ GID_QFG1, 165, 0, 0, 6, 27, 12, 0 },
+	// R: top right, and the bottom of its bowl
+	{ GID_QFG1, 165, 0, 0, 5, 31, 12, 0 },
+	{ GID_QFG1, 165, 0, 0, 8, 31, 6, 0 },
+	// G: the bar turning in from its right side
+	{ GID_QFG1, 165, 0, 0, 8, 34, 6, 0 },
 	// PQ2 Keith facing you (view 20): his face is 4 fat pixels wide, so the eyes merge. The
 	// lower of the two black pixels on the left of his head becomes hair brown, and the eyes
 	// move apart with skin between: left eye on the face's left edge
