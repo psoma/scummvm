@@ -1647,6 +1647,71 @@ static void agiDemakeHeroSittingRightHead(int view, int loop, int h, byte clearK
 	}
 }
 
+// QfG1 fight screen labels (view 803 loop 0, the 15x9 boxes left of the HP, SP and MP bars, the
+// enemy's too): the 3 pixel letters collapse to a few dots, so the box is redrawn with 3 wide fat
+// letters and a gap. That uses the box's left frame line, so the frame is drawn one fat pixel
+// further left, outside the sprite (see the draw loop). The first letter is read off Sierra's
+// pixels: H (a full crossbar on row 4), S (a top bar starting one in), otherwise M
+static bool agiDemakeIsFightLabel(int view, int loop, int w, int h) {
+	return g_sci->getGameId() == GID_QFG1 && view == 803 && loop == 0 && w == 15 && h == 9;
+}
+
+static void agiDemakeFightLabel(int view, int loop, const SciSpan<const byte> &bitmap, int w, int h, byte *fat, int fatW, int pad, int numPairs) {
+	if (!agiDemakeIsFightLabel(view, loop, w, h) || numPairs < 8)
+		return;
+	const byte black = 0, frame = 9, ink = 13;
+	const byte *r2 = bitmap.getUnsafeDataAt(2 * w, w);
+	const byte *r4 = bitmap.getUnsafeDataAt(4 * w, w);
+	const char *first;
+	if (r4[2] == ink && r4[3] == ink && r4[4] == ink && r4[5] == ink)
+		first = "1.1" "1.1" "111" "1.1" "1.1";
+	else if (r2[2] == black && r2[3] == ink && r2[4] == ink && r2[5] == ink)
+		first = "111" "1.." "111" "..1" "111";
+	else
+		first = "1.1" "111" "1.1" "1.1" "1.1";
+	const char *p = "111" "1.1" "111" "1.." "1..";
+	for (int y = 1; y < 8 && y < h; ++y) {
+		byte *f = fat + y * fatW + pad;
+		for (int x = 0; x < 7; ++x)
+			f[x] = black;
+		f[7] = frame;
+	}
+	for (int y = 0; y < 5; ++y) {
+		byte *f = fat + (2 + y) * fatW + pad;
+		for (int x = 0; x < 3; ++x) {
+			if (first[y * 3 + x] == '1')
+				f[x] = ink;
+			if (p[y * 3 + x] == '1')
+				f[4 + x] = ink;
+		}
+	}
+}
+
+// QfG1 green meeps (views 60 and 61): the first fat pixel of each row, when it is green fur, is made
+// light green, so his left edge shows against the grass. The fur clump he throws (61 loop 8) is all
+// light green, with a black shadow under it (drawn in the draw loop)
+static void agiDemakeMeepFur(int view, int loop, int h, byte clearKey, byte *fat, int fatW, int pad, int numPairs) {
+	if (g_sci->getGameId() != GID_QFG1 || (view != 60 && view != 61))
+		return;
+	const byte green = 2, lightGreen = 10;
+	const bool clump = (view == 61 && loop == 8);
+	for (int y = 0; y < h; ++y) {
+		byte *f = fat + y * fatW + pad;
+		if (clump) {
+			for (int p = 0; p < numPairs; ++p)
+				if (f[p] == green)
+					f[p] = lightGreen;
+			continue;
+		}
+		for (int p = 0; p < numPairs; ++p)
+			if (f[p] != clearKey) {
+				if (f[p] == green)
+					f[p] = lightGreen;
+				break;
+			}
+	}
+}
+
 // QfG1 hero facing you: his eyes (black, the left one black and cyan) sit 2 to 3 pixels apart with
 // red or grey shading beside them, so the general eye rule misses them and they merge into one
 // fat block. On the first row with two short dark runs and face between them, each eye gets its own
@@ -3037,6 +3102,11 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 				// swallowed the head, so the lighter colour wins on it
 				if (g_sci->getGameId() == GID_QFG1 && _resourceId == 311 && loopNo == 2 && celNo == 3)
 					v = agiDemakePickLighter(a, b, clearKey);
+				// QfG1 green meeps (views 60 and 61): light green beats green in their fur, so they
+				// don't vanish into the grass
+				else if (g_sci->getGameId() == GID_QFG1 && (_resourceId == 60 || _resourceId == 61) &&
+						((a == 2 && b == 10) || (a == 10 && b == 2)))
+					v = 10;
 				else
 					v = agiDemakePick(a, b, clearKey);
 			}
@@ -3069,6 +3139,8 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	agiDemakeIceManEyes(_resourceId, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad, numPairs);
 	agiDemakeHeroSittingHead(_resourceId, loopNo, celNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeHeroSittingRightHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
+	agiDemakeFightLabel(_resourceId, loopNo, bitmap, celWidth, celHeight, fat.data(), fatW, pad, numPairs);
+	agiDemakeMeepFur(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatPatches(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
 	// QfG1 guild hall: the "QUESTS" plate (view 311 loop 2 cel 0) is painted wider on the wall
 	// instead (see GfxPaint16::drawPicture), so the sprite itself is left out
@@ -3134,6 +3206,35 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 					continue;
 				if (priority >= _screen->getPriority(x2, y2))
 					_screen->putPixel(x2, y2, drawMask, getMappedColor(color, scaleSignal, palette, x2, y2), priority, 0);
+			}
+		}
+	}
+	// QfG1 meep's fur clump (view 61 loop 8): a black shadow one row under each of its lowest pixels
+	if (g_sci->getGameId() == GID_QFG1 && _resourceId == 61 && loopNo == 8) {
+		for (int f = 0; f < fatW; ++f)
+			for (int cy = 0; cy < celHeight; ++cy) {
+				if (fat[cy * fatW + f] == clearKey || (cy + 1 < celHeight && fat[(cy + 1) * fatW + f] != clearKey))
+					continue;
+				const int y2 = rect.top + cy + 1 + offsetY;
+				for (int i = 0; i < 2; ++i) {
+					const int x2 = pairStart + 2 * (f - pad) + i;
+					if (x2 < 0 || x2 >= _screen->getWidth() || y2 >= _screen->getHeight())
+						continue;
+					if (priority >= _screen->getPriority(x2, y2))
+						_screen->putPixel(x2, y2, drawMask, getMappedColor(0, scaleSignal, palette, x2, y2), priority, 0);
+				}
+			}
+	}
+	// QfG1 fight screen labels: the box's left frame line, one fat pixel left of the sprite
+	if (agiDemakeIsFightLabel(_resourceId, loopNo, celWidth, celHeight)) {
+		for (int cy = clipRect.top - rect.top; cy < MIN<int>(celHeight, clipRect.bottom - rect.top); ++cy) {
+			const int y2 = rect.top + cy + offsetY;
+			for (int i = 0; i < 2; ++i) {
+				const int x2 = pairStart - 2 + i;
+				if (x2 < 0 || x2 >= _screen->getWidth())
+					continue;
+				if (priority >= _screen->getPriority(x2, y2))
+					_screen->putPixel(x2, y2, drawMask, getMappedColor(9, scaleSignal, palette, x2, y2), priority, 0);
 			}
 		}
 	}

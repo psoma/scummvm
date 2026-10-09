@@ -276,6 +276,10 @@ void GfxScreen::agiDemakeRecolourWalkable(const byte *band, int pictureId) {
 
 	for (uint o = 0; o < _pixels; ++o) {
 		byte &c = _displayScreen[o];
+		// graveyard (picture 64): light green with dark grey is moss on the trees and bushes, shown
+		// green instead of grey
+		if (pictureId == 64 && (c == 0xA8 || c == 0x8A))
+			c = 0x02;
 		if (walk[o]) {
 			if (c == 0x28 || c == 0x82)
 				c = 0x02;
@@ -285,6 +289,14 @@ void GfxScreen::agiDemakeRecolourWalkable(const byte *band, int pictureId) {
 			// and shading, shown dark grey so the ground isn't plain brown
 			else if (pictureId == 300 && (c == 0x68 || c == 0x86))
 				c = 0x08;
+			// graveyard (picture 64): the ground keeps Sierra's reddish tint. Cyan with light red shows
+			// light red, red with cyan shows red, brown with black shows brown
+			else if (pictureId == 64 && (c == 0x3C || c == 0xC3))
+				c = 0x0C;
+			else if (pictureId == 64 && (c == 0x43 || c == 0x34))
+				c = 0x04;
+			else if (pictureId == 64 && c == 0x60)
+				c = 0x06;
 		} else if (patch[o] >= 0 && !ground[patch[o]]) {
 			c = agiDemakeNotWalkableColour(c);
 		}
