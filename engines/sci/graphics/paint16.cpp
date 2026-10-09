@@ -842,6 +842,25 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 		}
 	}
 
+	// AGI demake: QfG1 inventory screen (any room: the full-screen window that starts with "You Are
+	// Carrying:"). The item list is indented 30 pixels, which the 8x8 font can't spare, and "Weight
+	// Carried" runs into the right frame. The quantities (right-aligned boxes at x 15) and items (x 40)
+	// move 11 pixels left, which still leaves room for two digit quantities, and the right column
+	// (x 180 and 220) moves 6 pixels left, matching the gap left of "You"
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_QFG1 && text) {
+		Port *port = _ports->getPort();
+		if (strstr(text, "You Are Carrying:"))
+			_agiInventoryPort = port;
+		else if (port != _agiInventoryPort)
+			_agiInventoryPort = nullptr;
+		if (_agiInventoryPort && port == _agiInventoryPort && port->rect.width() >= 318) {
+			if (port->curLeft == 15 || port->curLeft == 40)
+				port->curLeft -= 11;
+			else if (port->curLeft == 180 || port->curLeft == 220)
+				port->curLeft -= 6;
+		}
+	}
+
 	// AGI demake: QfG1 new hero screen (room 203) and the character sheet in game (any room, same
 	// layout). The Health, Stamina and Magic Points values ("18 / 18") sit at x 103, which the tight
 	// AGI font reaches with "Stamina Points". They are moved 8 pixels right, and their box keeps its

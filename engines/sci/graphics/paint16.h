@@ -87,6 +87,7 @@ public:
 	void kernelPortraitUnload(uint16 portraitId);
 
 private:
+	Port *_agiInventoryPort = nullptr;	// QfG1 inventory screen being drawn (see kernelDisplay)
 	ResourceManager *_resMan;
 	SegManager *_segMan;
 	AudioPlayer *_audio;
