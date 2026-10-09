@@ -88,6 +88,7 @@ public:
 
 private:
 	Port *_agiInventoryPort = nullptr;	// QfG1 inventory screen being drawn (see kernelDisplay)
+	int16 _agiSpellShift = 0, _agiSpellPending = 0;	// QfG1 spells list rows moved down by wrapped names
 	ResourceManager *_resMan;
 	SegManager *_segMan;
 	AudioPlayer *_audio;

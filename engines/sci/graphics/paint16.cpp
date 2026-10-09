@@ -842,6 +842,7 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 		}
 	}
 
+	Common::String agiFirstLine, agiSecondLine;	// QfG1 spells list, see below
 	// AGI demake: QfG1 inventory screen (any room: the full-screen window that starts with "You Are
 	// Carrying:"). The item list is indented 30 pixels, which the 8x8 font can't spare, and "Weight
 	// Carried" runs into the right frame. The quantities (right-aligned boxes at x 15) and items (x 40)
@@ -854,10 +855,35 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 		else if (port != _agiInventoryPort)
 			_agiInventoryPort = nullptr;
 		if (_agiInventoryPort && port == _agiInventoryPort && port->rect.width() >= 318) {
-			if (port->curLeft == 15 || port->curLeft == 40)
+			if (port->curLeft == 15 || port->curLeft == 40) {
 				port->curLeft -= 11;
-			else if (port->curLeft == 180 || port->curLeft == 220)
+			} else if (port->curLeft == 180 || port->curLeft == 220) {
 				port->curLeft -= 6;
+				// coins and weights: rows 9 pixels apart like the item list (Sierra's were 13)
+				if (port->curTop == 23 || port->curTop == 36 || port->curTop == 49)
+					port->curTop = 10 + (port->curTop - 10) * 9 / 13;
+			}
+			// spells (a magic user's inventory): a two word name, too wide for its column in the 8 pixel
+			// font ("Detect Magic", "Flame Dart"), puts its second word on the next line, indented, and every row after it
+			// moves down a line. The MP value (x 192) starts each row, then the name (218), then
+			// the skill (290)
+			if (port->curTop >= 91 && (port->curLeft == 192 || port->curLeft == 218 || port->curLeft == 290)) {
+				if (port->curLeft == 192) {
+					_agiSpellShift += _agiSpellPending;
+					_agiSpellPending = 0;
+				}
+				port->curTop += _agiSpellShift;
+				const char *space = strchr(text, ' ');
+				if (port->curLeft == 218 && space) {
+					agiFirstLine = Common::String(text, space - text);
+					agiSecondLine = space + 1;
+					text = agiFirstLine.c_str();
+					_agiSpellPending += 9;
+				}
+			} else if (strstr(text, "Spells:")) {
+				_agiSpellShift = 0;
+				_agiSpellPending = 0;
+			}
 		}
 	}
 
@@ -958,6 +984,18 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 	// See comment above.
 	if (!needCJKFix && _screen->_picNotValid == 0 && bRedraw)
 		bitsShow(rect);
+
+	// QfG1 spells list: the second word of a long spell name, a line down and indented 12 pixels
+	if (!agiSecondLine.empty()) {
+		Common::Rect rect2;
+		_text16->Size(rect2, agiSecondLine.c_str(), languageSplitter, -1, 0);
+		rect2.moveTo(rect.left + 12, rect.top + 9);
+		if (colorBack != -1)
+			fillRect(rect2, GFX_SCREEN_MASK_VISUAL, colorBack, 0, 0);
+		_text16->Box(agiSecondLine.c_str(), languageSplitter, false, rect2, alignment, -1);
+		if (_screen->_picNotValid == 0 && bRedraw)
+			bitsShow(rect2);
+	}
 
 	// restoring port and cursor pos
 	Port *currport = _ports->getPort();
