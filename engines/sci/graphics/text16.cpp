@@ -1042,14 +1042,18 @@ reg_t GfxText16::allocAndFillReferenceRectArray() {
 
 void GfxText16::kernelTextSize(const char *text, uint16 languageSplitter, int16 font, int16 maxWidth, int16 *textWidth, int16 *textHeight) {
 	Common::Rect rect(0, 0, 0, 0);
+	bool agiCapped = false;
 	if (_screen->agiDemake()) {
 		text = agiDemakeSubstituteText(text);
+		const int16 asked = maxWidth;
 		maxWidth = agiDemakeCapTextWidth(text, maxWidth);
+		agiCapped = (maxWidth != asked) && g_sci->getGameId() == GID_QFG1;	// PQ2 keeps its approved layouts
 	}
 	// AGI demake: text with hand-placed line breaks keeps them. If its longest line (trailing
 	// spaces ignored) is wider than the game asked for in the 8x8 font, the box is made wide
 	// enough for it, up to the screen width less a margin, instead of re-wrapping every line.
-	if (_screen->agiDemake() && maxWidth > 0 && strchr(text, 0x0A)) {
+	// Not for Hero's Quest text given its own width in kAgiDemakeTextWidths, which is wrapped to it
+	if (_screen->agiDemake() && !agiCapped && maxWidth > 0 && strchr(text, 0x0A)) {
 		const GuiResourceId previousFontId = GetFontId();
 		if (font != -1)
 			SetFont(font);
