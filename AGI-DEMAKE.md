@@ -1,4 +1,4 @@
-# SCI to AGI Demake (unofficial ScummVM fork) - v0.207
+# SCI to AGI Demake (unofficial ScummVM fork) - v0.208
 
 This fork adds an **AGI-style demake** mode to ScummVM's SCI engine. Early Sierra SCI games (SCI0 / SCI01, 16-colour EGA) are drawn the way Sierra's older AGI games looked: 160-pixel-wide "fat" pixels, no dithering, the 8x8 AGI font, AGI-style message boxes, and optional PCjr sound.
 
@@ -43,6 +43,7 @@ It is an unofficial, personal fork. It is not part of ScummVM and is not endorse
   - Town square ground shows Sierra's cobble lines in dark grey. Guild hall notice board moved to sit under a wider, readable "QUESTS" plate, saurus trophy readable. Ice man's red eyes
   - Fight screen HP, SP and MP labels readable. Graveyard trees green and ground reddish. Green meeps' fur and the clump they throw stand out from the grass
   - Centaur garden soil and Erana's Peace ground coloured from the originals. Death message after a lost fight fits on screen. Inventory screen items moved left, the right column clear of the frame with the coin and weight rows closer, and two word spells wrapped
+  - Skull gate bars solid instead of striped, and the talking skull without the dark box round it
   - "Spielburg" sign letters solid black. Brown+green foliage shows green. Path texture straying under a barrier stays path coloured
   - Flat approximation colours: brown+black and green+dark grey show dark grey, light green+green shows light green, cyan+black shows cyan. On walkable ground green+dark grey shows green and green+black shows dark grey. Off it (including anything he walks behind) red+black shows red, brown+black shows brown and light grey+brown shows light grey
 

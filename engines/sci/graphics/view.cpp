@@ -1712,6 +1712,82 @@ static void agiDemakeMeepFur(int view, int loop, int h, byte clearKey, byte *fat
 	}
 }
 
+// QfG1 skull gate (view 23). The gate (loop 0 cel 0): its bars are checkerboard dithers (black with
+// dark grey, and a brown dither), which collapse to black and grey dashes down each bar. Each fat
+// pixel whose 2x2 block of Sierra's pixels is all bar colours (black, dark grey, brown or a dither
+// pair) and not all one colour takes the darkest of them, so the bars come out solid.
+// The talking skull (loop 2): its frames are the skull on a dark square of gate, which doesn't match
+// the gate behind, so the dark surround (black, brown and dark grey reached from the edge) is left
+// out and the gate shows round his face
+static void agiDemakeSkullGate(int view, int loop, int cel, const SciSpan<const byte> &bitmap, int w, int h, byte clearKey, byte *fat, int fatW, int startX, int pad, int numPairs) {
+	if (g_sci->getGameId() != GID_QFG1 || view != 23)
+		return;
+	if (loop == 0 && cel == 0) {
+		auto isBar = [](byte c) { return c == 0 || c == 8 || c == 6 || c >= 16; };
+		auto luma = [](byte c) { return c >= 16 ? kAgiDemakeLuma[6] : kAgiDemakeLuma[c]; };
+		Common::Array<byte> out(h * numPairs);
+		for (int y = 0; y < h; ++y)
+			for (int p = 0; p < numPairs; ++p) {
+				byte cur = fat[y * fatW + pad + p];
+				out[y * numPairs + p] = cur;
+				if (cur == clearKey || !isBar(cur))
+					continue;
+				const int y2 = ((y ^ 1) < h) ? (y ^ 1) : y;
+				byte best = 0xFF;
+				bool all = true, mixed = false;
+				int n = 0;
+				byte first = 0;
+				for (int r = 0; r < 2 && all; ++r)
+					for (int i = 0; i < 2; ++i) {
+						const int x = startX + 2 * p + i;
+						if (x < 0 || x >= w)
+							continue;
+						const byte c = bitmap[(r ? y2 : y) * w + x];
+						if (c == clearKey)
+							continue;
+						if (!isBar(c)) {
+							all = false;
+							break;
+						}
+						if (n++ == 0)
+							first = c;
+						else if (c != first)
+							mixed = true;
+						if (best == 0xFF || luma(c) < luma(best))
+							best = c;
+					}
+				if (all && mixed && best != 0xFF)
+					out[y * numPairs + p] = best;
+			}
+		for (int y = 0; y < h; ++y)
+			for (int p = 0; p < numPairs; ++p)
+				fat[y * fatW + pad + p] = out[y * numPairs + p];
+	} else if (loop == 2) {
+		auto dark = [](byte c) { return c == 0 || c == 6 || c == 8; };
+		Common::Array<bool> seen(h * numPairs, false);
+		Common::Array<int> queue;
+		for (int y = 0; y < h; ++y)
+			for (int p = 0; p < numPairs; ++p)
+				if ((y == 0 || y == h - 1 || p == 0 || p == numPairs - 1) && dark(fat[y * fatW + pad + p])) {
+					seen[y * numPairs + p] = true;
+					queue.push_back(y * numPairs + p);
+				}
+		for (uint i = 0; i < queue.size(); ++i) {
+			const int y = queue[i] / numPairs, p = queue[i] % numPairs;
+			static const int kD[4][2] = { { 1, 0 }, { -1, 0 }, { 0, 1 }, { 0, -1 } };
+			for (int d = 0; d < 4; ++d) {
+				const int yy = y + kD[d][0], pp = p + kD[d][1];
+				if (yy < 0 || yy >= h || pp < 0 || pp >= numPairs || seen[yy * numPairs + pp] || !dark(fat[yy * fatW + pad + pp]))
+					continue;
+				seen[yy * numPairs + pp] = true;
+				queue.push_back(yy * numPairs + pp);
+			}
+		}
+		for (uint i = 0; i < queue.size(); ++i)
+			fat[(queue[i] / numPairs) * fatW + pad + queue[i] % numPairs] = clearKey;
+	}
+}
+
 // QfG1 hero facing you: his eyes (black, the left one black and cyan) sit 2 to 3 pixels apart with
 // red or grey shading beside them, so the general eye rule misses them and they merge into one
 // fat block. On the first row with two short dark runs and face between them, each eye gets its own
@@ -3140,6 +3216,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	agiDemakeHeroSittingHead(_resourceId, loopNo, celNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeHeroSittingRightHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeFightLabel(_resourceId, loopNo, bitmap, celWidth, celHeight, fat.data(), fatW, pad, numPairs);
+	agiDemakeSkullGate(_resourceId, loopNo, celNo, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad, numPairs);
 	agiDemakeMeepFur(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatPatches(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
 	// QfG1 guild hall: the "QUESTS" plate (view 311 loop 2 cel 0) is painted wider on the wall
