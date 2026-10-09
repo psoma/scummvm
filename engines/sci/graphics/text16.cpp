@@ -756,6 +756,9 @@ static const struct AgiDemakeTextWidth {
 	// QfG1 "You still have points to allocate." pop-up: the window is sized from the message plus the
 	// button column, and at 192 wide it ran past the right edge. At 160 it still takes two lines
 	{ GID_QFG1, "You still have points to allocate.", 160, false },
+	// QfG1 death message after losing a fight: at 296 wide the window (with the icon) is wider than
+	// the screen, so its text and buttons ran off the right. At 224 it takes 7 lines and fits
+	{ GID_QFG1, "It was a tough battle, and you lost.", 224, false },
 };
 
 static int16 agiDemakeCapTextWidth(const char *text, int16 maxWidth) {

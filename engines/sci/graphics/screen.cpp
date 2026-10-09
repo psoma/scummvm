@@ -281,7 +281,19 @@ void GfxScreen::agiDemakeRecolourWalkable(const byte *band, int pictureId) {
 		if (pictureId == 64 && (c == 0xA8 || c == 0x8A))
 			c = 0x02;
 		if (walk[o]) {
-			if (c == 0x28 || c == 0x82)
+			// centaur garden (picture 53): the soil gets Sierra's lines back. Brown with dark grey
+			// shows dark grey, brown with light red shows light red
+			if (pictureId == 53 && (c == 0x68 || c == 0x86))
+				c = 0x08;
+			else if (pictureId == 53 && (c == 0x6C || c == 0xC6))
+				c = 0x0C;
+			// Erana's Peace (picture 10): the ground at the bottom shows dark green, not grey. Green
+			// with black and green with light magenta show green, magenta with black shows magenta
+			else if (pictureId == 10 && (c == 0x20 || c == 0x2D || c == 0xD2))
+				c = 0x02;
+			else if (pictureId == 10 && c == 0x50)
+				c = 0x05;
+			else if (c == 0x28 || c == 0x82)
 				c = 0x02;
 			else if (c == 0x20)
 				c = 0x08;
