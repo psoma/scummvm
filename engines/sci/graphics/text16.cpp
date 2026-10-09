@@ -1088,6 +1088,10 @@ void GfxText16::kernelTextSize(const char *text, uint16 languageSplitter, int16 
 	Size(rect, text, languageSplitter, font, maxWidth);
 	*textWidth = rect.width();
 	*textHeight = rect.height();
+	// AGI demake, QfG1 death message after a lost fight: reported 3 pixels taller, so the game puts
+	// its buttons that much lower and the gap above them matches the gap below
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_QFG1 && text && strstr(text, "It was a tough battle, and you lost."))
+		*textHeight += 3;
 }
 
 // Used SCI1+ for text codes
