@@ -280,6 +280,14 @@ void GfxScreen::agiDemakeRecolourWalkable(const byte *band, int pictureId) {
 		// green instead of grey
 		if (pictureId == 64 && (c == 0xA8 || c == 0x8A))
 			c = 0x02;
+		// thatched roofs, castle grounds: yellow with light grey shows yellow, and yellow with dark grey
+		// shows brown in picture 38 (shaded straw) and yellow in picture 40
+		if ((pictureId == 38 || pictureId == 40) && (c == 0xE7 || c == 0x7E))
+			c = 0x0E;
+		else if (pictureId == 38 && (c == 0xE8 || c == 0x8E))
+			c = 0x06;
+		else if (pictureId == 40 && (c == 0xE8 || c == 0x8E))
+			c = 0x0E;
 		if (walk[o]) {
 			// centaur garden (picture 53): the soil gets Sierra's lines back. Brown with dark grey
 			// shows dark grey, brown with light red shows light red
