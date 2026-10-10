@@ -313,8 +313,21 @@ int GfxControls16::getPicNotValid() {
 	return _screen->_picNotValid;
 }
 
+// AGI demake, QfG1: the Restore, Restart and Quit buttons (the death screens) are measured 3 pixels
+// taller (see GfxText16::kernelTextSize), which moves them, and the bottom of their window, down.
+// They are drawn in the lower part of that taller box, so the gap above them matches the gap below
+bool agiDemakeIsQfgDeathButton(const char *text) {
+	if (g_sci->getGameId() != GID_QFG1 || !text)
+		return false;
+	Common::String t(text);
+	t.trim();
+	return t == "Restore" || t == "Restart" || t == "Quit";
+}
+
 void GfxControls16::kernelDrawButton(Common::Rect rect, reg_t obj, const char *text, uint16 languageSplitter, int16 fontId, int16 style, bool hilite) {
 	g_sci->_tts->button(text);
+	if (_screen->agiDemake() && agiDemakeIsQfgDeathButton(text) && rect.height() > 3)
+		rect.top += 3;
 
 	// AGI demake, QfG1 new hero screen: "Start Game" is shown as "Start" (see text16), but the script
 	// still sets the button's left edge for the longer label, so it sat left of Cancel. It is moved

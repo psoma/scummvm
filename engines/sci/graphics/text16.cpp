@@ -42,6 +42,8 @@
 
 namespace Sci {
 
+bool agiDemakeIsQfgDeathButton(const char *text);	// controls16.cpp
+
 GfxText16::GfxText16(GfxCache *cache, GfxPorts *ports, GfxPaint16 *paint16, GfxScreen *screen, GfxMacFontManager *macFontManager)
 	: _cache(cache), _ports(ports), _paint16(paint16), _screen(screen), _macFontManager(macFontManager) {
 	init();
@@ -1088,9 +1090,9 @@ void GfxText16::kernelTextSize(const char *text, uint16 languageSplitter, int16 
 	Size(rect, text, languageSplitter, font, maxWidth);
 	*textWidth = rect.width();
 	*textHeight = rect.height();
-	// AGI demake, QfG1 death message after a lost fight: reported 3 pixels taller, so the game puts
-	// its buttons that much lower and the gap above them matches the gap below
-	if (_screen->agiDemake() && g_sci->getGameId() == GID_QFG1 && text && strstr(text, "It was a tough battle, and you lost."))
+	// AGI demake, QfG1: Restore, Restart and Quit buttons are reported 3 pixels taller (drawn in the
+	// lower part, see GfxControls16::kernelDrawButton), so the gap above them matches the gap below
+	if (_screen->agiDemake() && agiDemakeIsQfgDeathButton(text))
 		*textHeight += 3;
 }
 
