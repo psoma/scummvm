@@ -2350,6 +2350,9 @@ struct AgiDemakeFatPatch {
 	byte from, to;
 };
 static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
+	// QfG1 Baron on his throne (view 141 loop 2, every cel): his eyes collapse into one block, so the
+	// left eye moves a fat pixel left and skin goes between them
+	{ GID_QFG1, 141, 2, -1, 6, 4, 4, 0 }, { GID_QFG1, 141, 2, -1, 6, 5, 0, 4 },
 	// QfG1 "DRY GOODS" above the store (view 320 loop 2 cel 0): Sierra's letters, with the second O
 	// made a copy of the first (it read as a B). The first O is a pixel wider, so the copy covers the
 	// left edge of the D

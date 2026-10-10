@@ -313,7 +313,8 @@ int GfxControls16::getPicNotValid() {
 	return _screen->_picNotValid;
 }
 
-// AGI demake, QfG1: the Restore, Restart and Quit buttons (the death screens) are measured 3 pixels
+// AGI demake, QfG1: the Restore, Restart, Quit and Don't Quit buttons (the death screens and the
+// quit dialog, which share the Quit button) are measured 3 pixels
 // taller (see GfxText16::kernelTextSize), which moves them, and the bottom of their window, down.
 // They are drawn in the lower part of that taller box, so the gap above them matches the gap below
 bool agiDemakeIsQfgDeathButton(const char *text) {
@@ -321,7 +322,7 @@ bool agiDemakeIsQfgDeathButton(const char *text) {
 		return false;
 	Common::String t(text);
 	t.trim();
-	return t == "Restore" || t == "Restart" || t == "Quit";
+	return t == "Restore" || t == "Restart" || t == "Quit" || t == "Don't Quit";
 }
 
 void GfxControls16::kernelDrawButton(Common::Rect rect, reg_t obj, const char *text, uint16 languageSplitter, int16 fontId, int16 style, bool hilite) {
