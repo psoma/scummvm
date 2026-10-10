@@ -1443,10 +1443,10 @@ static byte agiDemakePick(byte a, byte b, byte clearKey) {
 static bool agiDemakeIsQfgHero(int view, int loop = 0) {
 	// view 300 loop 8: his head turned left or right, drawn over the standing-away frame when he
 	// looks around at the start of the game (room 300). View 301 loop 6: sitting down at the inn.
-	// View 83 loop 8: sitting on a chair facing right (room 83). View 508: working in the stable
-	// (raking, seen from behind)
+	// View 83 loop 8: sitting on a chair facing right (room 83). View 508: seen from behind in the
+	// stable. View 140: raking in the stable (his rake keeps its grey)
 	return g_sci->getGameId() == GID_QFG1 && (view == 0 || view == 4 || (view == 300 && loop == 8) ||
-		(view == 301 && loop == 6) || (view == 83 && loop == 8) || view == 508);
+		(view == 301 && loop == 6) || (view == 83 && loop == 8) || view == 508 || view == 140);
 }
 
 static void agiDemakeHeroSource(int view, int loop, const byte *src, int w, int h, byte clearKey, byte *out) {
@@ -1461,9 +1461,33 @@ static void agiDemakeHeroSource(int view, int loop, const byte *src, int w, int 
 	// left alone too
 	const int rows = (view == 301) ? h / 3 : (view == 83) ? 11 : h;
 	const int firstX = (view == 83) ? 3 : 0;
+	// raking (view 140): the rake is grey too, so it is left alone. Its head is found by the light grey
+	// at its tip in the outermost 3 columns (bottom half): those rows, one either side, within 10
+	// pixels of that side. Its handle's dark edge is the grey beside brown running on into brown or red
+	int headSide = 0, headTop = -1, headBottom = -1;
+	if (view == 140) {
+		for (int y = h / 2; y < h; ++y)
+			for (int x = 0; x < w; ++x)
+				if (src[y * w + x] == 7 && (x < 3 || x >= w - 3)) {
+					headSide = (x < 3) ? -1 : 1;
+					if (headTop < 0)
+						headTop = y;
+					headBottom = y;
+				}
+	}
+	auto isRake = [&](int x, int y) {
+		if (view != 140)
+			return false;
+		if (headSide && y >= headTop - 1 && y <= headBottom + 1 && ((headSide > 0 && x >= w - 10) || (headSide < 0 && x < 10)))
+			return true;
+		auto at = [&](int xx) { return (xx >= 0 && xx < w) ? src[y * w + xx] : clearKey; };
+		const byte brown = 6, red = 4;
+		return (at(x + 1) == brown && (at(x + 2) == brown || at(x + 2) == red)) ||
+			(at(x - 1) == brown && (at(x - 2) == brown || at(x - 2) == red));
+	};
 	for (int y = 0; y < rows; ++y)
 		for (int x = firstX; x < w; ++x) {
-			if (src[y * w + x] != darkGrey)
+			if (src[y * w + x] != darkGrey || isRake(x, y))
 				continue;
 			const bool edge = x == 0 || y == 0 || x == w - 1 || y == h - 1 ||
 				src[y * w + x - 1] == clearKey || src[y * w + x + 1] == clearKey ||
@@ -2351,6 +2375,13 @@ struct AgiDemakeFatPatch {
 	byte from, to;
 };
 static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
+	// QfG1 hero with the pitchfork (view 140 loop 3 cels 4 and 5): the middle of his joined eyes is skin
+	{ GID_QFG1, 140, 3, 4, 5, 6, 0, 12 }, { GID_QFG1, 140, 3, 5, 5, 6, 0, 12 },
+	// QfG1 castle door guards (view 41): the middle of their joined eyes is made skin (and on loop 1
+	// cel 0, his right eye a fat pixel nearer the left)
+	{ GID_QFG1, 41, 1, 0, 5, 4, 0, 12 }, { GID_QFG1, 41, 1, 0, 5, 6, 0, 12 },
+	{ GID_QFG1, 41, 1, 1, 4, 4, 0, 12 }, { GID_QFG1, 41, 1, 1, 5, 5, 0, 12 },
+	{ GID_QFG1, 41, 0, 1, 4, 10, 0, 12 }, { GID_QFG1, 41, 0, 1, 5, 9, 0, 12 },
 	// QfG1 gate guard (view 37 loop 4): his eyes apart with skin between, his mustache centred and his
 	// helmet symmetrical (left side copied from the right). Both frames get the same head
 	{ GID_QFG1, 37, 4, 0, 0, 4, 2, 15 }, { GID_QFG1, 37, 4, 0, 1, 4, 8, 7 }, { GID_QFG1, 37, 4, 0, 2, 3, 8, 15 }, { GID_QFG1, 37, 4, 0, 2, 4, 8, 7 }, { GID_QFG1, 37, 4, 0, 3, 3, 8, 15 }, { GID_QFG1, 37, 4, 0, 4, 3, 8, 7 }, { GID_QFG1, 37, 4, 0, 5, 5, 4, 12 }, { GID_QFG1, 37, 4, 0, 7, 4, 4, 14 }, { GID_QFG1, 37, 4, 0, 7, 6, 4, 14 }, { GID_QFG1, 37, 4, 0, 7, 7, 14, 4 },
