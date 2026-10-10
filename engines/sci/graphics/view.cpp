@@ -1443,9 +1443,10 @@ static byte agiDemakePick(byte a, byte b, byte clearKey) {
 static bool agiDemakeIsQfgHero(int view, int loop = 0) {
 	// view 300 loop 8: his head turned left or right, drawn over the standing-away frame when he
 	// looks around at the start of the game (room 300). View 301 loop 6: sitting down at the inn.
-	// View 83 loop 8: sitting on a chair facing right (room 83)
+	// View 83 loop 8: sitting on a chair facing right (room 83). View 508: working in the stable
+	// (raking, seen from behind)
 	return g_sci->getGameId() == GID_QFG1 && (view == 0 || view == 4 || (view == 300 && loop == 8) ||
-		(view == 301 && loop == 6) || (view == 83 && loop == 8));
+		(view == 301 && loop == 6) || (view == 83 && loop == 8) || view == 508);
 }
 
 static void agiDemakeHeroSource(int view, int loop, const byte *src, int w, int h, byte clearKey, byte *out) {
@@ -2350,6 +2351,10 @@ struct AgiDemakeFatPatch {
 	byte from, to;
 };
 static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
+	// QfG1 gate guard (view 37 loop 4): his eyes apart with skin between, his mustache centred and his
+	// helmet symmetrical (left side copied from the right). Both frames get the same head
+	{ GID_QFG1, 37, 4, 0, 0, 4, 2, 15 }, { GID_QFG1, 37, 4, 0, 1, 4, 8, 7 }, { GID_QFG1, 37, 4, 0, 2, 3, 8, 15 }, { GID_QFG1, 37, 4, 0, 2, 4, 8, 7 }, { GID_QFG1, 37, 4, 0, 3, 3, 8, 15 }, { GID_QFG1, 37, 4, 0, 4, 3, 8, 7 }, { GID_QFG1, 37, 4, 0, 5, 5, 4, 12 }, { GID_QFG1, 37, 4, 0, 7, 4, 4, 14 }, { GID_QFG1, 37, 4, 0, 7, 6, 4, 14 }, { GID_QFG1, 37, 4, 0, 7, 7, 14, 4 },
+	{ GID_QFG1, 37, 4, 1, 0, 6, 2, 15 }, { GID_QFG1, 37, 4, 1, 1, 3, 8, 2 }, { GID_QFG1, 37, 4, 1, 1, 6, 15, 7 }, { GID_QFG1, 37, 4, 1, 2, 3, 8, 15 }, { GID_QFG1, 37, 4, 1, 2, 7, 2, 15 }, { GID_QFG1, 37, 4, 1, 3, 3, 8, 15 }, { GID_QFG1, 37, 4, 1, 3, 7, 2, 15 }, { GID_QFG1, 37, 4, 1, 4, 3, 8, 7 }, { GID_QFG1, 37, 4, 1, 4, 7, 2, 7 }, { GID_QFG1, 37, 4, 1, 5, 3, 0, 7 }, { GID_QFG1, 37, 4, 1, 5, 5, 0, 12 }, { GID_QFG1, 37, 4, 1, 5, 7, 2, 7 }, { GID_QFG1, 37, 4, 1, 6, 7, 2, 14 }, { GID_QFG1, 37, 4, 1, 7, 5, 4, 14 }, { GID_QFG1, 37, 4, 1, 7, 6, 4, 14 }, { GID_QFG1, 37, 4, 1, 7, 7, 2, 4 }, { GID_QFG1, 37, 4, 1, 8, 3, 4, 14 },
 	// QfG1 Baron on his throne (view 141 loop 2, every cel): his eyes collapse into one block, so the
 	// right eye moves a fat pixel right and skin goes between them
 	{ GID_QFG1, 141, 2, -1, 6, 6, 0, 4 }, { GID_QFG1, 141, 2, -1, 6, 7, 4, 0 },
