@@ -761,6 +761,10 @@ static const struct AgiDemakeTextWidth {
 	// QfG1 death message after losing a fight: at 296 wide the window (with the icon) is wider than
 	// the screen, so its text and buttons ran off the right. At 224 it takes 7 lines and fits
 	{ GID_QFG1, "It was a tough battle, and you lost.", 224, false },
+	// QfG1 fight won ("You killed a goblin."): in one line the box at the top of the fight screen is
+	// wide enough to reach the enemy's HP box, and the bar redrawn under it later puts bits of the
+	// box back. At 88 wide it reads "You killed" / "a goblin." and stays clear
+	{ GID_QFG1, "You killed a", 88, false },
 };
 
 static int16 agiDemakeCapTextWidth(const char *text, int16 maxWidth) {
