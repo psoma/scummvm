@@ -1678,13 +1678,27 @@ static void agiDemakeHeroSittingRightHead(int view, int loop, int h, byte clearK
 // further left, outside the sprite (see the draw loop). The first letter is read off Sierra's
 // pixels: H (a full crossbar on row 4), S (a top bar starting one in), otherwise M
 static bool agiDemakeIsFightLabel(int view, int loop, int w, int h) {
-	return g_sci->getGameId() == GID_QFG1 && view == 803 && loop == 0 && w == 15 && h == 9;
+	return g_sci->getGameId() == GID_QFG1 && view == 803 && loop == 0 && (w == 15 || w == 25) && h == 9;
 }
 
 static void agiDemakeFightLabel(int view, int loop, const SciSpan<const byte> &bitmap, int w, int h, byte *fat, int fatW, int pad, int numPairs) {
 	if (!agiDemakeIsFightLabel(view, loop, w, h) || numPairs < 8)
 		return;
 	const byte black = 0, frame = 9, ink = 13;
+	// the Mage's Maze "TIME" box (25 wide): T, a narrow I, M and a narrow E, frame kept on the right
+	if (w == 25) {
+		static const char *const kTime[5] = { "111.1.1.1.11", ".1..1.111.1.", ".1..1.1.1.11", ".1..1.1.1.1.", ".1..1.1.1.11" };
+		for (int y = 1; y < 8 && y < h; ++y) {
+			byte *f = fat + y * fatW + pad;
+			for (int x = 0; x < 12 && x < numPairs - 1; ++x)
+				f[x] = black;
+		}
+		for (int y = 0; y < 5; ++y)
+			for (int x = 0; x < 12 && x < numPairs - 1; ++x)
+				if (kTime[y][x] == '1')
+					fat[(2 + y) * fatW + pad + x] = ink;
+		return;
+	}
 	const byte *r2 = bitmap.getUnsafeDataAt(2 * w, w);
 	const byte *r4 = bitmap.getUnsafeDataAt(4 * w, w);
 	const char *first;
@@ -1811,6 +1825,52 @@ static void agiDemakeSkullGate(int view, int loop, int cel, const SciSpan<const 
 		for (uint i = 0; i < queue.size(); ++i)
 			fat[(queue[i] / numPairs) * fatW + pad + queue[i] % numPairs] = clearKey;
 	}
+}
+
+// QfG1 Mage's Maze spell buttons (view 32 loops 0, 1, 2 and 7: FETCH, OPEN, TRIGGER, FLAME): Sierra's
+// small letters collapse to dots, so the middle of the button is redrawn: its colour, the dither strip
+// either side as a fat checkerboard, and the word in 3x5 fat letters in Sierra's text colour, centred.
+// The brief pressed frame (cel 1) is left as it is
+static void agiDemakeMazeButton(int view, int loop, int cel, int h, byte *fat, int fatW, int pad, int numPairs) {
+	if (g_sci->getGameId() != GID_QFG1 || view != 32 || cel == 1 || h != 11 || numPairs < 30)
+		return;
+	static const struct { int loop; const char *word; byte fill, ink, dither; } kButtons[] = {
+		{ 0, "FETCH", 10, 8, 3 }, { 1, "OPEN", 3, 0, 13 }, { 2, "TRIGGER", 13, 1, 5 }, { 7, "FLAME", 12, 0, 3 }
+	};
+	static const struct { char ch; const char *rows[5]; } kGlyphs[] = {
+		{ 'F', { "111", "1..", "11.", "1..", "1.." } }, { 'E', { "111", "1..", "11.", "1..", "111" } },
+		{ 'T', { "111", ".1.", ".1.", ".1.", ".1." } }, { 'C', { "111", "1..", "1..", "1..", "111" } },
+		{ 'H', { "1.1", "1.1", "111", "1.1", "1.1" } }, { 'O', { "111", "1.1", "1.1", "1.1", "111" } },
+		{ 'P', { "111", "1.1", "111", "1..", "1.." } }, { 'N', { "1..1", "11.1", "1.11", "1..1", "1..1" } },
+		{ 'R', { "11.", "1.1", "11.", "1.1", "1.1" } }, { 'I', { "1", "1", "1", "1", "1" } },
+		{ 'G', { "111", "1..", "1.1", "1.1", "111" } }, { 'L', { "1..", "1..", "1..", "1..", "111" } },
+		{ 'A', { "111", "1.1", "111", "1.1", "1.1" } }, { 'M', { "1...1", "11.11", "1.1.1", "1...1", "1...1" } }
+	};
+	int b = -1;
+	for (uint i = 0; i < ARRAYSIZE(kButtons); ++i)
+		if (kButtons[i].loop == loop)
+			b = i;
+	if (b < 0)
+		return;
+	Common::String art[5];
+	for (const char *c = kButtons[b].word; *c; ++c)
+		for (uint g = 0; g < ARRAYSIZE(kGlyphs); ++g)
+			if (kGlyphs[g].ch == *c)
+				for (int y = 0; y < 5; ++y)
+					art[y] += Common::String(art[y].empty() ? "" : ".") + kGlyphs[g].rows[y];
+	const int aw = art[0].size();
+	const int x0 = 1 + (numPairs - 2 - aw) / 2;
+	for (int y = 2; y <= 8; ++y)
+		for (int x = 1; x < numPairs - 1; ++x) {
+			byte v = kButtons[b].fill;
+			if (y >= 4 && y <= 6 && (x < x0 - 1 || x >= x0 + aw + 1) && ((x + y) & 1) == 0)
+				v = kButtons[b].dither;
+			fat[y * fatW + pad + x] = v;
+		}
+	for (int y = 0; y < 5; ++y)
+		for (int x = 0; x < aw; ++x)
+			if (art[y][x] == '1')
+				fat[(3 + y) * fatW + pad + x0 + x] = kButtons[b].ink;
 }
 
 // QfG1 hero facing you: his eyes (black, the left one black and cyan) sit 2 to 3 pixels apart with
@@ -3187,6 +3247,13 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		pairStart = pairScreenX - (pairScreenX & 1);
 	}
 
+	// QfG1 Mage's Maze ladders (view 32 loop 5): paired from their own left edge, so the left rail isn't
+	// in a fat pixel half outside the sprite, where it was cut off
+	if (g_sci->getGameId() == GID_QFG1 && _resourceId == 32 && loopNo == 5 && !still && !towards && !away) {
+		startX = ((rect.left + offsetX) & 1) ? -1 : 0;
+		pairStart = rect.left + offsetX + startX;
+	}
+
 	const bool rangeTarget = g_sci->getGameId() == GID_PQ2 && _resourceId == 70 && loopNo == 2 && celNo >= 0 && celNo <= 4;
 	if (rangeTarget) {
 		startX = kAgiDemakeTargetStartX[celNo];
@@ -3270,6 +3337,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	agiDemakeHeroSittingHead(_resourceId, loopNo, celNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeHeroSittingRightHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeFightLabel(_resourceId, loopNo, bitmap, celWidth, celHeight, fat.data(), fatW, pad, numPairs);
+	agiDemakeMazeButton(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeSkullGate(_resourceId, loopNo, celNo, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad, numPairs);
 	agiDemakeMeepFur(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyFatPatches(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);

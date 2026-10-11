@@ -1055,6 +1055,22 @@ void GfxText16::kernelTextSize(const char *text, uint16 languageSplitter, int16 
 		maxWidth = agiDemakeCapTextWidth(text, maxWidth);
 		agiCapped = (maxWidth != asked) && g_sci->getGameId() == GID_QFG1;	// PQ2 keeps its approved layouts
 	}
+	// AGI demake, QfG1: a box narrower than its longest word in the 8 pixel font (Erasmus and Fenrus
+	// talk in 82 pixel boxes) is widened to fit that word, so words aren't split across lines
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_QFG1 && maxWidth > 0) {
+		const char *p = text;
+		while (*p) {
+			const char *e = p;
+			while (*e && *e != ' ' && *e != 0x0A && *e != 0x0D)
+				++e;
+			if (e > p) {
+				const int16 w = agiWidth(Common::String(p, e - p).c_str(), true);
+				if (w > maxWidth && w <= 300)
+					maxWidth = w;
+			}
+			p = *e ? e + 1 : e;
+		}
+	}
 	// AGI demake: text with hand-placed line breaks keeps them. If its longest line (trailing
 	// spaces ignored) is wider than the game asked for in the 8x8 font, the box is made wide
 	// enough for it, up to the screen width less a margin, instead of re-wrapping every line.
