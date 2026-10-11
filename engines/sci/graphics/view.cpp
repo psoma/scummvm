@@ -1830,10 +1830,12 @@ static void agiDemakeSkullGate(int view, int loop, int cel, const SciSpan<const 
 // QfG1 Mage's Maze spell buttons (view 32 loops 0, 1, 2 and 7: FETCH, OPEN, TRIGGER, FLAME): Sierra's
 // small letters collapse to dots, so the middle of the button is redrawn: its colour, the dither strip
 // either side as a fat checkerboard, and the word in 3x5 fat letters in Sierra's text colour, centred.
-// The brief pressed frame (cel 1) is left as it is
+// The pressed frame (cel 1) gets the same, one row lower inside its shadowed edges
 static void agiDemakeMazeButton(int view, int loop, int cel, int h, byte *fat, int fatW, int pad, int numPairs) {
-	if (g_sci->getGameId() != GID_QFG1 || view != 32 || cel == 1 || h != 11 || numPairs < 30)
+	if (g_sci->getGameId() != GID_QFG1 || view != 32 || h != 11 || numPairs < 30)
 		return;
+	// cel 1 is the button pressed: its top and right edges are in shadow and its face one row lower
+	const bool pressed = (cel == 1);
 	static const struct { int loop; const char *word; byte fill, ink, dither; } kButtons[] = {
 		{ 0, "FETCH", 10, 8, 3 }, { 1, "OPEN", 3, 0, 13 }, { 2, "TRIGGER", 13, 1, 5 }, { 7, "FLAME", 12, 0, 3 }
 	};
@@ -1859,18 +1861,35 @@ static void agiDemakeMazeButton(int view, int loop, int cel, int h, byte *fat, i
 				for (int y = 0; y < 5; ++y)
 					art[y] += Common::String(art[y].empty() ? "" : ".") + kGlyphs[g].rows[y];
 	const int aw = art[0].size();
-	const int x0 = 1 + (numPairs - 2 - aw) / 2;
-	for (int y = 2; y <= 8; ++y)
-		for (int x = 1; x < numPairs - 1; ++x) {
+	// the button ends one fat pixel in from its last column, so its frame is as far in on the right
+	// as on the left: the last column is left clear and the one before it is the black frame
+	const int last = numPairs - 2;
+	const int down = pressed ? 1 : 0;
+	const byte clearKey = fat[pad - 1];
+	const byte shadow = fat[1 * fatW + pad + 1];	// pressed: the dark top edge, also down the right side
+	for (int y = 0; y < h; ++y) {
+		byte *f = fat + y * fatW + pad;
+		if (y > 0 && y < h - 1)
+			f[last - 1] = pressed ? shadow : f[last - 2];
+		f[0] = 0;
+		f[last] = 0;
+		f[last + 1] = clearKey;
+	}
+	// the bottom edge runs the full width (no stray highlight in its first fat pixel)
+	fat[(h - 2) * fatW + pad + 1] = fat[(h - 2) * fatW + pad + 2];
+	const int inner = last - down;	// first column past the face
+	const int x0 = 1 + (inner - 1 - aw) / 2;
+	for (int y = 2 + down; y <= 8; ++y)
+		for (int x = 1; x < inner; ++x) {
 			byte v = kButtons[b].fill;
-			if (y >= 4 && y <= 6 && (x < x0 - 1 || x >= x0 + aw + 1) && ((x + y) & 1) == 0)
+			if (y >= 4 + down && y <= 6 + down && (x < x0 - 1 || x >= x0 + aw + 1) && ((x + y - down) & 1) == 0)
 				v = kButtons[b].dither;
 			fat[y * fatW + pad + x] = v;
 		}
 	for (int y = 0; y < 5; ++y)
 		for (int x = 0; x < aw; ++x)
 			if (art[y][x] == '1')
-				fat[(3 + y) * fatW + pad + x0 + x] = kButtons[b].ink;
+				fat[(3 + down + y) * fatW + pad + x0 + x] = kButtons[b].ink;
 }
 
 // QfG1 hero facing you: his eyes (black, the left one black and cyan) sit 2 to 3 pixels apart with
@@ -3219,7 +3238,8 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	const bool fourLoops = _loop.size() >= 4;
 	// PQ2 view 99 (sewer: water streams, Sonny falling) has 4+ loops but they aren't facing
 	// directions, and the away-head rebuild turned the top of a water stream into a green block
-	const bool notWalker = g_sci->getGameId() == GID_PQ2 && _resourceId == 99;
+	const bool notWalker = (g_sci->getGameId() == GID_PQ2 && _resourceId == 99) ||
+		(g_sci->getGameId() == GID_QFG1 && _resourceId == 32);	// QfG1 Mage's Maze buttons and ladders
 	const bool towards = fourLoops && loopNo == 2 && !notWalker;
 	const bool away = fourLoops && loopNo == 3 && !notWalker;
 	const bool mirrored = _loop[CLIP<int16>(loopNo, 0, _loop.size() - 1)].mirrorFlag;
@@ -3247,9 +3267,9 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		pairStart = pairScreenX - (pairScreenX & 1);
 	}
 
-	// QfG1 Mage's Maze ladders (view 32 loop 5): paired from their own left edge, so the left rail isn't
-	// in a fat pixel half outside the sprite, where it was cut off
-	if (g_sci->getGameId() == GID_QFG1 && _resourceId == 32 && loopNo == 5 && !still && !towards && !away) {
+	// QfG1 Mage's Maze (view 32: buttons, ladders): paired from their own left edge, so the edge columns
+	// (a ladder's left rail, TRIGGER's right frame) aren't in fat pixels half outside the sprite and cut off
+	if (g_sci->getGameId() == GID_QFG1 && _resourceId == 32 && !still) {
 		startX = ((rect.left + offsetX) & 1) ? -1 : 0;
 		pairStart = rect.left + offsetX + startX;
 	}
