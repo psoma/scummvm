@@ -850,12 +850,39 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 	// (x 180 and 220) moves 6 pixels left, matching the gap left of "You"
 	if (_screen->agiDemake() && g_sci->getGameId() == GID_QFG1 && text) {
 		Port *port = _ports->getPort();
-		if (strstr(text, "You Are Carrying:"))
+		if (strstr(text, "You Are Carrying:")) {
 			_agiInventoryPort = port;
+			_agiItemShift = 0;
+			_agiItemPending = 0;
+		}
 		else if (port != _agiInventoryPort)
 			_agiInventoryPort = nullptr;
 		if (_agiInventoryPort && port == _agiInventoryPort && port->rect.width() >= 318) {
 			if (port->curLeft == 15 || port->curLeft == 40) {
+				// items: a name that would run into the right column (wider than 150 pixels, "Flask of
+				// Undead Unguent") puts its last word(s) on the next line, indented, and every row after
+				// it moves down a line. The quantity (x 15) starts each row, then the name (x 40)
+				if (port->curTop >= 24) {
+					if (port->curLeft == 15) {
+						_agiItemShift += _agiItemPending;
+						_agiItemPending = 0;
+					}
+					port->curTop += _agiItemShift;
+					if (port->curLeft == 40 && _text16->agiWidth(text, true) > 150) {
+						const char *cut = nullptr;
+						for (const char *sp = strchr(text, ' '); sp; sp = strchr(sp + 1, ' ')) {
+							Common::String first(text, sp - text);
+							if (_text16->agiWidth(first.c_str(), true) <= 150)
+								cut = sp;
+						}
+						if (cut) {
+							agiFirstLine = Common::String(text, cut - text);
+							agiSecondLine = cut + 1;
+							text = agiFirstLine.c_str();
+							_agiItemPending += 9;
+						}
+					}
+				}
 				port->curLeft -= 11;
 			} else if (port->curLeft == 180 || port->curLeft == 220) {
 				port->curLeft -= 6;
