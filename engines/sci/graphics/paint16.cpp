@@ -161,9 +161,50 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 	if (!addToFlag)
 		clearScreen(_screen->getColorWhite());
 
+	// AGI demake, QfG1 town at night: Sierra draws the town with a night palette that turns the cobbles
+	// black. The daytime picture is drawn first, out of sight, and kept, so the black ground can be
+	// given the day's cobble pattern below
+	const bool agiNightTown = _screen->agiDemake() && g_sci->getGameId() == GID_QFG1 && paletteId != 0 && !addToFlag &&
+		(pictureId == 300 || pictureId == 310 || pictureId == 320 || pictureId == 330 || pictureId == 333);
+	Common::Array<byte> agiDay;
+	if (agiNightTown) {
+		GfxPicture day(_resMan, _coordAdjuster, _ports, _screen, _palette, pictureId, false);
+		day.draw(mirroredFlag, false, 0);
+		const int w = _screen->getWidth(), h = _screen->getHeight();
+		agiDay.resize(w * h);
+		for (int y = 0; y < h; ++y)
+			for (int x = 0; x < w; ++x)
+				agiDay[y * w + x] = _screen->agiDemakeGetPictureCode(x, y);
+		clearScreen(_screen->getColorWhite());
+	}
+
 	// Draw the picture
 	GfxPicture picture(_resMan, _coordAdjuster, _ports, _screen, _palette, pictureId, _EGAdrawingVisualize);
 	picture.draw(mirroredFlag, addToFlag, paletteId);
+
+	// the black ground at night: where the day's ground is its main cobble colour it is dark grey, and
+	// where the day has the cobbles' lines and highlights it stays black. Only on walkable ground
+	if (agiNightTown && !agiDay.empty()) {
+		const int w = _screen->getWidth(), h = _screen->getHeight();
+		const int top = _ports->_picWind ? _ports->_picWind->rect.top : 10;
+		Common::HashMap<byte, int> count;
+		for (int y = top; y < h; ++y)
+			for (int x = 0; x < w; ++x)
+				if (_screen->getControl(x, y) != 15 && _screen->agiDemakeGetPictureCode(x, y) == 0x00)
+					count[agiDay[y * w + x]]++;
+		byte base = 0;
+		int best = 0;
+		for (Common::HashMap<byte, int>::const_iterator it = count.begin(); it != count.end(); ++it)
+			if (it->_value > best) {
+				best = it->_value;
+				base = it->_key;
+			}
+		if (best > 0)
+			for (int y = top; y < h; ++y)
+				for (int x = 0; x < w; ++x)
+					if (_screen->getControl(x, y) != 15 && _screen->agiDemakeGetPictureCode(x, y) == 0x00 && agiDay[y * w + x] == base)
+						_screen->agiDemakeSetPictureCode(x, y, 0x08);
+	}
 
 	// AGI demake debug capture (only with agi_demake_debug=true): each picture once, as the colour
 	// pairs it was drawn with plus its control screen, into agi_demake_pic.txt next to the exe

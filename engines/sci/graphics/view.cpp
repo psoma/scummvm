@@ -386,6 +386,24 @@ void GfxView::initData() {
 	default:
 		break;
 	}
+
+	// AGI demake, QfG1 knife throwing (view 341 loop 5): the turn highlights laid over THIEF and CHIEF
+	// are only as wide as Sierra's small letters. In fat letters the names are 34 pixels wide, so these
+	// cels are made that wide (blank, the word is drawn in drawAgiDemake) and moved so they sit exactly
+	// over the names on the panel
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_QFG1 && _resourceId == 341 && _loop.size() > 5 &&
+			_loop[5].cel.size() >= 2 && _loop[5].cel[0].width == 20 && _loop[5].cel[1].width == 19) {
+		static const int16 kMove[2] = { -2, 1 };
+		for (int c = 0; c < 2; ++c) {
+			CelInfo &cel = _loop[5].cel[c];
+			cel.width = 34;
+			cel.scriptWidth = 34;
+			cel.displaceX += kMove[c];
+			SciSpan<byte> bits = cel.rawBitmap->allocate(cel.width * cel.height, "AGI demake knife highlight");
+			for (int i = 0; i < cel.width * cel.height; ++i)
+				bits[i] = cel.clearKey;
+		}
+	}
 }
 
 GuiResourceId GfxView::getResourceId() const {
@@ -1893,6 +1911,114 @@ static void agiDemakeMazeButton(int view, int loop, int cel, int h, byte *fat, i
 				fat[(3 + down + y) * fatW + pad + x0 + x] = kButtons[b].ink;
 }
 
+// AGI demake fat-pixel lettering: one 3 wide letter (I 1, M and N 5) per character with a fat pixel
+// between, 5 rows tall, or 8 rows tall for the big panel titles. A shadow colour, if given, goes one
+// row under every letter pixel that has nothing of the letter below it
+static const char *agiDemakeGlyph(char ch, bool tall, int row) {
+	static const struct { char ch; const char *r[5]; } kSmall[] = {
+		{ 'A', { "111", "1.1", "111", "1.1", "1.1" } }, { 'C', { "111", "1..", "1..", "1..", "111" } },
+		{ 'D', { "11.", "1.1", "1.1", "1.1", "11." } }, { 'E', { "111", "1..", "11.", "1..", "111" } },
+		{ 'F', { "111", "1..", "11.", "1..", "1.." } }, { 'G', { "111", "1..", "1.1", "1.1", "111" } },
+		{ 'H', { "1.1", "1.1", "111", "1.1", "1.1" } }, { 'I', { "1", "1", "1", "1", "1" } },
+		{ 'L', { "1..", "1..", "1..", "1..", "111" } }, { 'M', { "1...1", "11.11", "1.1.1", "1...1", "1...1" } },
+		{ 'N', { "1...1", "11..1", "1.1.1", "1..11", "1...1" } }, { 'O', { "111", "1.1", "1.1", "1.1", "111" } },
+		{ 'P', { "111", "1.1", "111", "1..", "1.." } }, { 'R', { "11.", "1.1", "11.", "1.1", "1.1" } },
+		{ 'S', { "111", "1..", "111", "..1", "111" } }, { 'T', { "111", ".1.", ".1.", ".1.", ".1." } },
+		{ 'Y', { "1.1", "1.1", ".1.", ".1.", ".1." } }, { ' ', { ".", ".", ".", ".", "." } }
+	};
+	static const struct { char ch; const char *r[8]; } kTall[] = {
+		{ 'A', { "111", "1.1", "1.1", "111", "1.1", "1.1", "1.1", "1.1" } },
+		{ 'C', { "111", "1..", "1..", "1..", "1..", "1..", "1..", "111" } },
+		{ 'E', { "111", "1..", "1..", "11.", "1..", "1..", "1..", "111" } },
+		{ 'F', { "111", "1..", "1..", "11.", "1..", "1..", "1..", "1.." } },
+		{ 'G', { "111", "1..", "1..", "1..", "1.1", "1.1", "1.1", "111" } },
+		{ 'L', { "1..", "1..", "1..", "1..", "1..", "1..", "1..", "111" } },
+		{ 'N', { "1...1", "11..1", "11..1", "1.1.1", "1.1.1", "1..11", "1..11", "1...1" } },
+		{ 'O', { "111", "1.1", "1.1", "1.1", "1.1", "1.1", "1.1", "111" } },
+		{ 'R', { "11.", "1.1", "1.1", "11.", "1.1", "1.1", "1.1", "1.1" } }
+	};
+	if (tall) {
+		for (uint i = 0; i < ARRAYSIZE(kTall); ++i)
+			if (kTall[i].ch == ch)
+				return kTall[i].r[row];
+	} else {
+		for (uint i = 0; i < ARRAYSIZE(kSmall); ++i)
+			if (kSmall[i].ch == ch)
+				return kSmall[i].r[row];
+	}
+	return "";
+}
+
+static int agiDemakeWordWidth(const char *word, bool tall) {
+	int w = 0;
+	for (const char *c = word; *c; ++c)
+		w += strlen(agiDemakeGlyph(*c, tall, 0)) + (c[1] ? 1 : 0);
+	return w;
+}
+
+static void agiDemakeFatWord(byte *fat, int fatW, int pad, int numPairs, int h, int top, int left, const char *word, bool tall, byte ink, int shadow) {
+	const int rows = tall ? 8 : 5;
+	const int width = agiDemakeWordWidth(word, tall);
+	Common::Array<bool> on(rows * width, false);
+	int x = 0;
+	for (const char *c = word; *c; ++c) {
+		for (int y = 0; y < rows; ++y) {
+			const char *g = agiDemakeGlyph(*c, tall, y);
+			for (int i = 0; g[i]; ++i)
+				if (g[i] == '1')
+					on[y * width + x + i] = true;
+		}
+		x += strlen(agiDemakeGlyph(*c, tall, 0)) + 1;
+	}
+	for (int y = 0; y < rows; ++y)
+		for (int i = 0; i < width; ++i) {
+			const int fx = left + i, fy = top + y;
+			if (!on[y * width + i] || fx < 0 || fx >= numPairs || fy < 0 || fy >= h)
+				continue;
+			fat[fy * fatW + pad + fx] = ink;
+			const bool below = (y + 1 < rows) && on[(y + 1) * width + i];
+			if (shadow >= 0 && !below && fy + 1 < h)
+				fat[(fy + 1) * fatW + pad + fx] = shadow;
+		}
+}
+
+// QfG1 knife throwing at the Thieves' Guild (view 341): its labels in fat letters, in Sierra's colours
+// and places. The points panel (loop 1): POINT TALLY, THIEF, CHIEF. The FORCE panel (loop 2 cel 0) with
+// HARD and SOFT, the ANGLE panel (loop 2 cel 1). The turn highlights (loop 5, widened in initData)
+static void agiDemakeKnifeLabels(int view, int loop, int cel, int h, byte clearKey, byte *fat, int fatW, int pad, int numPairs) {
+	if (g_sci->getGameId() != GID_QFG1 || view != 341)
+		return;
+	auto clearArea = [&](int y0, int y1, int x0, int x1, int only) {
+		for (int y = y0; y <= y1 && y < h; ++y)
+			for (int x = x0; x <= x1 && x < numPairs; ++x) {
+				byte &v = fat[y * fatW + pad + x];
+				if (only < 0 || v == only)
+					v = clearKey;
+			}
+	};
+	if (loop == 1 && cel == 0 && numPairs == 61) {
+		clearArea(0, 5, 0, 60, -1);
+		agiDemakeFatWord(fat, fatW, pad, numPairs, h, 0, (61 - agiDemakeWordWidth("POINT TALLY", false)) / 2, "POINT TALLY", false, 12, 0);
+		clearArea(12, 17, 0, 18, -1);
+		agiDemakeFatWord(fat, fatW, pad, numPairs, h, 12, 1, "THIEF", false, 14, 8);
+		clearArea(12, 17, 43, 60, -1);
+		agiDemakeFatWord(fat, fatW, pad, numPairs, h, 12, 44, "CHIEF", false, 11, 8);
+	} else if (loop == 2 && cel == 0 && numPairs == 34) {
+		clearArea(0, 8, 0, 33, -1);
+		agiDemakeFatWord(fat, fatW, pad, numPairs, h, 0, (34 - agiDemakeWordWidth("FORCE", true)) / 2, "FORCE", true, 9, 0);
+		clearArea(14, 18, 13, 27, 0);
+		agiDemakeFatWord(fat, fatW, pad, numPairs, h, 14, 13, "HARD", false, 0, -1);
+		clearArea(20, 24, 6, 20, 0);
+		agiDemakeFatWord(fat, fatW, pad, numPairs, h, 20, 6, "SOFT", false, 0, -1);
+	} else if (loop == 2 && cel == 1 && numPairs == 32) {
+		clearArea(0, 8, 0, 31, -1);
+		agiDemakeFatWord(fat, fatW, pad, numPairs, h, 0, (32 - agiDemakeWordWidth("ANGLE", true)) / 2, "ANGLE", true, 9, 0);
+	} else if (loop == 5 && (cel == 0 || cel == 1)) {
+		clearArea(0, h - 1, 0, numPairs - 1, -1);
+		agiDemakeFatWord(fat, fatW, pad, numPairs, h, 0, 0, cel ? "CHIEF" : "THIEF", false, cel ? 9 : 6, 8);
+	}
+}
+
 // QfG1 hero facing you: his eyes (black, the left one black and cyan) sit 2 to 3 pixels apart with
 // red or grey shading beside them, so the general eye rule misses them and they merge into one
 // fat block. On the first row with two short dark runs and face between them, each eye gets its own
@@ -3284,7 +3410,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 
 	// QfG1 Mage's Maze (view 32: buttons, ladders): paired from their own left edge, so the edge columns
 	// (a ladder's left rail, TRIGGER's right frame) aren't in fat pixels half outside the sprite and cut off
-	if (g_sci->getGameId() == GID_QFG1 && _resourceId == 32 && !still) {
+	if (g_sci->getGameId() == GID_QFG1 && (_resourceId == 32 || (_resourceId == 341 && loopNo == 5)) && !still) {
 		startX = ((rect.left + offsetX) & 1) ? -1 : 0;
 		pairStart = rect.left + offsetX + startX;
 	}
@@ -3372,6 +3498,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	agiDemakeHeroSittingHead(_resourceId, loopNo, celNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeHeroSittingRightHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeFightLabel(_resourceId, loopNo, bitmap, celWidth, celHeight, fat.data(), fatW, pad, numPairs);
+	agiDemakeKnifeLabels(_resourceId, loopNo, celNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeMazeButton(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeSkullGate(_resourceId, loopNo, celNo, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad, numPairs);
 	agiDemakeMeepFur(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
