@@ -51,6 +51,7 @@ public:
 	GuiResourceId GetFontId();
 	GfxFont *GetFont();
 	int16 agiWidth(const char *text, bool trimTrailingSpaces);
+	int16 agiLineGap() const;
 	GfxFont *agiFont(GuiResourceId fontId);
 	void setAgiTight(bool tight) { _agiTight = tight; _agiSpace = 4; _agiFixedSpace = false; }
 	void setAgiSpaceWidth(int16 w) { _agiSpace = w; _agiFixedSpace = true; }

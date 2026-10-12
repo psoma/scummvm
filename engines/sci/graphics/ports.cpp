@@ -854,4 +854,17 @@ void GfxPorts::printWindowList(Console *con) {
 	}
 }
 
+void GfxPorts::agiDemakeOpenWindowRects(Common::Array<Common::Rect> &out) const {
+	out.clear();
+	for (PortList::const_iterator it = _windowList.begin(); it != _windowList.end(); ++it) {
+		const Port *p = *it;
+		if (!p->isWindow() || p == _picWind)
+			continue;
+		const Window *w = (const Window *)p;
+		Common::Rect r = w->restoreRect;
+		r.translate(_wmgrPort->left, _wmgrPort->top);
+		out.push_back(r);
+	}
+}
+
 } // End of namespace Sci

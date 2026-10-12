@@ -103,6 +103,8 @@ public:
 	int16 kernelPriorityToCoordinate(byte priority);
 	void processEngineHunkList(WorklistManager &wm);
 	void printWindowList(Console *con);
+	// AGI demake: screen areas of the windows open above the picture (their saved-bits rectangles)
+	void agiDemakeOpenWindowRects(Common::Array<Common::Rect> &out) const;
 
 	Port *_wmgrPort;
 	Window *_picWind;

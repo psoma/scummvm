@@ -94,10 +94,16 @@ int16 GfxText16::agiWidth(const char *text, bool trimTrailingSpaces) {
 	return trimTrailingSpaces ? trimmed : w;
 }
 
+// AGI demake, QfG1: a blank pixel row between lines of text, so a descender (g, y) doesn't touch an
+// ascender (d, h) on the line below. PQ2 keeps the AGI 8 pixel lines it was tuned with
+int16 GfxText16::agiLineGap() const {
+	return (g_sci->getGameId() == GID_QFG1) ? 1 : 0;
+}
+
 GfxFont *GfxText16::GetFont() {
 	if (_screen->agiDemake()) {
 		_font = agiFont(_ports->_curPort->fontId);
-		_ports->_curPort->fontHeight = _font->getHeight();
+		_ports->_curPort->fontHeight = _font->getHeight() + agiLineGap();
 		return _font;
 	}
 	if ((_font == nullptr) || (_font->getResourceId() != _ports->_curPort->fontId))
@@ -110,7 +116,7 @@ void GfxText16::SetFont(GuiResourceId fontId) {
 	if (_screen->agiDemake()) {
 		_font = agiFont(fontId);
 		_ports->_curPort->fontId = fontId;
-		_ports->_curPort->fontHeight = _font->getHeight();
+		_ports->_curPort->fontHeight = _font->getHeight() + agiLineGap();
 		return;
 	}
 	if ((_font == nullptr) || (_font->getResourceId() != fontId))

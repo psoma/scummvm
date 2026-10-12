@@ -32,6 +32,7 @@
 #include "sci/graphics/remap.h"
 #include "sci/graphics/coordadjuster.h"
 #include "sci/graphics/view.h"
+#include "sci/graphics/ports.h"
 
 #include "sci/graphics/scifx.h"
 
@@ -3175,8 +3176,22 @@ static const struct { int8 cel, dx, dy; } kAgiDemakeQfgHeadHide[] = {
 // where the turned head was last drawn
 static struct { bool valid; uint32 picGeneration; int cel, left, top, priority; } g_agiDemakeQfgHead = { false, 0, 0, 0, 0, 0 };
 
+static bool agiDemakeUnderWindow(const Common::Array<Common::Rect> &rects, int x, int y) {
+	for (uint i = 0; i < rects.size(); ++i)
+		if (rects[i].contains(x, y))
+			return true;
+	return false;
+}
+
 void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRect, const Common::Rect &clipRectTranslated,
 			int16 loopNo, int16 celNo, byte priority, uint16 scaleSignal, const Palette *palette) {
+	// QfG1: a sprite in the room (drawn in the picture's port) doesn't draw over a window that is open
+	// above it, as when Erasmus' head kept moving under a message box. The AGI frame makes those
+	// boxes bigger than Sierra's, so they now reach over sprites that used to be clear of them
+	Common::Array<Common::Rect> windowRects;
+	if (g_sci->getGameId() == GID_QFG1 && g_sci->_gfxPorts && g_sci->_gfxPorts->getPort() == g_sci->_gfxPorts->_picWind)
+		g_sci->_gfxPorts->agiDemakeOpenWindowRects(windowRects);
+
 	// Some calls (inventory item windows) pass loop and cel numbers past the end. The cel drawn is the
 	// clamped one, so every per-cel fix below is matched against the clamped numbers too
 	loopNo = CLIP<int16>(loopNo, 0, _loop.size() - 1);
@@ -3423,7 +3438,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 				const int x2 = pairStart + 2 * (f - pad) + i;
 				if (x2 < clipLeft || x2 >= clipRectTranslated.right)
 					continue;
-				if (priority >= _screen->getPriority(x2, y2))
+				if (priority >= _screen->getPriority(x2, y2) && !agiDemakeUnderWindow(windowRects, x2, y2))
 					_screen->putPixel(x2, y2, drawMask, getMappedColor(color, scaleSignal, palette, x2, y2), priority, 0);
 			}
 		}
