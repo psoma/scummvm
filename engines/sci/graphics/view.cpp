@@ -2581,6 +2581,24 @@ struct AgiDemakeFatPatch {
 	byte from, to;
 };
 static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
+	// QfG1 Otto (view 602): his green eyes, which the collapse loses in his dark red face, with light red
+	// skin between them
+	{ GID_QFG1, 602, 0, 0, 5, 4, 4, 10 }, { GID_QFG1, 602, 0, 0, 5, 6, 4, 10 },
+	{ GID_QFG1, 602, 0, 1, 4, 4, 4, 10 }, { GID_QFG1, 602, 0, 1, 4, 6, 4, 10 },
+	{ GID_QFG1, 602, 0, 2, 5, 4, 4, 10 }, { GID_QFG1, 602, 0, 2, 5, 6, 4, 10 },
+	{ GID_QFG1, 602, 0, 3, 5, 5, 4, 10 }, { GID_QFG1, 602, 0, 3, 5, 7, 4, 10 },
+	{ GID_QFG1, 602, 0, 4, 4, 4, 4, 10 }, { GID_QFG1, 602, 0, 4, 4, 6, 4, 10 },
+	{ GID_QFG1, 602, 0, 5, 5, 4, 4, 10 }, { GID_QFG1, 602, 0, 5, 5, 6, 4, 10 },
+	{ GID_QFG1, 602, 1, 0, 6, 4, 4, 2 }, { GID_QFG1, 602, 1, 0, 6, 5, 2, 12 }, { GID_QFG1, 602, 1, 0, 6, 6, 4, 2 },
+	{ GID_QFG1, 602, 1, 1, 5, 3, 4, 2 }, { GID_QFG1, 602, 1, 1, 5, 4, 2, 12 }, { GID_QFG1, 602, 1, 1, 5, 5, 4, 2 },
+	{ GID_QFG1, 602, 1, 2, 6, 4, 4, 2 }, { GID_QFG1, 602, 1, 2, 6, 5, 2, 12 }, { GID_QFG1, 602, 1, 2, 6, 6, 4, 2 },
+	{ GID_QFG1, 602, 1, 4, 5, 4, 4, 2 }, { GID_QFG1, 602, 1, 4, 5, 5, 2, 12 }, { GID_QFG1, 602, 1, 4, 5, 6, 4, 2 },
+	{ GID_QFG1, 602, 1, 5, 6, 4, 4, 2 }, { GID_QFG1, 602, 1, 5, 6, 5, 2, 12 }, { GID_QFG1, 602, 1, 5, 6, 6, 4, 2 },
+	{ GID_QFG1, 602, 4, 0, 5, 10, 4, 10 }, { GID_QFG1, 602, 4, 0, 5, 12, 4, 10 },
+	{ GID_QFG1, 602, 5, 0, 6, 4, 4, 2 }, { GID_QFG1, 602, 5, 0, 6, 5, 2, 12 }, { GID_QFG1, 602, 5, 0, 6, 6, 4, 2 },
+	{ GID_QFG1, 602, 5, 1, 6, 4, 4, 2 }, { GID_QFG1, 602, 5, 1, 6, 5, 2, 12 }, { GID_QFG1, 602, 5, 1, 6, 6, 4, 2 },
+	// QfG1 painting in the Sheriff's house (view 321 loop 4 cel 0): its brown frame down both sides
+	{ GID_QFG1, 321, 4, 0, 2, 0, 8, 6 }, { GID_QFG1, 321, 4, 0, 3, 0, 8, 6 }, { GID_QFG1, 321, 4, 0, 4, 0, 8, 6 }, { GID_QFG1, 321, 4, 0, 5, 0, 8, 6 }, { GID_QFG1, 321, 4, 0, 6, 0, 8, 6 }, { GID_QFG1, 321, 4, 0, 7, 0, 8, 6 }, { GID_QFG1, 321, 4, 0, 8, 0, 8, 6 }, { GID_QFG1, 321, 4, 0, 9, 0, 8, 6 }, { GID_QFG1, 321, 4, 0, 9, 12, 4, 6 }, { GID_QFG1, 321, 4, 0, 10, 0, 8, 6 }, { GID_QFG1, 321, 4, 0, 10, 12, 9, 6 }, { GID_QFG1, 321, 4, 0, 11, 0, 8, 6 }, { GID_QFG1, 321, 4, 0, 11, 12, 9, 6 }, { GID_QFG1, 321, 4, 0, 12, 0, 8, 6 }, { GID_QFG1, 321, 4, 0, 12, 12, 9, 6 }, { GID_QFG1, 321, 4, 0, 13, 0, 8, 6 }, { GID_QFG1, 321, 4, 0, 13, 12, 1, 6 }, { GID_QFG1, 321, 4, 0, 14, 0, 8, 6 }, { GID_QFG1, 321, 4, 0, 14, 12, 9, 6 }, { GID_QFG1, 321, 4, 0, 15, 0, 8, 6 }, { GID_QFG1, 321, 4, 0, 15, 12, 9, 6 }, { GID_QFG1, 321, 4, 0, 16, 0, 8, 6 }, { GID_QFG1, 321, 4, 0, 16, 12, 9, 6 }, { GID_QFG1, 321, 4, 0, 17, 0, 8, 6 }, { GID_QFG1, 321, 4, 0, 17, 12, 1, 6 }, { GID_QFG1, 321, 4, 0, 18, 0, 8, 6 }, { GID_QFG1, 321, 4, 0, 18, 12, 9, 6 }, { GID_QFG1, 321, 4, 0, 19, 0, 8, 6 }, { GID_QFG1, 321, 4, 0, 19, 12, 9, 6 }, { GID_QFG1, 321, 4, 0, 20, 0, 8, 6 }, { GID_QFG1, 321, 4, 0, 20, 12, 9, 6 }, { GID_QFG1, 321, 4, 0, 21, 0, 8, 6 }, { GID_QFG1, 321, 4, 0, 21, 12, 9, 6 }, { GID_QFG1, 321, 4, 0, 22, 0, 8, 6 }, { GID_QFG1, 321, 4, 0, 22, 12, 9, 6 }, { GID_QFG1, 321, 4, 0, 23, 12, 9, 6 }, { GID_QFG1, 321, 4, 0, 24, 12, 9, 6 }, { GID_QFG1, 321, 4, 0, 25, 12, 9, 6 }, { GID_QFG1, 321, 4, 0, 26, 12, 9, 6 }, { GID_QFG1, 321, 4, 0, 27, 12, 9, 6 }, { GID_QFG1, 321, 4, 0, 28, 12, 9, 6 }, { GID_QFG1, 321, 4, 0, 29, 12, 9, 6 }, { GID_QFG1, 321, 4, 0, 30, 12, 9, 6 }, { GID_QFG1, 321, 4, 0, 31, 12, 8, 6 },
 	// QfG1 man in the turban at the inn (view 302 loops 0 and 1): face a fat pixel wider each side at
 	// his brows and eyes (grey brows, cyan eyes apart with skin round them), Sierra's width below, and
 	// on loop 0 cel 0 his mouth shown as on loop 1

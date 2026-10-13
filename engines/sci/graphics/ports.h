@@ -120,6 +120,7 @@ public:
 private:
 	/** The list of open 'windows' (and ports), in visual order. */
 	PortList _windowList;
+	Port *_agiClosingWindow = nullptr;	// AGI demake: the window removeWindow is closing
 
 	/** The list of all open 'windows' (and ports), ordered by their id. */
 	PortArray _windowsById;

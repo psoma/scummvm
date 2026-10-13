@@ -610,8 +610,13 @@ void GfxPorts::removeWindow(Window *pWnd, bool reanimate) {
 	pWnd->hSaved2 = NULL_REG;
 	if (!reanimate)
 		_paint16->bitsShow(pWnd->restoreRect);
-	else
+	else {
+		// AGI demake: the window being closed no longer keeps room sprites from drawing under it while
+		// they are redrawn (see agiDemakeOpenWindowRects)
+		_agiClosingWindow = pWnd;
 		_paint16->kernelGraphRedrawBox(pWnd->restoreRect);
+		_agiClosingWindow = nullptr;
+	}
 	_windowList.remove(pWnd);
 	setPort(_windowList.back());
 	// We will actually free this window after 15 kSetPort-calls
@@ -858,7 +863,7 @@ void GfxPorts::agiDemakeOpenWindowRects(Common::Array<Common::Rect> &out) const 
 	out.clear();
 	for (PortList::const_iterator it = _windowList.begin(); it != _windowList.end(); ++it) {
 		const Port *p = *it;
-		if (!p->isWindow() || p == _picWind)
+		if (!p->isWindow() || p == _picWind || p == _agiClosingWindow)
 			continue;
 		const Window *w = (const Window *)p;
 		Common::Rect r = w->restoreRect;
