@@ -1,4 +1,4 @@
-# SCI to AGI Demake (unofficial ScummVM fork) - v0.222
+# SCI to AGI Demake (unofficial ScummVM fork) - v0.223
 
 This fork adds an **AGI-style demake** mode to ScummVM's SCI engine. Early Sierra SCI games (SCI0 / SCI01, 16-colour EGA) are drawn the way Sierra's older AGI games looked: 160-pixel-wide "fat" pixels, no dithering, the 8x8 AGI font, AGI-style message boxes, and optional PCjr sound.
 
@@ -8,7 +8,7 @@ It is an unofficial, personal fork. It is not part of ScummVM and is not endorse
 
 - **Tested:** Police Quest II: The Vengeance (DOS, EGA) and Hero's Quest / Quest for Glory I (DOS, EGA)
 - **Option available but not yet tested:** every release (any platform) of the other SCI0 / SCI01 games (KQ1 SCI, KQ4, LSL2, LSL3, SQ3, QfG2, Codename: Iceman, Conquests of Camelot, The Colonel's Bequest, Hoyle 1 and 2, Mixed-Up Mother Goose, Fun Seeker's Guide, Christmas 1988), and the EGA releases of games that also came out in VGA
-- If the option is missing for a game added before installing this fork, start the game once, or remove and re-add it
+- The options show for these games even if they were added to the launcher before installing this fork
 - Version numbering stays below 1.0 until more games are tested
 
 ## How to use it

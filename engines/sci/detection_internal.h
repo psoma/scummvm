@@ -40,6 +40,8 @@ struct GameIdStrToEnum {
 extern const GameIdStrToEnum gameIdStrToEnum[];
 
 Common::String customizeGuiOptions(Common::Path gamePath, Common::String guiOptions, Common::Platform platform, Common::String idStr, SciVersion version);
+// AGI demake: whether the game at gamePath with this game id gets the AGI options (see customizeGuiOptions)
+bool agiDemakeOffered(const Common::Path &gamePath, const Common::String &idStr, SciVersion version, bool isWindows);
 
 } // End of namespace Sci
 

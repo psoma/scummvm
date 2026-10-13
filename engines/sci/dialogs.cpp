@@ -31,6 +31,7 @@
 #include "sci/sci.h"
 
 #include "sci/detection_options.h"
+#include "sci/detection_internal.h"
 
 namespace Sci {
 
@@ -42,18 +43,24 @@ OptionsWidget::OptionsWidget(GuiObject *boss, const Common::String &name, const 
 		OptionsContainerWidget(boss, name, "SciGameOptionsDialog", domain) {
 	_guiOptions = ConfMan.get("guioptions", domain);
 
+	// The AGI demake options show for every game they are offered on, worked out here from the game
+	// id and folder, not only from the option list saved when the game was added to the launcher, so
+	// games added before this build (or with official ScummVM) get them straight away
+	const bool agiOffered = checkGameGUIOption(GAMEOPTION_AGI_DEMAKE, _guiOptions) ||
+		agiDemakeOffered(ConfMan.getPath("path", domain), ConfMan.get("gameid", domain), SCI_VERSION_NONE,
+			Common::parsePlatform(ConfMan.get("platform", domain)) == Common::kPlatformWindows);
+	auto isAgiOption = [](const char *option) { return !strcmp(option, "agi_demake") || !strcmp(option, "agi_sound"); };
+
 	for (const ADExtraGuiOptionsMap *entry = optionsList; entry->guioFlag; ++entry)
-		// "Force AGI sound" also shows wherever the AGI demake option does, so games added to the
-		// launcher before it existed get it too
-		if (checkGameGUIOption(entry->guioFlag, _guiOptions) ||
-				(!strcmp(entry->option.configOption, "agi_sound") && checkGameGUIOption(GAMEOPTION_AGI_DEMAKE, _guiOptions))) {
+		if ((isAgiOption(entry->option.configOption) && agiOffered) ||
+				(!isAgiOption(entry->option.configOption) && checkGameGUIOption(entry->guioFlag, _guiOptions))) {
 			// AGI demake / AGI sound checkboxes send a command so dependent boxes can follow them
 			const uint32 cmd = (!strcmp(entry->option.configOption, "agi_demake") || !strcmp(entry->option.configOption, "agi_sound")) ? kAgiDemakeCmd : 0;
 			_checkboxes[entry->option.configOption] = new GUI::CheckboxWidget(widgetsBoss(), _dialogLayout + "." + entry->option.configOption, _(entry->option.label), _(entry->option.tooltip), cmd);
 		}
 
 	for (const PopUpOptionsMap *entry = popUpOptionsList; entry->guioFlag; ++entry)
-		if (checkGameGUIOption(entry->guioFlag, _guiOptions)) {
+		if (!strcmp(entry->configOption, "agi_dither") ? agiOffered : checkGameGUIOption(entry->guioFlag, _guiOptions)) {
 			GUI::StaticTextWidget *textWidget = new GUI::StaticTextWidget(widgetsBoss(), _dialogLayout + "." + entry->configOption + "_desc", _(entry->label), _(entry->tooltip));
 			textWidget->setAlign(Graphics::kTextAlignRight);
 
