@@ -289,6 +289,10 @@ void GfxScreen::agiDemakeRecolourWalkable(const byte *band, int pictureId) {
 		else if (pictureId == 40 && (c == 0xE8 || c == 0x8E))
 			c = 0x0E;
 		if (walk[o]) {
+			// the town at night: Sierra's night palette draws the road dark grey dithered with black,
+			// which shows black. It shows dark grey, with the cobbles' black lines kept
+			if (_agiNightTown && c == 0x80)
+				c = 0x08;
 			// centaur garden (picture 53): the soil gets Sierra's lines back. Brown with dark grey
 			// shows dark grey, brown with light red shows light red
 			if (pictureId == 53 && (c == 0x68 || c == 0x86))

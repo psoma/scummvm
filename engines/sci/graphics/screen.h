@@ -191,6 +191,7 @@ public:
 	int16 agiTermScreenX(int16 scriptX) const { return _agiTermX.getValOrDefault(scriptX, _agiTermNext); }
 	// AGI demake: counts pictures drawn, so scenery edits are applied once per picture
 	uint32 _agiPicGeneration;
+	bool _agiNightTown = false;	// QfG1: the town picture being drawn is the night version
 	int16 _agiTermFrameShift;
 	int16 _agiTermStart, _agiTermFirstScriptX;		// prompt line: where typing starts
 	uint32 _agiTermPromptGeneration;			// picture the last prompt was drawn on

@@ -161,6 +161,34 @@ Common::String customizeGuiOptions(Common::Path gamePath, Common::String guiOpti
 		return guiOptions;
 	}
 
+	// AGI demake: offered on every release of the 16 colour SCI0 and SCI01 games, whatever the
+	// platform, and on the EGA releases of games that also came out in VGA (told apart by the EGA
+	// driver being there without the VGA one). Also on unrecognised games (fallback detection) with
+	// that driver set
+	{
+		static const char *const kAgiSci0[] = {
+			"camelot", "christmas1988", "funseeker", "hoyle1", "hoyle2", "iceman", "kq1sci", "kq4sci",
+			"laurabow", "lsl2", "lsl3", "mothergoose", "pq2", "qfg1", "qfg2", "sq3"
+		};
+		bool offer = false;
+		for (uint i = 0; i < ARRAYSIZE(kAgiSci0) && !offer; ++i)
+			offer = idStr.equals(kAgiSci0[i]);
+		if (!offer && !isWindows && (version == SCI_VERSION_NONE || version <= SCI_VERSION_1_EGA_ONLY)) {
+			bool ega = false, vga = false;
+			for (Common::FSList::const_iterator i = files.begin(); i != files.end(); ++i) {
+				if (i->getFileName().equalsIgnoreCase("EGA320.DRV"))
+					ega = true;
+				else if (i->getFileName().equalsIgnoreCase("VGA320.DRV"))
+					vga = true;
+			}
+			offer = ega && !vga;
+		}
+		if (offer && !guiOptions.contains(GAMEOPTION_AGI_DEMAKE))
+			guiOptions += GAMEOPTION_AGI_DEMAKE;
+		if (offer && !guiOptions.contains(GAMEOPTION_AGI_SOUND))
+			guiOptions += GAMEOPTION_AGI_SOUND;
+	}
+
 	for (Common::FSList::const_iterator i = files.begin(); i != files.end(); ++i) {
 		for (int ii = 0; ii < ARRAYSIZE(rmodes); ii++) {
 			if (version == SCI_VERSION_NONE || (rmodes[ii].min <= version && version <= rmodes[ii].max)) {
