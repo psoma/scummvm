@@ -2581,6 +2581,38 @@ struct AgiDemakeFatPatch {
 	byte from, to;
 };
 static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
+	// QfG1 Baba Yaga (view 20): her green eyes, which the collapse loses in her face, back in at Sierra's
+	// places, with light red skin between and no green band across
+	{ GID_QFG1, 20, 1, 0, 5, 2, 2, 12 }, { GID_QFG1, 20, 1, 0, 5, 4, 2, 12 },
+	{ GID_QFG1, 20, 1, 1, 5, 2, 2, 12 }, { GID_QFG1, 20, 1, 1, 5, 4, 2, 12 },
+	{ GID_QFG1, 20, 3, 1, 5, 2, 12, 10 },
+	{ GID_QFG1, 20, 3, 2, 5, 2, 12, 10 },
+	{ GID_QFG1, 20, 3, 3, 5, 2, 12, 10 },
+	{ GID_QFG1, 20, 3, 4, 5, 2, 12, 10 },
+	{ GID_QFG1, 20, 3, 5, 5, 2, 12, 10 },
+	{ GID_QFG1, 20, 4, 0, 5, 1, 12, 10 }, { GID_QFG1, 20, 4, 0, 5, 3, 12, 10 },
+	{ GID_QFG1, 20, 4, 1, 5, 1, 12, 10 }, { GID_QFG1, 20, 4, 1, 5, 3, 12, 10 },
+	{ GID_QFG1, 20, 4, 2, 5, 1, 12, 10 }, { GID_QFG1, 20, 4, 2, 5, 3, 12, 10 },
+	{ GID_QFG1, 20, 4, 3, 5, 1, 12, 10 }, { GID_QFG1, 20, 4, 3, 5, 3, 12, 10 },
+	{ GID_QFG1, 20, 4, 4, 5, 1, 12, 10 }, { GID_QFG1, 20, 4, 4, 5, 3, 12, 10 },
+	{ GID_QFG1, 20, 5, 0, 5, 3, 12, 10 }, { GID_QFG1, 20, 5, 0, 5, 5, 12, 10 },
+	{ GID_QFG1, 20, 5, 1, 5, 3, 12, 10 }, { GID_QFG1, 20, 5, 1, 5, 5, 12, 10 },
+	{ GID_QFG1, 20, 5, 2, 5, 3, 12, 10 }, { GID_QFG1, 20, 5, 2, 5, 5, 12, 10 },
+	{ GID_QFG1, 20, 5, 3, 5, 3, 12, 10 }, { GID_QFG1, 20, 5, 3, 5, 5, 12, 10 },
+	{ GID_QFG1, 20, 5, 4, 5, 3, 12, 10 }, { GID_QFG1, 20, 5, 4, 5, 5, 12, 10 },
+	{ GID_QFG1, 20, 6, 0, 5, 4, 12, 10 }, { GID_QFG1, 20, 6, 0, 5, 6, 12, 10 },
+	{ GID_QFG1, 20, 6, 1, 5, 5, 12, 10 }, { GID_QFG1, 20, 6, 1, 5, 7, 12, 10 },
+	{ GID_QFG1, 20, 6, 2, 5, 6, 12, 10 }, { GID_QFG1, 20, 6, 2, 5, 8, 12, 10 },
+	{ GID_QFG1, 20, 6, 4, 5, 5, 12, 10 }, { GID_QFG1, 20, 6, 4, 5, 7, 12, 10 },
+	{ GID_QFG1, 20, 7, 0, 5, 5, 12, 10 }, { GID_QFG1, 20, 7, 0, 5, 7, 12, 10 },
+	{ GID_QFG1, 20, 7, 1, 5, 6, 12, 10 }, { GID_QFG1, 20, 7, 1, 5, 8, 12, 10 },
+	{ GID_QFG1, 20, 7, 2, 5, 5, 12, 10 }, { GID_QFG1, 20, 7, 2, 5, 7, 12, 10 },
+	{ GID_QFG1, 20, 7, 4, 6, 7, 12, 10 }, { GID_QFG1, 20, 7, 4, 6, 9, 12, 10 },
+	{ GID_QFG1, 20, 7, 5, 5, 8, 12, 10 }, { GID_QFG1, 20, 7, 5, 5, 10, 12, 10 },
+	{ GID_QFG1, 20, 9, 0, 6, 9, 12, 10 },
+	{ GID_QFG1, 20, 9, 1, 7, 9, 12, 10 },
+	{ GID_QFG1, 20, 9, 2, 5, 8, 12, 10 },
+	{ GID_QFG1, 20, 9, 3, 5, 9, 12, 10 },
 	// QfG1 Otto in town (view 606): his green eyes with light red skin between (spread left as on view
 	// 602), grey brows only above each eye, the symmetrical top of the head from loop 3 cel 2, the right
 	// side of his head mirroring the left, and his white tooth back in at Sierra's row
