@@ -280,6 +280,19 @@ void GfxScreen::agiDemakeRecolourWalkable(const byte *band, int pictureId) {
 		// green instead of grey
 		if (pictureId == 64 && (c == 0xA8 || c == 0x8A))
 			c = 0x02;
+		// brigand fortress courtyard (picture 94): the wood's shading and board lines (brown with dark grey)
+		// dark grey, its light red trim light red, the sacks (yellow with grey) yellow, and the sunlit floor
+		// and roof (light grey with brown) light grey
+		if (pictureId == 94) {
+			if (c == 0x68 || c == 0x86)
+				c = 0x08;
+			else if (c == 0x6C || c == 0xC6)
+				c = 0x0C;
+			else if (c == 0xE7 || c == 0x7E || c == 0xE8 || c == 0x8E)
+				c = 0x0E;
+			else if (c == 0x76 || c == 0x67)
+				c = 0x07;
+		}
 		// thatched roofs, castle grounds: yellow with light grey shows yellow, and yellow with dark grey
 		// shows brown in picture 38 (shaded straw) and yellow in picture 40
 		if ((pictureId == 38 || pictureId == 40) && (c == 0xE7 || c == 0x7E))

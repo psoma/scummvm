@@ -387,6 +387,20 @@ void GfxView::initData() {
 		break;
 	}
 
+	// AGI demake, QfG1 dining hall sign (view 95 loop 0 cel 0): "BRIGANDS UBER ALLES!" doesn't fit on it in
+	// fat letters, so the cel is made 6 rows taller (growing downwards) for two lines; the sign is drawn
+	// in drawAgiDemake
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_QFG1 && _resourceId == 95 && _loop.size() > 0 &&
+			_loop[0].cel.size() > 0 && _loop[0].cel[0].width == 100 && _loop[0].cel[0].height == 11) {
+		CelInfo &cel = _loop[0].cel[0];
+		cel.height = 17;
+		cel.scriptHeight = 17;
+		cel.displaceY += 6;
+		SciSpan<byte> bits = cel.rawBitmap->allocate(cel.width * cel.height, "AGI demake brigand sign");
+		for (int i = 0; i < cel.width * cel.height; ++i)
+			bits[i] = cel.clearKey;
+	}
+
 	// AGI demake, QfG1 knife throwing (view 341 loop 5): the turn highlights laid over THIEF and CHIEF
 	// are only as wide as Sierra's small letters. In fat letters the names are 34 pixels wide, so these
 	// cels are made that wide (blank, the word is drawn in drawAgiDemake) and moved so they sit exactly
@@ -1463,9 +1477,11 @@ static bool agiDemakeIsQfgHero(int view, int loop = 0) {
 	// view 300 loop 8: his head turned left or right, drawn over the standing-away frame when he
 	// looks around at the start of the game (room 300). View 301 loop 6: sitting down at the inn.
 	// View 83 loop 8: sitting on a chair facing right (room 83). View 508: seen from behind in the
-	// stable. View 140: raking in the stable (his rake keeps its grey)
+	// stable. View 140: raking in the stable (his rake keeps its grey). Views 503, 519 and 550: at the
+	// brigand fortress and other scenes, facing you
 	return g_sci->getGameId() == GID_QFG1 && (view == 0 || view == 4 || (view == 300 && loop == 8) ||
-		(view == 301 && loop == 6) || (view == 83 && loop == 8) || view == 508 || view == 140);
+		(view == 301 && loop == 6) || (view == 83 && loop == 8) || view == 508 || view == 140 ||
+		view == 503 || view == 519 || view == 550);
 }
 
 static void agiDemakeHeroSource(int view, int loop, const byte *src, int w, int h, byte clearKey, byte *out) {
@@ -1924,7 +1940,9 @@ static const char *agiDemakeGlyph(char ch, bool tall, int row) {
 		{ 'N', { "1...1", "11..1", "1.1.1", "1..11", "1...1" } }, { 'O', { "111", "1.1", "1.1", "1.1", "111" } },
 		{ 'P', { "111", "1.1", "111", "1..", "1.." } }, { 'R', { "11.", "1.1", "11.", "1.1", "1.1" } },
 		{ 'S', { "111", "1..", "111", "..1", "111" } }, { 'T', { "111", ".1.", ".1.", ".1.", ".1." } },
-		{ 'Y', { "1.1", "1.1", ".1.", ".1.", ".1." } }, { ' ', { ".", ".", ".", ".", "." } }
+		{ 'Y', { "1.1", "1.1", ".1.", ".1.", ".1." } }, { ' ', { ".", ".", ".", ".", "." } },
+		{ 'B', { "11.", "1.1", "11.", "1.1", "11." } }, { 'U', { "1.1", "1.1", "1.1", "1.1", "111" } },
+		{ '!', { "1", "1", "1", ".", "1" } }
 	};
 	static const struct { char ch; const char *r[8]; } kTall[] = {
 		{ 'A', { "111", "1.1", "1.1", "111", "1.1", "1.1", "1.1", "1.1" } },
@@ -2017,6 +2035,46 @@ static void agiDemakeKnifeLabels(int view, int loop, int cel, int h, byte clearK
 		clearArea(0, h - 1, 0, numPairs - 1, -1);
 		agiDemakeFatWord(fat, fatW, pad, numPairs, h, 0, 0, cel ? "CHIEF" : "THIEF", false, cel ? 9 : 6, 8);
 	}
+}
+
+// QfG1 brigand fortress gate (view 93 loop 0): wide, so it was collapsed lighter-wins, which wiped out
+// the black and red lines between its planks. Each fat pixel takes black if the pair has it, then
+// red, then brown, then the darker of anything else
+static void agiDemakeGatePlanks(int view, int loop, const SciSpan<const byte> &bitmap, int w, int h, byte clearKey, byte *fat, int fatW, int startX, int pad, int numPairs) {
+	if (g_sci->getGameId() != GID_QFG1 || view != 93 || loop != 0)
+		return;
+	auto rank = [](byte c) { return c == 0 ? 0 : c == 4 ? 1 : c == 6 ? 2 : 3 + kAgiDemakeLuma[c & 15]; };
+	for (int y = 0; y < h; ++y)
+		for (int p = 0; p < numPairs; ++p) {
+			byte best = clearKey;
+			for (int i = 0; i < 2; ++i) {
+				const int x = startX + 2 * p + i;
+				if (x < 0 || x >= w)
+					continue;
+				const byte c = bitmap[y * w + x];
+				if (c == clearKey || c > 15)
+					continue;
+				if (best == clearKey || rank(c) < rank(best))
+					best = c;
+			}
+			fat[y * fatW + pad + p] = best;
+		}
+}
+
+// QfG1 dining hall sign (view 95 loop 0 cel 0, made 17 rows tall in initData): brown, with its dark grey
+// bottom edge, and "BRIGANDS" / "UBER ALLES!" in black fat letters
+static void agiDemakeBrigandSign(int view, int loop, int cel, int h, byte *fat, int fatW, int pad, int numPairs) {
+	if (g_sci->getGameId() != GID_QFG1 || view != 95 || loop != 0 || cel != 0 || h != 17 || numPairs != 50)
+		return;
+	for (int y = 0; y < h; ++y)
+		for (int x = 0; x < numPairs; ++x) {
+			byte v = 6;
+			if (y == h - 1 || (y == h - 2 && (x == 0 || x == numPairs - 1)))
+				v = 8;
+			fat[y * fatW + pad + x] = v;
+		}
+	agiDemakeFatWord(fat, fatW, pad, numPairs, h, 2, (numPairs - agiDemakeWordWidth("BRIGANDS", false)) / 2, "BRIGANDS", false, 0, -1);
+	agiDemakeFatWord(fat, fatW, pad, numPairs, h, 8, (numPairs - agiDemakeWordWidth("UBER ALLES!", false)) / 2, "UBER ALLES!", false, 0, -1);
 }
 
 // QfG1 hero facing you: his eyes (black, the left one black and cyan) sit 2 to 3 pixels apart with
@@ -3449,7 +3507,9 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		}
 	}
 	// QfG1 hero: his dark grey outline is dropped before the collapse
-	const bool qfgHero = agiDemakeIsQfgHero(_resourceId, loopNo);
+	// (view 503 loop 4 cels 4 and 5 are left as Sierra drew them, at Tom's call)
+	const bool qfgHeroKeep = g_sci->getGameId() == GID_QFG1 && _resourceId == 503 && loopNo == 4 && (celNo == 4 || celNo == 5);
+	const bool qfgHero = agiDemakeIsQfgHero(_resourceId, loopNo) && !qfgHeroKeep;
 	const bool qfgSign = agiDemakeIsQfgSign(_resourceId, loopNo);
 	if ((qfgHero || qfgSign) && !textOverride) {
 		Common::Array<byte> orig(celWidth * celHeight);
@@ -3476,7 +3536,10 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	const bool mirrored = _loop[CLIP<int16>(loopNo, 0, _loop.size() - 1)].mirrorFlag;
 	const bool still = _screen->agiDemakeStill();
 	// Wide side-view sprites (cars and similar): lighter pixel wins, which keeps wheels round
-	const bool wide = !still && !towards && !away && celWidth >= 40;
+	// QfG1 brigands in the dining hall (view 295 loop 1): wide, but characters, so darker wins as for
+	// other characters and their eyes stay
+	const bool brigands = g_sci->getGameId() == GID_QFG1 && _resourceId == 295 && loopNo == 1;
+	const bool wide = !still && !towards && !away && celWidth >= 40 && !brigands;
 	int startX;
 	int pairStart;	// screen column of the first pair, always even
 	if (still) {
@@ -3573,12 +3636,14 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	if (still) {
 	} else if (away)
 		agiDemakeAwayHead(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad);
-	else if (!towards && !wide)
+	else if (!towards && !wide && !brigands)
 		agiDemakeRepairBumps(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX);
 	if (towards && !rangeTarget)
 		agiDemakeSpreadEyes(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad);
 	if (towards && !rangeTarget)
 		agiDemakeHeroEyes(_resourceId, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad, numPairs);
+	else if (g_sci->getGameId() == GID_QFG1 && (_resourceId == 503 || _resourceId == 519 || _resourceId == 550) && !qfgHeroKeep)
+		agiDemakeHeroEyes(_resourceId, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad, numPairs);	// facing you in other poses
 	if (towards || away)
 		agiDemakeCopyHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	if (g_sci->getGameId() == GID_PQ2 && _resourceId == 205 && celWidth == 73)
@@ -3587,7 +3652,9 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	agiDemakeIceManEyes(_resourceId, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad, numPairs);
 	agiDemakeHeroSittingHead(_resourceId, loopNo, celNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeHeroSittingRightHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
+	agiDemakeGatePlanks(_resourceId, loopNo, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad, numPairs);
 	agiDemakeFightLabel(_resourceId, loopNo, bitmap, celWidth, celHeight, fat.data(), fatW, pad, numPairs);
+	agiDemakeBrigandSign(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeKnifeLabels(_resourceId, loopNo, celNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeMazeButton(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeSkullGate(_resourceId, loopNo, celNo, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad, numPairs);
