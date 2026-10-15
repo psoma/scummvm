@@ -1497,10 +1497,11 @@ static bool agiDemakeIsQfgHero(int view, int loop = 0) {
 	// looks around at the start of the game (room 300). View 301 loop 6: sitting down at the inn.
 	// View 83 loop 8: sitting on a chair facing right (room 83). View 508: seen from behind in the
 	// stable. View 140: raking in the stable (his rake keeps its grey). Views 503, 519 and 550: at the
-	// brigand fortress and other scenes, facing you
+	// brigand fortress and other scenes, facing you. View 97 loops 6 and 7: Yorick walking in and
+	// standing in Elsa's room
 	return g_sci->getGameId() == GID_QFG1 && (view == 0 || view == 4 || (view == 300 && loop == 8) ||
 		(view == 301 && loop == 6) || (view == 83 && loop == 8) || view == 508 || view == 140 ||
-		view == 503 || view == 519 || view == 550);
+		view == 503 || view == 519 || view == 550 || (view == 97 && (loop == 6 || loop == 7)));
 }
 
 static void agiDemakeHeroSource(int view, int loop, const byte *src, int w, int h, byte clearKey, byte *out) {
@@ -1513,7 +1514,7 @@ static void agiDemakeHeroSource(int view, int loop, const byte *src, int w, int 
 	// so only the top third of the cel is touched
 	// sitting facing right (view 83): his head only (top 11 rows), and the chair back on his left (first 3 columns) is
 	// left alone too
-	const int rows = (view == 301) ? h / 3 : (view == 83) ? 11 : h;
+	const int rows = (view == 301) ? h / 3 : (view == 83) ? 11 : (view == 97) ? 9 : h;	// view 97: Yorick's head only, his cloak keeps its grey
 	const int firstX = (view == 83) ? 3 : 0;
 	// raking (view 140): the rake is grey too, so it is left alone. Its head is found by the light grey
 	// at its tip in the outermost 3 columns (bottom half): those rows, one either side, within 10
@@ -2288,6 +2289,25 @@ static void agiDemakeYorick(int view, int loop, int cel, int h, byte clearKey, b
 			const char ch = t[y][x];
 			fat[y * fatW + pad + x] = (ch == '.') ? clearKey : (byte)((ch >= 'a') ? ch - 'a' + 10 : ch - '0');
 		}
+}
+
+// QfG1 Yorick in Elsa's room (view 97 loops 6 and 7, walking in and standing): the back column of his
+// yellow hair (the rightmost fat pixels of yellow in his top six rows) is cleared, so his hair stops at
+// the back of his head
+static void agiDemakeYorickHair(int view, int loop, int h, byte clearKey, byte *fat, int fatW, int pad, int numPairs) {
+	if (g_sci->getGameId() != GID_QFG1 || view != 97 || (loop != 6 && loop != 7))
+		return;
+	const int rows = MIN(6, h);
+	int last = -1;
+	for (int y = 0; y < rows; ++y)
+		for (int x = 0; x < numPairs; ++x)
+			if (fat[y * fatW + pad + x] == 14 && x > last)
+				last = x;
+	if (last < 0)
+		return;
+	for (int y = 0; y < rows; ++y)
+		if (fat[y * fatW + pad + last] == 14)
+			fat[y * fatW + pad + last] = clearKey;
 }
 
 // QfG1 hero facing you: his eyes (black, the left one black and cyan) sit 2 to 3 pixels apart with
@@ -3789,11 +3809,11 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	// QfG1 Mage's Maze (view 32: buttons, ladders): paired from their own left edge, so the edge columns
 	// (a ladder's left rail, TRIGGER's right frame) aren't in fat pixels half outside the sprite and cut off
 	// QfG1 Elsa's room torches (view 97 loop 2): Sierra's flame frames start on odd and even pixels in
-	// turn, which pairs them differently and makes them wobble; the odd ones are drawn a pixel right so
-	// every frame pairs the same way
+	// turn. Each is paired from the screen's own even columns, so the holder stays put and only the
+	// flame moves
 	if (g_sci->getGameId() == GID_QFG1 && _resourceId == 97 && loopNo == 2 && !still) {
-		startX = 0;
-		pairStart = rect.left + offsetX + ((rect.left + offsetX) & 1);
+		startX = ((rect.left + offsetX) & 1) ? -1 : 0;
+		pairStart = rect.left + offsetX + startX;
 	}
 	if (g_sci->getGameId() == GID_QFG1 && (_resourceId == 32 || (_resourceId == 341 && loopNo == 5) ||
 			(_resourceId == 96 && (loopNo == 4 || (loopNo == 7 && (celNo == 2 || celNo == 3))))) && !still) {
@@ -3887,6 +3907,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	agiDemakeHeroSittingRightHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeGatePlanks(_resourceId, loopNo, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad, numPairs);
 	agiDemakeFightLabel(_resourceId, loopNo, bitmap, celWidth, celHeight, fat.data(), fatW, pad, numPairs);
+	agiDemakeYorickHair(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeYorick(_resourceId, loopNo, celNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeBrigandSign(_resourceId, loopNo, celNo, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeKnifeLabels(_resourceId, loopNo, celNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
