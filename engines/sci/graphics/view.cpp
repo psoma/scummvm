@@ -387,11 +387,11 @@ void GfxView::initData() {
 		break;
 	}
 
-	// AGI demake, QfG1 Yorick's room (view 96): BOX (loop 4 cel 0) 12 pixels longer to the right and
-	// EXIT (loop 7 cel 3) 6 pixels longer on the left, so their words fit; drawn in drawAgiDemake
+	// AGI demake, QfG1 Yorick's room (view 96): EXIT (loop 7 cel 3) 6 pixels longer on the left, so the
+	// word fits; drawn in drawAgiDemake
 	if (_screen->agiDemake() && g_sci->getGameId() == GID_QFG1 && _resourceId == 96 && _loop.size() > 7) {
 		struct W { int loop, cel, from, to, move; };
-		static const W kWiden[] = { { 4, 0, 18, 30, 6 }, { 7, 3, 33, 39, -3 } };
+		static const W kWiden[] = { { 7, 3, 33, 39, -3 } };
 		for (uint i = 0; i < ARRAYSIZE(kWiden); ++i) {
 			const W &w = kWiden[i];
 			if ((int)_loop[w.loop].cel.size() <= w.cel || _loop[w.loop].cel[w.cel].width != w.from)
@@ -2097,9 +2097,9 @@ static void agiDemakeBrigandSign(int view, int loop, int cel, int h, byte *fat, 
 }
 
 // QfG1 Yorick's room (view 96): its writing and the fake door, redrawn. Each table is the whole cel in
-// fat pixels ('.' clear), used when the cel is the size it was drawn for. BOX (loop 4, made 30 pixels
-// wide in initData) and EXIT (loop 7 cel 3, made 39 wide) were widened; BOX and SECRET DOOR (loop 7
-// cel 2) get their letters at full resolution, drawn after the fat pixels (row, column in the cel)
+// fat pixels ('.' clear), used when the cel is the size it was drawn for. EXIT (loop 7 cel 3) is made
+// 39 wide in initData; SECRET DOOR (loop 7 cel 2) gets its letters at full resolution, drawn after
+// the fat pixels (row, column in the cel). BOX (loop 4) keeps Sierra's sign, its letters stepping up
 static const char *const kAgiYorickDoor[] = {
 	"00...",
 	"0.000",
@@ -2222,32 +2222,29 @@ static const char *const kAgiYorickFakeDoor[] = {
 	"c88888888888888888"
 };
 static const char *const kAgiYorickBox[] = {
-	"...............",
-	"...........eee8",
-	".......eeeeeee8",
-	"....eeeeeeeeee8",
-	"0eeeeeeeeeeeee8",
-	"0eeeeeeeeeeeee8",
-	"0eeeeeeeeeeeee8",
-	"0eeeeeeeeeeeee8",
-	"0eeeeeeeeeeeee8",
-	"00eeeeeeeeeeee8",
-	"0eeeeeeeeeeeee8",
-	"0eeeeeeeeeeeee8",
-	"0eeeeeeeeeeeee8",
-	"0eeeeeeeeeeeee8",
-	"0eeeeeeeeeeeee8",
-	"00eeeeeeeeeeee8",
-	"0eeeeeeeeeeee88",
-	"0eeeeeeeeee88..",
-	"0eeeeeeee88....",
-	"0eeeee888......",
-	"0eee888........",
-	"0e888..........",
-	"088............"
-};
-static const int8 kAgiYorickBoxInk[][2] = {
-	{ 5, 19 }, { 5, 20 }, { 5, 24 }, { 5, 25 }, { 6, 19 }, { 6, 20 }, { 6, 24 }, { 6, 25 }, { 7, 13 }, { 7, 14 }, { 7, 15 }, { 7, 20 }, { 7, 21 }, { 7, 23 }, { 7, 24 }, { 8, 12 }, { 8, 13 }, { 8, 15 }, { 8, 16 }, { 8, 21 }, { 8, 22 }, { 8, 23 }, { 9, 4 }, { 9, 5 }, { 9, 6 }, { 9, 7 }, { 9, 8 }, { 9, 11 }, { 9, 12 }, { 9, 16 }, { 9, 17 }, { 9, 21 }, { 9, 22 }, { 9, 23 }, { 10, 4 }, { 10, 5 }, { 10, 8 }, { 10, 9 }, { 10, 11 }, { 10, 12 }, { 10, 16 }, { 10, 17 }, { 10, 20 }, { 10, 21 }, { 10, 23 }, { 10, 24 }, { 11, 4 }, { 11, 5 }, { 11, 8 }, { 11, 9 }, { 11, 11 }, { 11, 12 }, { 11, 16 }, { 11, 17 }, { 11, 19 }, { 11, 20 }, { 11, 24 }, { 11, 25 }, { 12, 4 }, { 12, 5 }, { 12, 6 }, { 12, 7 }, { 12, 8 }, { 12, 12 }, { 12, 13 }, { 12, 15 }, { 12, 16 }, { 13, 4 }, { 13, 5 }, { 13, 8 }, { 13, 9 }, { 13, 13 }, { 13, 14 }, { 13, 15 }, { 14, 4 }, { 14, 5 }, { 14, 8 }, { 14, 9 }, { 15, 4 }, { 15, 5 }, { 15, 6 }, { 15, 7 }, { 15, 8 }
+	"......778",
+	"...888ee8",
+	"..87eeee8",
+	"87eee0e08",
+	"0eeee0e08",
+	"0eeeee0e8",
+	"0eeee0e08",
+	"0eeee0e08",
+	"0eeeeeee8",
+	"0ee000ee8",
+	"0ee0e0ee8",
+	"0ee0e0ee8",
+	"0ee0e0ee8",
+	"0ee000ee8",
+	"000eeeee8",
+	"00e0eeee8",
+	"000eeeee8",
+	"00e0ee88.",
+	"000ee88..",
+	"0eee8....",
+	"0e88.....",
+	"088......",
+	"08......."
 };
 static const int8 kAgiYorickSecretInk[][2] = {
 	{ 17, 2 }, { 17, 3 }, { 17, 4 }, { 18, 1 }, { 18, 5 }, { 19, 1 }, { 20, 2 }, { 20, 3 }, { 20, 4 }, { 21, 5 }, { 22, 1 }, { 22, 5 }, { 23, 2 }, { 23, 3 }, { 23, 4 }, { 16, 7 }, { 16, 8 }, { 16, 9 }, { 16, 10 }, { 16, 11 }, { 17, 7 }, { 18, 7 }, { 19, 7 }, { 19, 8 }, { 19, 9 }, { 19, 10 }, { 20, 7 }, { 21, 7 }, { 22, 7 }, { 22, 8 }, { 22, 9 }, { 22, 10 }, { 22, 11 }, { 14, 14 }, { 14, 15 }, { 14, 16 }, { 15, 13 }, { 15, 17 }, { 16, 13 }, { 17, 13 }, { 18, 13 }, { 19, 13 }, { 20, 13 }, { 20, 17 }, { 21, 14 }, { 21, 15 }, { 21, 16 }, { 12, 19 }, { 12, 20 }, { 12, 21 }, { 12, 22 }, { 13, 19 }, { 13, 23 }, { 14, 19 }, { 14, 23 }, { 15, 19 }, { 15, 20 }, { 15, 21 }, { 15, 22 }, { 16, 19 }, { 16, 20 }, { 16, 21 }, { 16, 22 }, { 17, 19 }, { 17, 21 }, { 18, 19 }, { 18, 22 }, { 19, 19 }, { 19, 23 }, { 10, 25 }, { 10, 26 }, { 10, 27 }, { 10, 28 }, { 10, 29 }, { 11, 25 }, { 12, 25 }, { 13, 25 }, { 14, 25 }, { 14, 26 }, { 14, 27 }, { 14, 28 }, { 15, 25 }, { 16, 25 }, { 17, 25 }, { 18, 25 }, { 18, 26 }, { 18, 27 }, { 18, 28 }, { 18, 29 }, { 8, 31 }, { 8, 32 }, { 8, 33 }, { 8, 34 }, { 8, 35 }, { 8, 36 }, { 9, 33 }, { 9, 34 }, { 10, 33 }, { 10, 34 }, { 11, 33 }, { 11, 34 }, { 12, 33 }, { 12, 34 }, { 13, 33 }, { 13, 34 }, { 14, 33 }, { 14, 34 }, { 15, 33 }, { 15, 34 }, { 16, 33 }, { 16, 34 }, { 5, 41 }, { 5, 42 }, { 5, 43 }, { 5, 44 }, { 5, 45 }, { 6, 41 }, { 6, 46 }, { 7, 41 }, { 7, 46 }, { 8, 41 }, { 8, 46 }, { 9, 41 }, { 9, 46 }, { 10, 41 }, { 10, 46 }, { 11, 41 }, { 11, 46 }, { 12, 41 }, { 12, 46 }, { 13, 41 }, { 13, 46 }, { 14, 41 }, { 14, 42 }, { 14, 43 }, { 14, 44 }, { 14, 45 }, { 3, 49 }, { 3, 50 }, { 3, 51 }, { 3, 52 }, { 4, 48 }, { 4, 53 }, { 5, 48 }, { 5, 53 }, { 6, 48 }, { 6, 53 }, { 7, 48 }, { 7, 53 }, { 8, 48 }, { 8, 53 }, { 9, 48 }, { 9, 53 }, { 10, 48 }, { 10, 53 }, { 11, 48 }, { 11, 53 }, { 12, 49 }, { 12, 50 }, { 12, 51 }, { 12, 52 }, { 1, 56 }, { 1, 57 }, { 1, 58 }, { 1, 59 }, { 2, 55 }, { 2, 60 }, { 3, 55 }, { 3, 60 }, { 4, 55 }, { 4, 60 }, { 5, 55 }, { 5, 60 }, { 6, 55 }, { 6, 60 }, { 7, 55 }, { 7, 60 }, { 8, 55 }, { 8, 60 }, { 9, 55 }, { 9, 60 }, { 10, 55 }, { 10, 60 }, { 11, 56 }, { 11, 57 }, { 11, 58 }, { 11, 59 }, { -1, 62 }, { -1, 63 }, { -1, 64 }, { -1, 65 }, { -1, 66 }, { 0, 62 }, { 0, 67 }, { 1, 62 }, { 1, 67 }, { 2, 62 }, { 2, 67 }, { 3, 62 }, { 3, 67 }, { 4, 62 }, { 4, 63 }, { 4, 64 }, { 4, 65 }, { 4, 66 }, { 5, 62 }, { 5, 64 }, { 5, 65 }, { 6, 62 }, { 6, 64 }, { 6, 65 }, { 7, 62 }, { 7, 66 }, { 8, 62 }, { 8, 66 }, { 9, 62 }, { 9, 67 }
@@ -2263,7 +2260,7 @@ static const char *const *agiDemakeYorickTable(int view, int loop, int cel, int 
 		{ 7, 1, kAgiYorickMe, ARRAYSIZE(kAgiYorickMe), 12 },
 		{ 7, 3, kAgiYorickExit, ARRAYSIZE(kAgiYorickExit), 20 },
 		{ 1, 0, kAgiYorickFakeDoor, ARRAYSIZE(kAgiYorickFakeDoor), 18 },
-		{ 4, 0, kAgiYorickBox, ARRAYSIZE(kAgiYorickBox), 15 }
+		{ 4, 0, kAgiYorickBox, ARRAYSIZE(kAgiYorickBox), 9 }
 	};
 	for (uint i = 0; i < ARRAYSIZE(kTables); ++i)
 		if (kTables[i].loop == loop && kTables[i].cel == cel) {
@@ -2855,6 +2852,18 @@ struct AgiDemakeFatPatch {
 	byte from, to;
 };
 static const AgiDemakeFatPatch kAgiDemakeFatPatches[] = {
+	// QfG1 Elsa in front of her desk (view 97 loop 4 cel 9 as the brigand, loop 5 as the princess): her
+	// eyes apart on Sierra's eye row, and the princess's white mouth pixel. The transformation close-up
+	// (view 473): the right eye a mirror of the left
+	{ GID_QFG1, 97, 4, 9, 4, 7, 0, 4 }, { GID_QFG1, 97, 4, 9, 5, 4, 0, 12 }, { GID_QFG1, 97, 4, 9, 5, 6, 0, 12 }, { GID_QFG1, 97, 4, 9, 5, 7, 4, 0 }, { GID_QFG1, 97, 4, 9, 6, 7, 0, 12 },
+	{ GID_QFG1, 97, 5, 0, 4, 5, 0, 12 }, { GID_QFG1, 97, 5, 0, 7, 5, 12, 15 },
+	{ GID_QFG1, 97, 5, 1, 5, 5, 0, 12 },
+	{ GID_QFG1, 97, 5, 2, 5, 5, 0, 12 },
+	{ GID_QFG1, 97, 5, 3, 5, 5, 0, 12 },
+	{ GID_QFG1, 97, 5, 4, 5, 5, 0, 12 },
+	{ GID_QFG1, 97, 5, 5, 5, 5, 0, 12 },
+	{ GID_QFG1, 473, 0, 0, 20, 23, 0, 4 }, { GID_QFG1, 473, 0, 0, 20, 25, 0, 4 }, { GID_QFG1, 473, 0, 0, 21, 24, 7, 1 }, { GID_QFG1, 473, 0, 0, 21, 25, 0, 15 },
+	{ GID_QFG1, 473, 0, 1, 15, 21, 0, 12 }, { GID_QFG1, 473, 0, 1, 15, 24, 0, 12 }, { GID_QFG1, 473, 0, 1, 16, 21, 7, 15 }, { GID_QFG1, 473, 0, 1, 16, 22, 7, 0 }, { GID_QFG1, 473, 0, 1, 16, 23, 4, 15 }, { GID_QFG1, 473, 0, 1, 16, 24, 0, 12 }, { GID_QFG1, 473, 0, 1, 17, 21, 0, 12 }, { GID_QFG1, 473, 0, 1, 17, 24, 0, 12 },
 	// QfG1 Baba Yaga (view 20): her green eyes, which the collapse loses in her face, back in at Sierra's
 	// places, with light red skin between and no green band across
 	{ GID_QFG1, 20, 1, 0, 5, 2, 2, 12 }, { GID_QFG1, 20, 1, 0, 5, 4, 2, 12 },
@@ -3779,6 +3788,13 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 
 	// QfG1 Mage's Maze (view 32: buttons, ladders): paired from their own left edge, so the edge columns
 	// (a ladder's left rail, TRIGGER's right frame) aren't in fat pixels half outside the sprite and cut off
+	// QfG1 Elsa's room torches (view 97 loop 2): Sierra's flame frames start on odd and even pixels in
+	// turn, which pairs them differently and makes them wobble; the odd ones are drawn a pixel right so
+	// every frame pairs the same way
+	if (g_sci->getGameId() == GID_QFG1 && _resourceId == 97 && loopNo == 2 && !still) {
+		startX = 0;
+		pairStart = rect.left + offsetX + ((rect.left + offsetX) & 1);
+	}
 	if (g_sci->getGameId() == GID_QFG1 && (_resourceId == 32 || (_resourceId == 341 && loopNo == 5) ||
 			(_resourceId == 96 && (loopNo == 4 || (loopNo == 7 && (celNo == 2 || celNo == 3))))) && !still) {
 		startX = ((rect.left + offsetX) & 1) ? -1 : 0;
@@ -3974,12 +3990,12 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 			}
 		}
 	}
-	// QfG1 Yorick's room: BOX and SECRET DOOR letters at full resolution (the AGI text resolution),
+	// QfG1 Yorick's room: the SECRET DOOR letters at full resolution (the AGI text resolution),
 	// marked so the display keeps them as single pixels
-	if (g_sci->getGameId() == GID_QFG1 && _resourceId == 96 && ((loopNo == 4 && celNo == 0 && celWidth == 30) || (loopNo == 7 && celNo == 2))) {
-		const bool box = (loopNo == 4);
-		const int8 (*ink)[2] = box ? kAgiYorickBoxInk : kAgiYorickSecretInk;
-		const int count = box ? ARRAYSIZE(kAgiYorickBoxInk) : ARRAYSIZE(kAgiYorickSecretInk);
+	if (g_sci->getGameId() == GID_QFG1 && _resourceId == 96 && loopNo == 7 && celNo == 2) {
+		const bool box = false;
+		const int8 (*ink)[2] = kAgiYorickSecretInk;
+		const int count = ARRAYSIZE(kAgiYorickSecretInk);
 		const byte inkColor = box ? 0 : 14;
 		_screen->setCurPaletteMapValue(2);
 		for (int i = 0; i < count; ++i) {
