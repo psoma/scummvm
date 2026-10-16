@@ -30,8 +30,8 @@ struct EngineState;
 struct SciEvent;
 
 // AGI demake, "Input box: AGI Type" (agi_input 0, the default): the typed line sits on the
-// bottom text row (screen rows 192-199, with a black gap row at 191) like an AGI game, only while
-// typing, and the game keeps running while typing. "Pop-up type" (agi_input 1) leaves Sierra's own
+// bottom text row (screen rows 192-199, with a black gap row at 191) like an AGI game, shown
+// wherever the game takes typed lines, and the game keeps running while typing. "Pop-up type" (agi_input 1) leaves Sierra's own
 // input box alone.
 
 // True when the AGI input line is in use for this game
@@ -44,7 +44,7 @@ void agiInputUpdate(EngineState *s);
 // Called by kGetEvent on every call after agiInputUpdate. Returns true if the key was typed into
 // the line, in which case the event object has already been made a null event and s->r_acc set.
 // Otherwise ev may have been changed (the key or event the game is given) and kGetEvent carries on
-bool agiInputHandleKey(EngineState *s, reg_t obj, SciEvent &ev, uint16 modifiers);
+bool agiInputHandleKey(EngineState *s, reg_t obj, SciEvent &ev, uint16 modifiers, uint16 mask);
 
 // True while Sierra's input box is being taken over: the AGI demake gfx driver skips screen
 // updates so the box is never seen

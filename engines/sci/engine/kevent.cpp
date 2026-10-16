@@ -186,7 +186,7 @@ reg_t kGetEvent(EngineState *s, int argc, reg_t *argv) {
 	// AGI demake, Input box "AGI Type": typed keys go to the AGI input line at the bottom of the
 	// screen, and Sierra's input box is taken over unseen, so the game keeps running while typing
 	agiInputUpdate(s);
-	const bool agiTyped = agiInputHandleKey(s, obj, curEvent, modifiers);
+	const bool agiTyped = agiInputHandleKey(s, obj, curEvent, modifiers, mask);
 
 	if (!agiTyped)
 	switch (curEvent.type) {

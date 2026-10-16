@@ -20,6 +20,8 @@
  */
 
 #include "common/config-manager.h"
+#include "common/hashmap.h"
+#include "common/system.h"
 #include "graphics/fonts/dosfont.h"
 
 #include "sci/sci.h"
@@ -62,14 +64,22 @@ const byte kBackColor = 0;	// black
 // - Probe: the first key typed on an empty line. The box is cancelled (Esc) and the key starts the
 //   AGI line. Rooms that claim keys themselves (title screens) never call getInput, so the line
 //   never appears there
+// - Dummy probe: whenever the room or User canInput / controls change, one fake key (a backquote,
+//   which no Sierra game uses) is sent when no real event is waiting. If the game opens its box for
+//   it, typing is allowed there and ">_" stays on screen. The answer is kept per room and state
 // - Submit: Enter on the AGI line. A key is sent so the game calls getInput again, the line is put
 //   in the game's own input buffer (User inputLineAddr), and the box is accepted (Enter). The game
 //   then parses it and sends it round with User said:, exactly as with Sierra's box
 enum Hijack {
 	kHijackNone,
 	kHijackProbe,
+	kHijackDummy,
 	kHijackSubmit
 };
+
+const uint16 kDummyKey = '`';
+// ">_" stays up this long after typing stops being allowed, so it doesn't flicker in room changes
+const uint32 kHideHoldMs = 500;
 
 const EngineState *g_lineFor = nullptr;	// the game session the state below belongs to
 Common::String g_line;
@@ -78,9 +88,11 @@ bool g_refreshPending = false;	// the line changed while screen updates were hel
 reg_t g_user = NULL_REG;	// the User object, found once per game session
 int g_getInputSel = -1;	// User getInput
 int g_inputLineSel = -1;	// User inputLineAddr
-int g_echoSel = -1;	// User echo (the "retype last line" key, Space in QfG1)
 Hijack g_hijack = kHijackNone;
 uint16 g_probeKey = 0;
+uint32 g_probeState = 0;	// the state the pending probe or submit was made in
+Common::HashMap<uint32, bool> g_allowed;	// per room and state: does the game take typed lines there
+uint32 g_lastWantedMs = 0;	// when ">_" last had a reason to be on screen
 Common::String g_submitText;
 byte g_overlay[kRowHeight * kScreenW];
 
@@ -105,6 +117,11 @@ reg_t findUser(EngineState *s) {
 	return user;
 }
 
+void logLine(const Common::String &text) {
+	const int room = g_sci->getEngineState() ? g_sci->getEngineState()->currentRoomNumber() : -1;
+	agiDemakeLogLine(Common::String::format("room %d agi input: %s", room, text.c_str()));
+}
+
 bool userHasVar(EngineState *s, reg_t user, int sel) {
 	const Object *userObject = s->_segMan->getObject(user);
 	return sel >= 0 && userObject && userObject->locateVarSelector(s->_segMan, sel) >= 0;
@@ -117,11 +134,32 @@ bool userCanInput(EngineState *s) {
 	return readSelectorValue(s->_segMan, user, SELECTOR(canInput)) != 0;
 }
 
-uint16 userEcho(EngineState *s) {
+bool userControls(EngineState *s) {
 	const reg_t user = findUser(s);
-	if (!userHasVar(s, user, g_echoSel))
+	if (!userHasVar(s, user, SELECTOR(controls)))
+		return false;
+	return readSelectorValue(s->_segMan, user, SELECTOR(controls)) != 0;
+}
+
+// The room and User canInput / controls, the state a probe answer is kept for
+uint32 currentState(EngineState *s) {
+	return ((uint32)s->currentRoomNumber() << 2) | (userCanInput(s) ? 2 : 0) | (userControls(s) ? 1 : 0);
+}
+
+// Typing is allowed here: 1 yes, 0 no, -1 not probed yet
+int allowedHere(EngineState *s) {
+	if (!userCanInput(s))
 		return 0;
-	return readSelectorValue(s->_segMan, user, g_echoSel);
+	const uint32 state = currentState(s);
+	if (!g_allowed.contains(state))
+		return -1;
+	return g_allowed[state] ? 1 : 0;
+}
+
+void setAllowed(uint32 state, bool allowed) {
+	g_allowed[state] = allowed;
+	logLine(Common::String::format("room %d input %d controls %d: typing %s", state >> 2, (state >> 1) & 1, state & 1,
+		allowed ? "allowed" : "not allowed"));
 }
 
 // The game is inside User getInput (Sierra's input box)
@@ -147,13 +185,12 @@ void refreshRow() {
 		g_sci->_gfxScreen->copyRectToScreen(Common::Rect(0, kRowTop, kScreenW, kRowTop + kRowHeight));
 }
 
-void logLine(const Common::String &text) {
-	const int room = g_sci->getEngineState() ? g_sci->getEngineState()->currentRoomNumber() : -1;
-	agiDemakeLogLine(Common::String::format("room %d agi input: %s", room, text.c_str()));
-}
-
 void updateShown(EngineState *s) {
-	const bool shown = !g_line.empty() && userCanInput(s);
+	const uint32 now = g_system->getMillis();
+	const bool wanted = userCanInput(s) && (!g_line.empty() || allowedHere(s) == 1);
+	if (wanted)
+		g_lastWantedMs = now;
+	const bool shown = wanted || (g_shown && now - g_lastWantedMs < kHideHoldMs);
 	if (shown == g_shown)
 		return;
 	g_shown = shown;
@@ -179,9 +216,9 @@ bool agiInputActive() {
 		g_refreshPending = false;
 		g_user = NULL_REG;
 		g_hijack = kHijackNone;
+		g_allowed.clear();
 		g_getInputSel = g_sci->getKernel()->findSelector("getInput");
 		g_inputLineSel = g_sci->getKernel()->findSelector("inputLineAddr");
-		g_echoSel = g_sci->getKernel()->findSelector("echo");
 		if (g_getInputSel < 0 || g_inputLineSel < 0)
 			logLine("game has no User getInput / inputLineAddr, using Sierra's input box");
 	}
@@ -199,6 +236,7 @@ void agiInputUpdate(EngineState *s) {
 			g_line = g_submitText;
 			logLine(Common::String::format("\"%s\" not taken by the game", g_submitText.c_str()));
 		}
+		setAllowed(g_probeState, false);
 		g_hijack = kHijackNone;
 	}
 	updateShown(s);
@@ -208,24 +246,17 @@ void agiInputUpdate(EngineState *s) {
 	}
 }
 
-bool agiInputHandleKey(EngineState *s, reg_t obj, SciEvent &ev, uint16 modifiers) {
+bool agiInputHandleKey(EngineState *s, reg_t obj, SciEvent &ev, uint16 modifiers, uint16 mask) {
 	if (!agiInputActive())
 		return false;
 
 	// Inside Sierra's input box that we opened on purpose: answer it straight away (any event the
 	// box asks for becomes Esc for a probe, or Enter with the line in place for a submit)
 	if (g_hijack != kHijackNone && inGetInput(s)) {
-		if (g_hijack == kHijackProbe) {
-			const uint16 echo = userEcho(s);
-			if (echo && g_probeKey == echo) {
-				// The game's "retype last line" key: start from the game's last line, as its box would
-				const reg_t user = findUser(s);
-				g_line = s->_segMan->getString(readSelector(s->_segMan, user, g_inputLineSel));
-				if (g_line.size() > kMaxChars)
-					g_line = Common::String(g_line.c_str(), kMaxChars);
-			} else {
+		if (g_hijack == kHijackProbe || g_hijack == kHijackDummy) {
+			if (g_hijack == kHijackProbe)
 				g_line = Common::String((char)g_probeKey);
-			}
+			setAllowed(g_probeState, true);
 			ev.type = kSciEventKeyDown;
 			ev.character = kSciKeyEsc;
 		} else {
@@ -240,27 +271,43 @@ bool agiInputHandleKey(EngineState *s, reg_t obj, SciEvent &ev, uint16 modifiers
 		return false;	// kGetEvent hands the box the event made here
 	}
 
+	// While a message box or dialog is open the keys go to it
+	if (g_hijack != kHijackNone || windowOpen() || !userCanInput(s))
+		return false;
+	const int allowed = allowedHere(s);
+
+	// Nothing waiting and this room and state not probed yet: send the dummy key
+	if (ev.type == kSciEventNone && allowed < 0 && (mask & kSciEventKeyDown)) {
+		g_hijack = kHijackDummy;
+		g_probeState = currentState(s);
+		ev.type = kSciEventKeyDown;
+		ev.character = kDummyKey;
+		ev.modifiers = kSciKeyModNone;
+		return false;
+	}
+
 	if (ev.type != kSciEventKeyDown)
 		return false;
 	// Ctrl and Alt keys stay with the game (menu shortcuts, debug keys)
 	if (modifiers & (kSciKeyModCtrl | kSciKeyModAlt))
 		return false;
-	// While a message box or dialog is open the keys go to it
-	if (windowOpen() || !userCanInput(s))
-		return false;
 
 	const uint16 key = ev.character;
 	const bool printable = (key >= 32 && key <= 126);
 
-	if (g_line.empty()) {
-		// Not typing yet: the key goes to the game, and if the game opens its input box for it
-		// the box is taken over (see above)
+	if (g_line.empty() && allowed != 1) {
+		// Not known to be allowed here: the key goes to the game, and if the game opens its input
+		// box for it the box is taken over (see above)
 		if (printable) {
 			g_hijack = kHijackProbe;
 			g_probeKey = key;
+			g_probeState = currentState(s);
 		}
 		return false;
 	}
+	// Enter, Backspace and Esc on an empty line go to the game (Esc opens the menu bar)
+	if (g_line.empty() && !printable)
+		return false;
 
 	if (printable) {
 		if (g_line.size() < kMaxChars)
@@ -274,6 +321,7 @@ bool agiInputHandleKey(EngineState *s, reg_t obj, SciEvent &ev, uint16 modifiers
 		// probe, then the box gets the whole line
 		g_submitText = g_line;
 		g_hijack = kHijackSubmit;
+		g_probeState = currentState(s);
 		ev.character = (byte)g_line[0];
 		g_line.clear();
 		updateShown(s);
