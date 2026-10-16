@@ -89,6 +89,10 @@ SCI0_AGIDemakeDriver::~SCI0_AGIDemakeDriver() {
 void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY, int pitch, int destX, int destY, int w, int h, const PaletteMod *palMods, const byte *palModMapping) {
 	GFXDRV_ASSERT_READY;
 
+	// AGI demake, Input box "AGI Type": Sierra's input box is being taken over, so it is never shown
+	if (agiInputHideScreenUpdates())
+		return;
+
 	// Align to pixel pairs so every fat pixel is rebuilt from its left source pixel
 	int diff = destX & 1;
 	srcX -= diff;

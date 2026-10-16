@@ -54,13 +54,34 @@ const char kPrompt = '>';
 const char kCursor = '_';
 const byte kTextColor = 15;	// white
 const byte kBackColor = 0;	// black
-const char *const kBufferName = "AGI demake input line";
-const int kBufferSize = 64;
 
-const EngineState *g_lineFor = nullptr;	// the game session the typed line belongs to
+// How it works (checked against Sierra's QfG1 scripts, User.sc and Interface.sc): keys go to the
+// game as normal. When the game itself decides to take a typed line it calls User getInput, which
+// opens Sierra's input box (Print with an edit item, a modal Dialog that reads its keys through
+// GetEvent). The engine takes over that box before it is ever shown:
+// - Probe: the first key typed on an empty line. The box is cancelled (Esc) and the key starts the
+//   AGI line. Rooms that claim keys themselves (title screens) never call getInput, so the line
+//   never appears there
+// - Submit: Enter on the AGI line. A key is sent so the game calls getInput again, the line is put
+//   in the game's own input buffer (User inputLineAddr), and the box is accepted (Enter). The game
+//   then parses it and sends it round with User said:, exactly as with Sierra's box
+enum Hijack {
+	kHijackNone,
+	kHijackProbe,
+	kHijackSubmit
+};
+
+const EngineState *g_lineFor = nullptr;	// the game session the state below belongs to
 Common::String g_line;
-bool g_shown = false;	// typing is allowed, so the line is on screen
+bool g_shown = false;	// the line is on screen
+bool g_refreshPending = false;	// the line changed while screen updates were held back
 reg_t g_user = NULL_REG;	// the User object, found once per game session
+int g_getInputSel = -1;	// User getInput
+int g_inputLineSel = -1;	// User inputLineAddr
+int g_echoSel = -1;	// User echo (the "retype last line" key, Space in QfG1)
+Hijack g_hijack = kHijackNone;
+uint16 g_probeKey = 0;
+Common::String g_submitText;
 byte g_overlay[kRowHeight * kScreenW];
 
 bool hasParserVocabulary() {
@@ -84,17 +105,33 @@ reg_t findUser(EngineState *s) {
 	return user;
 }
 
-// Typing is allowed when the game has the player "hands on": User canInput and controls both on,
-// the same test as GuestAdditions::userHasControl. Title, logo and cutscene screens leave at least
-// one of them off (QfG1 leaves canInput on at its title screen, so canInput alone isn't enough)
-bool userCanType(EngineState *s) {
-	const reg_t user = findUser(s);
+bool userHasVar(EngineState *s, reg_t user, int sel) {
 	const Object *userObject = s->_segMan->getObject(user);
-	if (!userObject || userObject->locateVarSelector(s->_segMan, SELECTOR(canInput)) < 0 ||
-			userObject->locateVarSelector(s->_segMan, SELECTOR(controls)) < 0)
+	return sel >= 0 && userObject && userObject->locateVarSelector(s->_segMan, sel) >= 0;
+}
+
+bool userCanInput(EngineState *s) {
+	const reg_t user = findUser(s);
+	if (!userHasVar(s, user, SELECTOR(canInput)))
 		return false;
-	return readSelectorValue(s->_segMan, user, SELECTOR(canInput)) != 0 &&
-		readSelectorValue(s->_segMan, user, SELECTOR(controls)) != 0;
+	return readSelectorValue(s->_segMan, user, SELECTOR(canInput)) != 0;
+}
+
+uint16 userEcho(EngineState *s) {
+	const reg_t user = findUser(s);
+	if (!userHasVar(s, user, g_echoSel))
+		return 0;
+	return readSelectorValue(s->_segMan, user, g_echoSel);
+}
+
+// The game is inside User getInput (Sierra's input box)
+bool inGetInput(EngineState *s) {
+	if (g_getInputSel < 0)
+		return false;
+	for (Common::List<ExecStack>::const_iterator it = s->_executionStack.begin(); it != s->_executionStack.end(); ++it)
+		if (it->debugSelector == g_getInputSel)
+			return true;
+	return false;
 }
 
 bool windowOpen() {
@@ -103,20 +140,6 @@ bool windowOpen() {
 	Common::Array<Common::Rect> rects;
 	g_sci->_gfxPorts->agiDemakeOpenWindowRects(rects);
 	return !rects.empty();
-}
-
-// A small block of game memory that holds the typed line for the parser. It is found again by
-// name after a restore (it is saved with the game), so only one is ever made per game
-reg_t lineBuffer(EngineState *s) {
-	const Common::Array<SegmentObj *> &heap = s->_segMan->getSegments();
-	for (uint seg = 1; seg < heap.size(); ++seg) {
-		if (heap[seg] && heap[seg]->getType() == SEG_TYPE_DYNMEM &&
-				((DynMem *)heap[seg])->_description == kBufferName && ((DynMem *)heap[seg])->_size >= (uint)kBufferSize)
-			return make_reg(seg, 0);
-	}
-	reg_t addr;
-	s->_segMan->allocDynmem(kBufferSize, kBufferName, &addr);
-	return addr;
 }
 
 void refreshRow() {
@@ -129,102 +152,150 @@ void logLine(const Common::String &text) {
 	agiDemakeLogLine(Common::String::format("room %d agi input: %s", room, text.c_str()));
 }
 
+void updateShown(EngineState *s) {
+	const bool shown = !g_line.empty() && userCanInput(s);
+	if (shown == g_shown)
+		return;
+	g_shown = shown;
+	g_refreshPending = true;
+}
+
 } // End of anonymous namespace
 
 // Worked out on every call (not cached), so changing the option between games always takes
 bool agiInputActive() {
 	if (!g_sci || !g_sci->getEngineState())
 		return false;
-	if (g_lineFor != g_sci->getEngineState()) {
-		g_lineFor = g_sci->getEngineState();
-		g_line.clear();
-		g_shown = false;
-		g_user = NULL_REG;
-	}
 	const bool demake = ConfMan.hasKey("agi_demake") && ConfMan.getBool("agi_demake");
 	const bool popUp = ConfMan.hasKey("agi_input") && ConfMan.getInt("agi_input") == 1;
-	return demake && !popUp && g_sci->_gfxScreen && g_sci->_gfxScreen->agiDemake() &&
-		g_sci->_gfxScreen->getHeight() == 200 && hasParserVocabulary();
+	if (!demake || popUp || !g_sci->_gfxScreen || !g_sci->_gfxScreen->agiDemake() ||
+			g_sci->_gfxScreen->getHeight() != 200 || !hasParserVocabulary())
+		return false;
+	EngineState *s = g_sci->getEngineState();
+	if (g_lineFor != s) {
+		g_lineFor = s;
+		g_line.clear();
+		g_shown = false;
+		g_refreshPending = false;
+		g_user = NULL_REG;
+		g_hijack = kHijackNone;
+		g_getInputSel = g_sci->getKernel()->findSelector("getInput");
+		g_inputLineSel = g_sci->getKernel()->findSelector("inputLineAddr");
+		g_echoSel = g_sci->getKernel()->findSelector("echo");
+		if (g_getInputSel < 0 || g_inputLineSel < 0)
+			logLine("game has no User getInput / inputLineAddr, using Sierra's input box");
+	}
+	// Games whose User isn't built like Sierra's SCI0 one keep Sierra's input box
+	return g_getInputSel >= 0 && g_inputLineSel >= 0;
 }
 
 void agiInputUpdate(EngineState *s) {
-	const bool shown = agiInputActive() && userCanType(s);
-	if (shown == g_shown)
+	if (!agiInputActive())
 		return;
-	g_shown = shown;
-	logLine(shown ? "line shown" : "line hidden");
-	refreshRow();
+	// Back in the game's main loop with a probe or submit still pending: the game never opened its
+	// input box for that key (a room claimed it, or typing is off)
+	if (g_hijack != kHijackNone && !inGetInput(s)) {
+		if (g_hijack == kHijackSubmit) {
+			g_line = g_submitText;
+			logLine(Common::String::format("\"%s\" not taken by the game", g_submitText.c_str()));
+		}
+		g_hijack = kHijackNone;
+	}
+	updateShown(s);
+	if (g_refreshPending && !inGetInput(s)) {
+		g_refreshPending = false;
+		refreshRow();
+	}
 }
 
-bool agiInputHandleKey(EngineState *s, reg_t obj, const SciEvent &ev, uint16 modifiers) {
+bool agiInputHandleKey(EngineState *s, reg_t obj, SciEvent &ev, uint16 modifiers) {
 	if (!agiInputActive())
+		return false;
+
+	// Inside Sierra's input box that we opened on purpose: answer it straight away (any event the
+	// box asks for becomes Esc for a probe, or Enter with the line in place for a submit)
+	if (g_hijack != kHijackNone && inGetInput(s)) {
+		if (g_hijack == kHijackProbe) {
+			const uint16 echo = userEcho(s);
+			if (echo && g_probeKey == echo) {
+				// The game's "retype last line" key: start from the game's last line, as its box would
+				const reg_t user = findUser(s);
+				g_line = s->_segMan->getString(readSelector(s->_segMan, user, g_inputLineSel));
+				if (g_line.size() > kMaxChars)
+					g_line = Common::String(g_line.c_str(), kMaxChars);
+			} else {
+				g_line = Common::String((char)g_probeKey);
+			}
+			ev.type = kSciEventKeyDown;
+			ev.character = kSciKeyEsc;
+		} else {
+			const reg_t user = findUser(s);
+			s->_segMan->strcpy_(readSelector(s->_segMan, user, g_inputLineSel), g_submitText.c_str());
+			logLine(Common::String::format("\"%s\" sent", g_submitText.c_str()));
+			ev.type = kSciEventKeyDown;
+			ev.character = kSciKeyEnter;
+		}
+		g_hijack = kHijackNone;
+		updateShown(s);
+		return false;	// kGetEvent hands the box the event made here
+	}
+
+	if (ev.type != kSciEventKeyDown)
 		return false;
 	// Ctrl and Alt keys stay with the game (menu shortcuts, debug keys)
 	if (modifiers & (kSciKeyModCtrl | kSciKeyModAlt))
 		return false;
-	// While a message box or dialog is open the keys go to it, as in Pop-up type
-	if (windowOpen() || !g_shown)
+	// While a message box or dialog is open the keys go to it
+	if (windowOpen() || !userCanInput(s))
 		return false;
 
 	const uint16 key = ev.character;
-	SegManager *segMan = s->_segMan;
 	const bool printable = (key >= 32 && key <= 126);
 
-	if (printable) {
-		// A space on an empty line still goes to the game, whatever it does there
-		if (key == ' ' && g_line.empty())
-			return false;
-		if (g_line.size() < kMaxChars) {
-			g_line += (char)key;
-			refreshRow();
+	if (g_line.empty()) {
+		// Not typing yet: the key goes to the game, and if the game opens its input box for it
+		// the box is taken over (see above)
+		if (printable) {
+			g_hijack = kHijackProbe;
+			g_probeKey = key;
 		}
-	} else if (key == kSciKeyBackspace || key == kSciKeyEsc) {
-		// Backspace and Esc on an empty line go to the game (Esc opens the menu bar)
-		if (g_line.empty())
-			return false;
-		if (key == kSciKeyBackspace)
-			g_line.deleteLastChar();
-		else
-			g_line.clear();
-		refreshRow();
-	} else if (key == kSciKeyEnter) {
-		if (g_line.empty())
-			return false;
-		const Common::String text = g_line;
-		g_line.clear();
-		refreshRow();
+		return false;
+	}
 
-		// Hand the line to the parser and the game exactly as the pop-up would have: the event
-		// becomes a said event, and kParse claims it (and prints the game's "I don't understand"
-		// message) when the line doesn't parse
-		const reg_t buffer = lineBuffer(s);
-		segMan->strcpy_(buffer, text.c_str());
-		writeSelectorValue(segMan, obj, SELECTOR(type), kSciEventSaid);
-		writeSelectorValue(segMan, obj, SELECTOR(message), 0);
-		writeSelectorValue(segMan, obj, SELECTOR(modifiers), modifiers);
-		writeSelectorValue(segMan, obj, SELECTOR(claimed), 0);
-		reg_t params[2] = { buffer, obj };
-		const reg_t parsed = kParse(s, 2, params);
-		const bool ok = !parsed.isNull() && readSelectorValue(segMan, obj, SELECTOR(claimed)) == 0;
-		logLine(Common::String::format("\"%s\" %s", text.c_str(), ok ? "parsed" : "not parsed"));
-		if (ok) {
-			s->r_acc = TRUE_REG;
-			return true;
-		}
-		// The game has already answered; nothing more happens with this event
-		writeSelectorValue(segMan, obj, SELECTOR(type), kSciEventNone);
-		s->r_acc = NULL_REG;
-		return true;
+	if (printable) {
+		if (g_line.size() < kMaxChars)
+			g_line += (char)key;
+	} else if (key == kSciKeyBackspace) {
+		g_line.deleteLastChar();
+	} else if (key == kSciKeyEsc) {
+		g_line.clear();
+	} else if (key == kSciKeyEnter) {
+		// Send the line's first letter so the game opens its input box again, as it did for the
+		// probe, then the box gets the whole line
+		g_submitText = g_line;
+		g_hijack = kHijackSubmit;
+		ev.character = (byte)g_line[0];
+		g_line.clear();
+		updateShown(s);
+		return false;
 	} else {
 		return false;
 	}
 
 	// The key was typed into the line: the game sees no event
+	refreshRow();
+	updateShown(s);
+	SegManager *segMan = s->_segMan;
 	writeSelectorValue(segMan, obj, SELECTOR(type), kSciEventNone);
 	writeSelectorValue(segMan, obj, SELECTOR(message), 0);
 	writeSelectorValue(segMan, obj, SELECTOR(modifiers), modifiers);
 	s->r_acc = NULL_REG;
 	return true;
+}
+
+bool agiInputHideScreenUpdates() {
+	EngineState *s = g_sci ? g_sci->getEngineState() : nullptr;
+	return s && g_hijack != kHijackNone && agiInputActive() && inGetInput(s);
 }
 
 const byte *agiInputOverlay() {

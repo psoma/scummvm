@@ -183,9 +183,12 @@ reg_t kGetEvent(EngineState *s, int argc, reg_t *argv) {
 		modifiers |= 0x0200;
 	}
 
-	// AGI demake, Input box "AGI Type": show the AGI input line only while typing is allowed
+	// AGI demake, Input box "AGI Type": typed keys go to the AGI input line at the bottom of the
+	// screen, and Sierra's input box is taken over unseen, so the game keeps running while typing
 	agiInputUpdate(s);
+	const bool agiTyped = agiInputHandleKey(s, obj, curEvent, modifiers);
 
+	if (!agiTyped)
 	switch (curEvent.type) {
 	case kSciEventQuit:
 		s->abortScriptProcessing = kAbortQuitGame; // Terminate VM
@@ -195,10 +198,6 @@ reg_t kGetEvent(EngineState *s, int argc, reg_t *argv) {
 
 	case kSciEventKeyDown:
 	case kSciEventKeyUp:
-		// AGI demake, Input box "AGI Type": typed keys go to the AGI input line at the bottom of
-		// the screen instead of opening Sierra's input box, so the game keeps running
-		if (curEvent.type == kSciEventKeyDown && agiInputHandleKey(s, obj, curEvent, modifiers))
-			break;
 		writeSelectorValue(segMan, obj, SELECTOR(type), curEvent.type);
 		writeSelectorValue(segMan, obj, SELECTOR(message), curEvent.character);
 		// We only care about the translated character
