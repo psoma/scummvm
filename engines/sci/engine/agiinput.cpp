@@ -41,9 +41,11 @@ void agiDemakeLogLine(const Common::String &line);	// text16.cpp, AGI demake dia
 
 namespace {
 
-// The bottom AGI text row: 8 rows of the 8x8 AGI font, 40 columns of 8 pixels
-const int kRowTop = 192;
-const int kRowHeight = 8;
+// The bottom AGI text row: one black gap row (191) between the picture and the text, then 8 rows
+// of the 8x8 AGI font (192-199), 40 columns of 8 pixels
+const int kRowTop = 191;
+const int kGapRows = 1;
+const int kRowHeight = 9;
 const int kScreenW = 320;
 const int kColumns = kScreenW / 8;
 // Prompt (1 column) + text + cursor (1 column) fill the 40 columns
@@ -57,6 +59,8 @@ const int kBufferSize = 64;
 
 const EngineState *g_lineFor = nullptr;	// the game session the typed line belongs to
 Common::String g_line;
+bool g_shown = false;	// typing is allowed, so the line is on screen
+reg_t g_user = NULL_REG;	// the User object, found once per game session
 byte g_overlay[kRowHeight * kScreenW];
 
 bool hasParserVocabulary() {
@@ -69,21 +73,28 @@ bool hasParserVocabulary() {
 
 // The game's User object, found the same way as GuestAdditions::userHasControl
 reg_t findUser(EngineState *s) {
+	if (!g_user.isNull() && s->_segMan->getObject(g_user))
+		return g_user;
 	reg_t user = s->_segMan->findObjectByName("User");
 	if (user.isNull() && (g_sci->getGameId() == GID_LSL3 || g_sci->getGameId() == GID_SQ3))
 		user = s->_segMan->findObjectByName("PUser");
 	if (user.isNull())
 		user = s->variables[VAR_GLOBAL][kGlobalVarUser];
+	g_user = user;
 	return user;
 }
 
-// User canInput: the game is accepting typed lines (no cutscene, no arcade sequence)
-bool userCanInput(EngineState *s) {
+// Typing is allowed when the game has the player "hands on": User canInput and controls both on,
+// the same test as GuestAdditions::userHasControl. Title, logo and cutscene screens leave at least
+// one of them off (QfG1 leaves canInput on at its title screen, so canInput alone isn't enough)
+bool userCanType(EngineState *s) {
 	const reg_t user = findUser(s);
 	const Object *userObject = s->_segMan->getObject(user);
-	if (!userObject || userObject->locateVarSelector(s->_segMan, SELECTOR(canInput)) < 0)
+	if (!userObject || userObject->locateVarSelector(s->_segMan, SELECTOR(canInput)) < 0 ||
+			userObject->locateVarSelector(s->_segMan, SELECTOR(controls)) < 0)
 		return false;
-	return readSelectorValue(s->_segMan, user, SELECTOR(canInput)) != 0;
+	return readSelectorValue(s->_segMan, user, SELECTOR(canInput)) != 0 &&
+		readSelectorValue(s->_segMan, user, SELECTOR(controls)) != 0;
 }
 
 bool windowOpen() {
@@ -127,11 +138,22 @@ bool agiInputActive() {
 	if (g_lineFor != g_sci->getEngineState()) {
 		g_lineFor = g_sci->getEngineState();
 		g_line.clear();
+		g_shown = false;
+		g_user = NULL_REG;
 	}
 	const bool demake = ConfMan.hasKey("agi_demake") && ConfMan.getBool("agi_demake");
 	const bool popUp = ConfMan.hasKey("agi_input") && ConfMan.getInt("agi_input") == 1;
 	return demake && !popUp && g_sci->_gfxScreen && g_sci->_gfxScreen->agiDemake() &&
 		g_sci->_gfxScreen->getHeight() == 200 && hasParserVocabulary();
+}
+
+void agiInputUpdate(EngineState *s) {
+	const bool shown = agiInputActive() && userCanType(s);
+	if (shown == g_shown)
+		return;
+	g_shown = shown;
+	logLine(shown ? "line shown" : "line hidden");
+	refreshRow();
 }
 
 bool agiInputHandleKey(EngineState *s, reg_t obj, const SciEvent &ev, uint16 modifiers) {
@@ -141,7 +163,7 @@ bool agiInputHandleKey(EngineState *s, reg_t obj, const SciEvent &ev, uint16 mod
 	if (modifiers & (kSciKeyModCtrl | kSciKeyModAlt))
 		return false;
 	// While a message box or dialog is open the keys go to it, as in Pop-up type
-	if (windowOpen() || !userCanInput(s))
+	if (windowOpen() || !g_shown)
 		return false;
 
 	const uint16 key = ev.character;
@@ -206,7 +228,7 @@ bool agiInputHandleKey(EngineState *s, reg_t obj, const SciEvent &ev, uint16 mod
 }
 
 const byte *agiInputOverlay() {
-	if (!agiInputActive())
+	if (!agiInputActive() || !g_shown)
 		return nullptr;
 
 	memset(g_overlay, kBackColor, sizeof(g_overlay));
@@ -214,10 +236,10 @@ const byte *agiInputOverlay() {
 	const Common::String shown = Common::String(kPrompt) + g_line + kCursor;
 	for (uint col = 0; col < shown.size() && col < (uint)kColumns; ++col) {
 		const byte *glyph = Graphics::DosFont::fontData_PCBIOS + (byte)shown[col] * 8;
-		for (int y = 0; y < kRowHeight; ++y)
+		for (int y = 0; y < 8; ++y)
 			for (int x = 0; x < 8; ++x)
 				if (glyph[y] & (0x80 >> x))
-					g_overlay[y * kScreenW + col * 8 + x] = kTextColor;
+					g_overlay[(kGapRows + y) * kScreenW + col * 8 + x] = kTextColor;
 	}
 
 	// Open windows stay on top of the line

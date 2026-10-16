@@ -183,6 +183,9 @@ reg_t kGetEvent(EngineState *s, int argc, reg_t *argv) {
 		modifiers |= 0x0200;
 	}
 
+	// AGI demake, Input box "AGI Type": show the AGI input line only while typing is allowed
+	agiInputUpdate(s);
+
 	switch (curEvent.type) {
 	case kSciEventQuit:
 		s->abortScriptProcessing = kAbortQuitGame; // Terminate VM

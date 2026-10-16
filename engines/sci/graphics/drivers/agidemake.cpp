@@ -153,7 +153,7 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 	const byte *s = src + srcY * pitch + srcX;
 	const byte *m = palModMapping ? palModMapping + destY * _screenW + destX : nullptr;
 	byte *d = _demakeBuffer;
-	const byte *agiOverlay = (destY + h > 192 && _screenW == 320) ? agiInputOverlay() : nullptr;
+	const byte *agiOverlay = (destY + h > 191 && _screenW == 320) ? agiInputOverlay() : nullptr;
 	for (int y = 0; y < h; ++y) {
 		const int row = destY + y;
 		for (int x = 0; x < w; x += 2) {
@@ -200,8 +200,8 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 		}
 		// AGI demake, Input box "AGI Type": the AGI input line on the bottom text row, drawn over
 		// the picture and sprites (open windows stay on top of it, see agiInputOverlay)
-		if (agiOverlay && row >= 192 && row < 200) {
-			const byte *o = agiOverlay + (row - 192) * 320 + destX;
+		if (agiOverlay && row >= 191 && row < 200) {
+			const byte *o = agiOverlay + (row - 191) * 320 + destX;
 			for (int x = 0; x < w && destX + x < 320; ++x)
 				if (o[x] != 0xFF)
 					d[x] = o[x];
