@@ -312,6 +312,24 @@ const PopUpOptionsMap popUpOptionsList[] = {
 	},
 	{
 		GAMEOPTION_AGI_DEMAKE,
+		_s("Input box:"),
+		_s("How typed commands are entered in AGI-style demake: on the bottom line like AGI, with the game still running, or in Sierra's pop-up box, which pauses the game"),
+		"agi_input",
+		0,
+		{
+			{
+				_s("AGI Type"),
+				0
+			},
+			{
+				_s("Pop-up type"),
+				1
+			},
+			POPUP_OPTIONS_ITEMS_TERMINATOR
+		}
+	},
+	{
+		GAMEOPTION_AGI_DEMAKE,
 		_s("Dither handler:"),
 		_s("How AGI-style demake graphics show Sierra's dithered colours: one flat colour, or a chunky checkerboard of fat pixels"),
 		"agi_dither",

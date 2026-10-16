@@ -50,6 +50,7 @@ OptionsWidget::OptionsWidget(GuiObject *boss, const Common::String &name, const 
 		agiDemakeOffered(ConfMan.getPath("path", domain), ConfMan.get("gameid", domain), SCI_VERSION_NONE,
 			Common::parsePlatform(ConfMan.get("platform", domain)) == Common::kPlatformWindows);
 	auto isAgiOption = [](const char *option) { return !strcmp(option, "agi_demake") || !strcmp(option, "agi_sound"); };
+	auto isAgiPopUp = [](const char *option) { return !strcmp(option, "agi_input") || !strcmp(option, "agi_dither"); };
 
 	for (const ADExtraGuiOptionsMap *entry = optionsList; entry->guioFlag; ++entry)
 		if ((isAgiOption(entry->option.configOption) && agiOffered) ||
@@ -60,7 +61,7 @@ OptionsWidget::OptionsWidget(GuiObject *boss, const Common::String &name, const 
 		}
 
 	for (const PopUpOptionsMap *entry = popUpOptionsList; entry->guioFlag; ++entry)
-		if (!strcmp(entry->configOption, "agi_dither") ? agiOffered : checkGameGUIOption(entry->guioFlag, _guiOptions)) {
+		if (isAgiPopUp(entry->configOption) ? agiOffered : checkGameGUIOption(entry->guioFlag, _guiOptions)) {
 			GUI::StaticTextWidget *textWidget = new GUI::StaticTextWidget(widgetsBoss(), _dialogLayout + "." + entry->configOption + "_desc", _(entry->label), _(entry->tooltip));
 			textWidget->setAlign(Graphics::kTextAlignRight);
 
@@ -75,10 +76,14 @@ void OptionsWidget::defineLayout(GUI::ThemeEval &layouts, const Common::String &
 	layouts.addDialog(layoutName, overlayedLayout);
 	layouts.addLayout(GUI::ThemeLayout::kLayoutVertical).addPadding(0, 0, 0, 0);
 
-	// the AGI dither handler pulldown sits directly under the AGI demake checkbox it belongs to
+	// the AGI input box and dither handler pulldowns sit directly under the AGI demake checkbox they
+	// belong to, input box first
 	for (const ADExtraGuiOptionsMap *entry = optionsList; entry->guioFlag; ++entry) {
 		layouts.addWidget(entry->option.configOption, "Checkbox");
 		if (!strcmp(entry->option.configOption, "agi_demake")) {
+			layouts.addLayout(GUI::ThemeLayout::kLayoutHorizontal).addPadding(0, 0, 0, 0);
+			layouts.addWidget("agi_input_desc", "OptionsLabel");
+			layouts.addWidget("agi_input", "PopUp").closeLayout();
 			layouts.addLayout(GUI::ThemeLayout::kLayoutHorizontal).addPadding(0, 0, 0, 0);
 			layouts.addWidget("agi_dither_desc", "OptionsLabel");
 			layouts.addWidget("agi_dither", "PopUp").closeLayout();
@@ -86,7 +91,7 @@ void OptionsWidget::defineLayout(GUI::ThemeEval &layouts, const Common::String &
 	}
 
 	for (const PopUpOptionsMap *entry = popUpOptionsList; entry->guioFlag; ++entry) {
-		if (!strcmp(entry->configOption, "agi_dither"))
+		if (!strcmp(entry->configOption, "agi_dither") || !strcmp(entry->configOption, "agi_input"))
 			continue;
 		layouts.addLayout(GUI::ThemeLayout::kLayoutHorizontal).addPadding(0, 0, 0, 0);
 		layouts.addWidget(Common::String(entry->configOption) + "_desc", "OptionsLabel");
@@ -102,7 +107,7 @@ void OptionsWidget::load() {
 			_checkboxes[entry->option.configOption]->setState(ConfMan.getBool(entry->option.configOption, _domain));
 
 	for (const PopUpOptionsMap *entry = popUpOptionsList; entry->guioFlag; ++entry)
-		if (checkGameGUIOption(entry->guioFlag, _guiOptions))
+		if (_popUps.contains(entry->configOption))
 			_popUps[entry->configOption]->setSelectedTag(ConfMan.getInt(entry->configOption, _domain));
 
 	updateDemakeDependents();
@@ -118,7 +123,7 @@ bool OptionsWidget::save() {
 			ConfMan.setBool(entry->option.configOption, _checkboxes[entry->option.configOption]->getState(), _domain);
 
 	for (const PopUpOptionsMap *entry = popUpOptionsList; entry->guioFlag; ++entry)
-		if (checkGameGUIOption(entry->guioFlag, _guiOptions))
+		if (_popUps.contains(entry->configOption))
 			ConfMan.setInt(entry->configOption, _popUps[entry->configOption]->getSelectedTag(), _domain);
 
 	// Remove deprecated option
@@ -137,9 +142,12 @@ void OptionsWidget::updateDemakeDependents() {
 			_checkboxes["disable_dithering"]->setState(true);
 		_checkboxes["disable_dithering"]->setEnabled(!demake);
 	}
-	// the dither handler only applies to AGI demake, so it is greyed out while that is unticked
+	// the input box and dither handler only apply to AGI demake, so they are greyed out while that is
+	// unticked
 	if (_checkboxes.contains("agi_demake") && _popUps.contains("agi_dither"))
 		_popUps["agi_dither"]->setEnabled(_checkboxes["agi_demake"]->getState());
+	if (_checkboxes.contains("agi_demake") && _popUps.contains("agi_input"))
+		_popUps["agi_input"]->setEnabled(_checkboxes["agi_demake"]->getState());
 	// AGI sound is PCjr only, so digital sound effects are switched off while it is ticked
 	if (_checkboxes.contains("agi_sound") && _checkboxes.contains("prefer_digitalsfx")) {
 		const bool agiSound = _checkboxes["agi_sound"]->getState();

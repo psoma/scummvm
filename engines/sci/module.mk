@@ -13,6 +13,7 @@ MODULE_OBJS := \
 	engine/gc.o \
 	engine/guest_additions.o \
 	engine/kernel.o \
+	engine/agiinput.o \
 	engine/kevent.o \
 	engine/kfile.o \
 	engine/kgraphics.o \

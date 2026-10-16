@@ -1,4 +1,4 @@
-# SCI to AGI Demake (unofficial ScummVM fork) - v0.230
+# SCI to AGI Demake (unofficial ScummVM fork) - v0.231
 
 This fork adds an **AGI-style demake** mode to ScummVM's SCI engine. Early Sierra SCI games (SCI0 / SCI01, 16-colour EGA) are drawn the way Sierra's older AGI games looked: 160-pixel-wide "fat" pixels, no dithering, the 8x8 AGI font, AGI-style message boxes, and optional PCjr sound.
 
@@ -17,6 +17,7 @@ It is an unofficial, personal fork. It is not part of ScummVM and is not endorse
 2. Select it and click **Game Options...**
 3. On the **Game** tab:
    - Tick **AGI-style demake graphics** (this also forces "Skip EGA dithering pass" on)
+   - Optionally set **Input box** (pulldown under the AGI demake option): *AGI Type* (default) or *Pop-up type*
    - Optionally tick **Force AGI sound** for PCjr sound emulation (this switches off "Prefer digital sound effects")
 4. Click **OK** and start the game
 
@@ -32,6 +33,7 @@ It is an unofficial, personal fork. It is not part of ScummVM and is not endorse
   - Faces where the eyes merged, the shooting range targets, inventory item frames, and Sonny's head on his diving suits
   - The police computer screen, and a few text boxes re-wrapped to fit
 - **Status line** (every game): written the AGI way, "Score: X out of Y" on the left and "Sound: on" or "Sound: off" on the right. Lines without a score are left as the game wrote them
+- **Input box** (pulldown directly under the AGI demake option, games with a typed parser): *AGI Type* (default) puts the typed line on the bottom row of the screen with a `>` prompt and `_` cursor, like AGI, and the game keeps running while you type. Up to 38 characters. Backspace deletes, Esc clears the line, Enter sends it. While a message box is open, keys go to the box. *Pop-up type* keeps Sierra's own input box, which pauses the game. Takes effect next time the game starts
 - **Dither handler** (pulldown directly under the AGI demake option, any game): *Flat approximation* (default) shows each dithered colour pair as one colour. *Chunky dither* draws it as a checkerboard of fat pixels in its two colours. Takes effect next time the game starts
 - **Game-specific fixes (Hero's Quest, in progress):**
   - Title sign lettering: every line re-spaced with a hole in each letter
