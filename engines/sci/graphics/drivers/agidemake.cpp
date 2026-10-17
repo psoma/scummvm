@@ -126,8 +126,15 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 	};
 	const byte *lut = _lut;
 	byte roomLut[256];
+	// PQ2 police station hallway (room 2): the walls are drawn as a 1 pixel checkerboard of grey (7)
+	// and white (15) in the picture itself, not as Sierra dithering, so undithering doesn't remove
+	// it and keeping the left pixel of each pair gives horizontal stripes. Checker pixels (grey or
+	// white with the other colour directly above or below) are shown white. Where a fat pixel has a
+	// checker pixel and a line or edge pixel, the line wins, so vertical lines and edges stay straight
+	bool checkerToWhite = false;
 	if (g_sci && g_sci->getEngineState()) {
 		const uint16 room = g_sci->getEngineState()->currentRoomNumber();
+		checkerToWhite = (g_sci->getGameId() == GID_PQ2 && room == 2);
 		for (uint i = 0; i < ARRAYSIZE(kRoomPairColors); ++i) {
 			if (kRoomPairColors[i].game != g_sci->getGameId() || (kRoomPairColors[i].room != room && kRoomPairColors[i].room != kAnyRoom))
 				continue;
@@ -151,6 +158,16 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 		if (fatChecker && code >= 0x10 && code != 0xFF)
 			return (((col >> 1) + row) & 1) ? (code >> 4) : (code & 0x0F);
 		return lut[code];
+	};
+
+	// A grey or white picture pixel in a grey and white checkerboard: the other colour is directly
+	// above or below it (a solid grey or white line has the same colour above and below)
+	auto checkerPixel = [&](const byte *rowPtr, int x, int srow, int rowPitch) -> bool {
+		const byte v = rowPtr[x];
+		if (v != 7 && v != 15)
+			return false;
+		const byte other = (v == 7) ? 15 : 7;
+		return (srow > 0 && rowPtr[x - rowPitch] == other) || (srow + 1 < _screenH && rowPtr[x + rowPitch] == other);
 	};
 
 	// palModMapping is the full-screen map buffer: 1 marks text, 2 marks window frames
@@ -180,6 +197,13 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 				d[x] = c;
 				if (hasRight)
 					d[x + 1] = c;
+			} else if (checkerToWhite && hasRight && pitch == _screenW &&
+					(checkerPixel(s, x, srcY + y, pitch) || checkerPixel(s, x + 1, srcY + y, pitch))) {
+				const bool cl = checkerPixel(s, x, srcY + y, pitch);
+				const bool cr = checkerPixel(s, x + 1, srcY + y, pitch);
+				const byte c = (cl && cr) ? 15 : lut[cl ? s[x + 1] : s[x]];
+				d[x] = c;
+				d[x + 1] = c;
 			} else {
 				byte c = px(s[x], scol, row);
 				// A 1 pixel vertical line in the right half of the pair (left pixel matches its
