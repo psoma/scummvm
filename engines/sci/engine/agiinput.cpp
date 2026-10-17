@@ -223,8 +223,12 @@ void updateShown(EngineState *s) {
 	// While the game has typing off (HandsOff: the hero searching, walking in, other short
 	// animations) ">_" stays as it was, as in AGI. It goes when the status line goes, or when the
 	// next room or state with typing on turns out not to take typed lines
+	// A new room or state not checked yet (the dummy probe is a frame or two away) also keeps ">_" as
+	// it was. Room transitions don't call GetEvent while they run, so a timed hold alone ran out
+	// during them and ">_" flashed off and on
 	const bool canInput = userCanInput(s);
-	const bool wanted = g_statusOn && ((canInput && (!g_line.empty() || allowedHere(s) == 1)) || (!canInput && g_shown));
+	const int allowed = allowedHere(s);
+	const bool wanted = g_statusOn && ((canInput && (!g_line.empty() || allowed == 1)) || ((!canInput || allowed < 0) && g_shown));
 	if (wanted)
 		g_lastWantedMs = now;
 	const bool shown = wanted || (g_shown && now - g_lastWantedMs < kHideHoldMs);
