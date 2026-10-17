@@ -220,7 +220,11 @@ void updateShown(EngineState *s) {
 	}
 	if (g_statusFor != s)
 		g_statusOn = false;
-	const bool wanted = g_statusOn && userCanInput(s) && (!g_line.empty() || allowedHere(s) == 1);
+	// While the game has typing off (HandsOff: the hero searching, walking in, other short
+	// animations) ">_" stays as it was, as in AGI. It goes when the status line goes, or when the
+	// next room or state with typing on turns out not to take typed lines
+	const bool canInput = userCanInput(s);
+	const bool wanted = g_statusOn && ((canInput && (!g_line.empty() || allowedHere(s) == 1)) || (!canInput && g_shown));
 	if (wanted)
 		g_lastWantedMs = now;
 	const bool shown = wanted || (g_shown && now - g_lastWantedMs < kHideHoldMs);
@@ -310,10 +314,14 @@ bool agiInputHandleKey(EngineState *s, reg_t obj, SciEvent &ev, uint16 modifiers
 
 	// While a message box or dialog is open the keys go to it. Screens without the status line
 	// (start-up screens) keep Sierra's own input box
-	if (g_hijack != kHijackNone || windowOpen() || !userCanInput(s) || !g_statusOn || g_statusFor != s)
+	if (g_hijack != kHijackNone || windowOpen() || !g_statusOn || g_statusFor != s)
+		return false;
+	const bool canInput = userCanInput(s);
+	// With typing off, keys still go into the line while ">_" is up (Enter waits until typing is on)
+	if (!canInput && !g_shown)
 		return false;
 	const int allowed = allowedHere(s);
-	const bool userDoit = fromUserDoit(s);
+	const bool userDoit = fromUserDoit(s) && canInput;
 
 	// Enter was pressed on the line: send it now that User doit is asking (see the Enter key below)
 	if (g_submitQueued && userDoit && ev.type == kSciEventNone) {
@@ -345,7 +353,7 @@ bool agiInputHandleKey(EngineState *s, reg_t obj, SciEvent &ev, uint16 modifiers
 	const uint16 key = ev.character;
 	const bool printable = (key >= 32 && key <= 126);
 
-	if (g_line.empty() && allowed != 1) {
+	if (g_line.empty() && canInput && allowed != 1) {
 		// Not known to be allowed here: the key goes to the game, and if the game opens its input
 		// box for it the box is taken over (see above)
 		if (printable && userDoit && !g_submitQueued) {
