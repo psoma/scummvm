@@ -94,6 +94,7 @@ uint32 g_probeState = 0;	// the state the pending probe or submit was made in
 Common::HashMap<uint32, bool> g_allowed;	// per room and state: does the game take typed lines there
 uint32 g_lastWantedMs = 0;	// when ">_" last had a reason to be on screen
 Common::String g_submitText;
+bool g_submitQueued = false;	// Enter was pressed: send the line next time User doit asks for an event
 byte g_overlay[kRowHeight * kScreenW];
 
 bool hasParserVocabulary() {
@@ -172,6 +173,23 @@ bool inGetInput(EngineState *s) {
 	return false;
 }
 
+// This GetEvent is the one in User doit, the game's main input loop (directly, or through Event
+// new). Other scripts also call GetEvent (QfG1: Event new in System.sc, Cat.sc), and a key handed to
+// them never reaches User handleEvent, so probes and lines are only sent through this one
+bool fromUserDoit(EngineState *s) {
+	const reg_t user = findUser(s);
+	int scriptFrames = 0;
+	for (Common::List<ExecStack>::const_iterator it = s->_executionStack.reverse_begin(); it != s->_executionStack.end(); --it) {
+		if (it->type == EXEC_STACK_TYPE_KERNEL)
+			continue;
+		if (++scriptFrames > 2)
+			return false;
+		if (it->debugSelector == SELECTOR(doit) && it->sendp == user)
+			return true;
+	}
+	return false;
+}
+
 bool windowOpen() {
 	if (!g_sci->_gfxPorts)
 		return false;
@@ -216,6 +234,7 @@ bool agiInputActive() {
 		g_refreshPending = false;
 		g_user = NULL_REG;
 		g_hijack = kHijackNone;
+		g_submitQueued = false;
 		g_allowed.clear();
 		g_getInputSel = g_sci->getKernel()->findSelector("getInput");
 		g_inputLineSel = g_sci->getKernel()->findSelector("inputLineAddr");
@@ -234,6 +253,7 @@ void agiInputUpdate(EngineState *s) {
 	if (g_hijack != kHijackNone && !inGetInput(s)) {
 		if (g_hijack == kHijackSubmit) {
 			g_line = g_submitText;
+			g_refreshPending = true;
 			logLine(Common::String::format("\"%s\" not taken by the game", g_submitText.c_str()));
 		}
 		setAllowed(g_probeState, false);
@@ -254,8 +274,10 @@ bool agiInputHandleKey(EngineState *s, reg_t obj, SciEvent &ev, uint16 modifiers
 	// box asks for becomes Esc for a probe, or Enter with the line in place for a submit)
 	if (g_hijack != kHijackNone && inGetInput(s)) {
 		if (g_hijack == kHijackProbe || g_hijack == kHijackDummy) {
-			if (g_hijack == kHijackProbe)
+			if (g_hijack == kHijackProbe) {
 				g_line = Common::String((char)g_probeKey);
+				g_refreshPending = true;
+			}
 			setAllowed(g_probeState, true);
 			ev.type = kSciEventKeyDown;
 			ev.character = kSciKeyEsc;
@@ -275,9 +297,21 @@ bool agiInputHandleKey(EngineState *s, reg_t obj, SciEvent &ev, uint16 modifiers
 	if (g_hijack != kHijackNone || windowOpen() || !userCanInput(s))
 		return false;
 	const int allowed = allowedHere(s);
+	const bool userDoit = fromUserDoit(s);
+
+	// Enter was pressed on the line: send it now that User doit is asking (see the Enter key below)
+	if (g_submitQueued && userDoit && ev.type == kSciEventNone) {
+		g_submitQueued = false;
+		g_hijack = kHijackSubmit;
+		g_probeState = currentState(s);
+		ev.type = kSciEventKeyDown;
+		ev.character = (byte)g_submitText[0];
+		ev.modifiers = kSciKeyModNone;
+		return false;
+	}
 
 	// Nothing waiting and this room and state not probed yet: send the dummy key
-	if (ev.type == kSciEventNone && allowed < 0 && (mask & kSciEventKeyDown)) {
+	if (!g_submitQueued && userDoit && ev.type == kSciEventNone && allowed < 0 && (mask & kSciEventKeyDown)) {
 		g_hijack = kHijackDummy;
 		g_probeState = currentState(s);
 		ev.type = kSciEventKeyDown;
@@ -298,7 +332,7 @@ bool agiInputHandleKey(EngineState *s, reg_t obj, SciEvent &ev, uint16 modifiers
 	if (g_line.empty() && allowed != 1) {
 		// Not known to be allowed here: the key goes to the game, and if the game opens its input
 		// box for it the box is taken over (see above)
-		if (printable) {
+		if (printable && userDoit && !g_submitQueued) {
 			g_hijack = kHijackProbe;
 			g_probeKey = key;
 			g_probeState = currentState(s);
@@ -317,15 +351,13 @@ bool agiInputHandleKey(EngineState *s, reg_t obj, SciEvent &ev, uint16 modifiers
 	} else if (key == kSciKeyEsc) {
 		g_line.clear();
 	} else if (key == kSciKeyEnter) {
-		// Send the line's first letter so the game opens its input box again, as it did for the
-		// probe, then the box gets the whole line
+		// The line's first letter is sent when User doit next asks for an event, so the game opens
+		// its input box again as it did for the probe, then the box gets the whole line
+		if (g_submitQueued)
+			return false;
 		g_submitText = g_line;
-		g_hijack = kHijackSubmit;
-		g_probeState = currentState(s);
-		ev.character = (byte)g_line[0];
+		g_submitQueued = true;
 		g_line.clear();
-		updateShown(s);
-		return false;
 	} else {
 		return false;
 	}
