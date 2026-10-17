@@ -3969,8 +3969,8 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	_screen->setCurPaletteMapValue(3);
 	// PQ2 car park (room 1): the chain-link fence in front of the parked cars is 1 pixel wires with
 	// gaps between. A fat pixel with a wire over one half and a gap under the other went wholly to
-	// the car (see the sprite edge marking above), so the fence vanished. Here a sprite fat pixel is
-	// left out wherever something in front covers either half, so the fence stays in front
+	// the car (see the sprite edge marking above), so the fence vanished. Here a sprite fat pixel
+	// where something in front covers either half shows the thing in front in both halves
 	const bool hideHalfCovered = g_sci->getGameId() == GID_PQ2 && g_sci->getEngineState() &&
 		g_sci->getEngineState()->currentRoomNumber() == 1;
 	for (int cy = clipRect.top - rect.top; cy < MIN<int>(celHeight, clipRect.bottom - rect.top); ++cy) {
@@ -3980,14 +3980,24 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 			if (color == clearKey)
 				continue;
 			if (hideHalfCovered) {
-				bool covered = false;
+				int coveredX = -1;
 				for (int i = 0; i < 2; ++i) {
 					const int x2 = pairStart + 2 * (f - pad) + i;
 					if (x2 >= clipLeft && x2 < clipRectTranslated.right && priority < _screen->getPriority(x2, y2))
-						covered = true;
+						coveredX = x2;
 				}
-				if (covered)
+				if (coveredX >= 0) {
+					// The other half shows the fence too: left as it was, it showed whatever is behind
+					// the car there (the yellow parking line)
+					const byte front = _screen->getVisual(coveredX, y2);
+					for (int i = 0; i < 2; ++i) {
+						const int x2 = pairStart + 2 * (f - pad) + i;
+						if (x2 != coveredX && x2 >= clipLeft && x2 < clipRectTranslated.right &&
+								priority >= _screen->getPriority(x2, y2) && !agiDemakeUnderWindow(windowRects, x2, y2))
+							_screen->putPixel(x2, y2, GFX_SCREEN_MASK_VISUAL, front, 0, 0);
+					}
 					continue;
+				}
 			}
 			for (int i = 0; i < 2; ++i) {
 				const int x2 = pairStart + 2 * (f - pad) + i;
