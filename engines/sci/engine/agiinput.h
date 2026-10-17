@@ -46,6 +46,10 @@ void agiInputUpdate(EngineState *s);
 // Otherwise ev may have been changed (the key or event the game is given) and kGetEvent carries on
 bool agiInputHandleKey(EngineState *s, reg_t obj, SciEvent &ev, uint16 modifiers, uint16 mask);
 
+// Called by kDrawStatus: the status line was drawn (true) or switched off (false, DrawStatus 0).
+// ">_" only shows while the status line is on, as in AGI
+void agiInputStatusDrawn(bool on);
+
 // True while Sierra's input box is being taken over: the AGI demake gfx driver skips screen
 // updates so the box is never seen
 bool agiInputHideScreenUpdates();

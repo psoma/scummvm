@@ -93,6 +93,10 @@ uint16 g_probeKey = 0;
 uint32 g_probeState = 0;	// the state the pending probe or submit was made in
 Common::HashMap<uint32, bool> g_allowed;	// per room and state: does the game take typed lines there
 uint32 g_lastWantedMs = 0;	// when ">_" last had a reason to be on screen
+// The game's status line is on: DrawStatus was last called with text, not 0. QfG1 (Game.sc, SL)
+// leaves it off on its start-up screens (copy protection notice, title) and turns it on for play
+bool g_statusOn = false;
+const EngineState *g_statusFor = nullptr;	// the game session g_statusOn was set in
 Common::String g_submitText;
 bool g_submitQueued = false;	// Enter was pressed: send the line next time User doit asks for an event
 byte g_overlay[kRowHeight * kScreenW];
@@ -205,7 +209,18 @@ void refreshRow() {
 
 void updateShown(EngineState *s) {
 	const uint32 now = g_system->getMillis();
-	const bool wanted = userCanInput(s) && (!g_line.empty() || allowedHere(s) == 1);
+	// A message box is open: ">_" stays as it is, as in AGI, and anything typed is cleared
+	if (windowOpen() && !inGetInput(s)) {
+		if (!g_line.empty()) {
+			g_line.clear();
+			g_refreshPending = true;
+		}
+		g_lastWantedMs = now;
+		return;
+	}
+	if (g_statusFor != s)
+		g_statusOn = false;
+	const bool wanted = g_statusOn && userCanInput(s) && (!g_line.empty() || allowedHere(s) == 1);
 	if (wanted)
 		g_lastWantedMs = now;
 	const bool shown = wanted || (g_shown && now - g_lastWantedMs < kHideHoldMs);
@@ -293,8 +308,9 @@ bool agiInputHandleKey(EngineState *s, reg_t obj, SciEvent &ev, uint16 modifiers
 		return false;	// kGetEvent hands the box the event made here
 	}
 
-	// While a message box or dialog is open the keys go to it
-	if (g_hijack != kHijackNone || windowOpen() || !userCanInput(s))
+	// While a message box or dialog is open the keys go to it. Screens without the status line
+	// (start-up screens) keep Sierra's own input box
+	if (g_hijack != kHijackNone || windowOpen() || !userCanInput(s) || !g_statusOn || g_statusFor != s)
 		return false;
 	const int allowed = allowedHere(s);
 	const bool userDoit = fromUserDoit(s);
@@ -371,6 +387,11 @@ bool agiInputHandleKey(EngineState *s, reg_t obj, SciEvent &ev, uint16 modifiers
 	writeSelectorValue(segMan, obj, SELECTOR(modifiers), modifiers);
 	s->r_acc = NULL_REG;
 	return true;
+}
+
+void agiInputStatusDrawn(bool on) {
+	g_statusOn = on;
+	g_statusFor = g_sci ? g_sci->getEngineState() : nullptr;
 }
 
 bool agiInputHideScreenUpdates() {

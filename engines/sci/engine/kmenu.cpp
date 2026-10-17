@@ -22,6 +22,7 @@
 #include "sci/sci.h"
 #include "sci/resource/resource.h"
 #include "sci/engine/state.h"
+#include "sci/engine/agiinput.h"
 #include "sci/engine/kernel.h"
 #include "sci/graphics/cursor.h"
 #include "sci/graphics/menu.h"
@@ -67,6 +68,9 @@ reg_t kDrawStatus(EngineState *s, int argc, reg_t *argv) {
 	Common::String text;
 	int16 colorPen = (argc > 1) ? argv[1].toSint16() : 0;
 	int16 colorBack = (argc > 2) ? argv[2].toSint16() : g_sci->_gfxScreen->getColorWhite();
+
+	// AGI demake, Input box "AGI Type": ">_" only shows while the status line is on
+	agiInputStatusDrawn(!textReference.isNull());
 
 	if (!textReference.isNull()) {
 		// Sometimes this is called without giving text, if that's the case don't process it.
