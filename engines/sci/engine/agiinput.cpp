@@ -194,6 +194,12 @@ bool fromUserDoit(EngineState *s) {
 	return false;
 }
 
+// Sierra's input box is up and the AGI line takes it over: everywhere the status line is on
+// (start-up screens without it keep Sierra's box)
+bool takeOverBox(EngineState *s) {
+	return g_statusOn && g_statusFor == s && inGetInput(s);
+}
+
 bool windowOpen() {
 	if (!g_sci->_gfxPorts)
 		return false;
@@ -295,6 +301,23 @@ bool agiInputHandleKey(EngineState *s, reg_t obj, SciEvent &ev, uint16 modifiers
 
 	// Inside Sierra's input box that we opened on purpose: answer it straight away (any event the
 	// box asks for becomes Esc for a probe, or Enter with the line in place for a submit)
+	// The game opened its input box by itself, not for a probe or submit: a menu shortcut that
+	// fills the box first (QfG1 Menu.sc: Ctrl+A "ask about ", Ctrl+L "look at "), or a room that
+	// asks for a line itself. The box's starting text goes into the AGI line instead
+	if (g_hijack == kHijackNone && takeOverBox(s)) {
+		const reg_t user = findUser(s);
+		g_line = s->_segMan->getString(readSelector(s->_segMan, user, g_inputLineSel));
+		if (g_line.size() > kMaxChars)
+			g_line = Common::String(g_line.c_str(), kMaxChars);
+		g_refreshPending = true;
+		logLine(Common::String::format("game's box taken over, starting \"%s\"", g_line.c_str()));
+		setAllowed(currentState(s), true);
+		ev.type = kSciEventKeyDown;
+		ev.character = kSciKeyEsc;
+		updateShown(s);
+		return false;
+	}
+
 	if (g_hijack != kHijackNone && inGetInput(s)) {
 		if (g_hijack == kHijackProbe || g_hijack == kHijackDummy) {
 			if (g_hijack == kHijackProbe) {
@@ -408,7 +431,7 @@ void agiInputStatusDrawn(bool on) {
 
 bool agiInputHideScreenUpdates() {
 	EngineState *s = g_sci ? g_sci->getEngineState() : nullptr;
-	return s && g_hijack != kHijackNone && agiInputActive() && inGetInput(s);
+	return s && agiInputActive() && (g_hijack != kHijackNone ? inGetInput(s) : takeOverBox(s));
 }
 
 const byte *agiInputOverlay() {
