@@ -215,8 +215,10 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 					const int col = srcX + x;
 					const byte b = px(s[x + 1], scol + 1, row);
 					if (b != c && col - 1 >= 0 && col + 2 < _screenW) {
-						const byte leftN = px(s[x - 1], scol - 1, row);
-						const byte rightN = px(s[x + 2], scol + 2, row);
+						// PQ2 room 2: a checker neighbour counts as the white it is shown as, so a line
+						// beside the checker wall gets the same answer on every row (no fringe)
+						const byte leftN = (checkerToWhite && checkerPixel(s, x - 1, srcY + y, pitch)) ? 15 : px(s[x - 1], scol - 1, row);
+						const byte rightN = (checkerToWhite && checkerPixel(s, x + 2, srcY + y, pitch)) ? 15 : px(s[x + 2], scol + 2, row);
 						if (c == leftN && b != rightN)
 							c = b;
 					}
