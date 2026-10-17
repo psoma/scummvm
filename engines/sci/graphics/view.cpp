@@ -3967,12 +3967,28 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	// the item's edge cuts it in half on screen, instead of letting the background take the pair
 	const byte oldSpriteMapValue = _screen->getCurPaletteMapValue();
 	_screen->setCurPaletteMapValue(3);
+	// PQ2 car park (room 1): the chain-link fence in front of the parked cars is 1 pixel wires with
+	// gaps between. A fat pixel with a wire over one half and a gap under the other went wholly to
+	// the car (see the sprite edge marking above), so the fence vanished. Here a sprite fat pixel is
+	// left out wherever something in front covers either half, so the fence stays in front
+	const bool hideHalfCovered = g_sci->getGameId() == GID_PQ2 && g_sci->getEngineState() &&
+		g_sci->getEngineState()->currentRoomNumber() == 1;
 	for (int cy = clipRect.top - rect.top; cy < MIN<int>(celHeight, clipRect.bottom - rect.top); ++cy) {
 		const int y2 = rect.top + cy + offsetY;
 		for (int f = 0; f < fatW; ++f) {
 			const byte color = fat[cy * fatW + f];
 			if (color == clearKey)
 				continue;
+			if (hideHalfCovered) {
+				bool covered = false;
+				for (int i = 0; i < 2; ++i) {
+					const int x2 = pairStart + 2 * (f - pad) + i;
+					if (x2 >= clipLeft && x2 < clipRectTranslated.right && priority < _screen->getPriority(x2, y2))
+						covered = true;
+				}
+				if (covered)
+					continue;
+			}
 			for (int i = 0; i < 2; ++i) {
 				const int x2 = pairStart + 2 * (f - pad) + i;
 				if (x2 < clipLeft || x2 >= clipRectTranslated.right)
