@@ -1653,10 +1653,12 @@ static bool agiDemakeIsQfgHero(int view, int loop = 0) {
 	// View 83 loop 8: sitting on a chair facing right (room 83). View 508: seen from behind in the
 	// stable. View 140: raking in the stable (his rake keeps its grey). Views 503, 519 and 550: at the
 	// brigand fortress and other scenes, facing you. View 97 loops 6 and 7: Yorick walking in and
-	// standing in Elsa's room
+	// standing in Elsa's room. View 122 loop 0: raising the magic mirror in Baba Yaga's hut (loop 1 is
+	// the reflection). View 139 loop 4: facing you at the award ceremony at the end
 	return g_sci->getGameId() == GID_QFG1 && (view == 0 || view == 4 || (view == 300 && loop == 8) ||
 		(view == 301 && loop == 6) || (view == 83 && loop == 8) || view == 508 || view == 140 ||
-		view == 503 || view == 519 || view == 550 || (view == 97 && (loop == 6 || loop == 7)));
+		view == 503 || view == 519 || view == 550 || (view == 97 && (loop == 6 || loop == 7)) ||
+		(view == 122 && loop == 0) || (view == 139 && loop == 4));
 }
 
 static void agiDemakeHeroSource(int view, int loop, const byte *src, int w, int h, byte clearKey, byte *out) {
@@ -2469,8 +2471,8 @@ static void agiDemakeYorickHair(int view, int loop, int h, byte clearKey, byte *
 // red or grey shading beside them, so the general eye rule misses them and they merge into one
 // fat block. On the first row with two short dark runs and face between them, each eye gets its own
 // fat pixel, one to the right of where the collapse puts them, with face colour between and beside.
-static void agiDemakeHeroEyes(int view, const SciSpan<const byte> &bitmap, int w, int h, byte clearKey, byte *fat, int fatW, int startX, int pad, int numPairs) {
-	if (!agiDemakeIsQfgHero(view))
+static void agiDemakeHeroEyes(int view, const SciSpan<const byte> &bitmap, int w, int h, byte clearKey, byte *fat, int fatW, int startX, int pad, int numPairs, int loop = 0) {
+	if (!agiDemakeIsQfgHero(view, loop))
 		return;
 	const byte black = 0, cyan = 3, skin = 12;
 	for (int y = 0; y < h / 3; ++y) {
@@ -4157,8 +4159,9 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		agiDemakeSpreadEyes(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad);
 	if (towards && !rangeTarget)
 		agiDemakeHeroEyes(_resourceId, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad, numPairs);
-	else if (g_sci->getGameId() == GID_QFG1 && (_resourceId == 503 || _resourceId == 519 || _resourceId == 550) && !qfgHeroKeep)
-		agiDemakeHeroEyes(_resourceId, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad, numPairs);	// facing you in other poses
+	else if (g_sci->getGameId() == GID_QFG1 && (_resourceId == 503 || _resourceId == 519 || _resourceId == 550 ||
+			(_resourceId == 139 && loopNo == 4)) && !qfgHeroKeep)
+		agiDemakeHeroEyes(_resourceId, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad, numPairs, loopNo);	// facing you in other poses
 	if (towards || away)
 		agiDemakeCopyHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	if (g_sci->getGameId() == GID_PQ2 && _resourceId == 205 && celWidth == 73)
