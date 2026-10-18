@@ -406,6 +406,92 @@ void GfxView::initData() {
 		}
 	}
 
+	// AGI demake, QfG1 intro lettering (credits view 902, character select view 506 loop 1, PRESENTS view
+	// 908 loop 1, title view 913 loop 1): the redrawn or re-spaced words are wider than Sierra's cels, so
+	// those cels are widened (Sierra's picture copied in where it was on screen). A cel sits centred on
+	// its x, so a word on its own stays centred. Words that share a line with another (WRITTEN & DIRECTED,
+	// ANIMATION &, BACKGROUND SCENES, GAME DEVELOPMENT, CHOOSE YOUR CHARACTER) grow away from their
+	// neighbour instead. Drawn in drawAgiDemake
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_QFG1 &&
+			(_resourceId == 902 || _resourceId == 506 || _resourceId == 908 || _resourceId == 913)) {
+		struct W { int view, loop, cel, from, to; char anchor; };
+		static const W kWiden[] = {
+			{ 506, 1, 0, 61, 75, 'R' },
+			{ 506, 1, 1, 42, 46, 'C' },
+			{ 506, 1, 2, 92, 110, 'L' },
+			{ 506, 1, 3, 68, 82, 'C' },
+			{ 506, 1, 4, 47, 61, 'C' },
+			{ 506, 1, 5, 45, 59, 'C' },
+			{ 506, 1, 6, 40, 48, 'C' },
+			{ 902, 0, 0, 67, 85, 'R' },
+			{ 902, 0, 3, 75, 95, 'L' },
+			{ 902, 0, 4, 110, 132, 'C' },
+			{ 902, 0, 5, 81, 105, 'R' },
+			{ 902, 0, 6, 99, 121, 'R' },
+			{ 902, 0, 7, 59, 75, 'L' },
+			{ 902, 0, 8, 42, 52, 'R' },
+			{ 902, 0, 9, 109, 133, 'L' },
+			{ 902, 0, 10, 59, 75, 'C' },
+			{ 902, 0, 11, 76, 94, 'C' },
+			{ 902, 0, 12, 84, 104, 'C' },
+			{ 902, 0, 13, 79, 95, 'C' },
+			{ 902, 1, 0, 117, 135, 'C' },
+			{ 902, 1, 1, 148, 182, 'C' },
+			{ 902, 1, 2, 97, 111, 'C' },
+			{ 902, 1, 3, 116, 138, 'C' },
+			{ 902, 1, 4, 91, 117, 'C' },
+			{ 902, 2, 0, 141, 173, 'C' },
+			{ 902, 2, 1, 131, 161, 'C' },
+			{ 902, 2, 2, 110, 130, 'C' },
+			{ 902, 2, 3, 150, 178, 'C' },
+			{ 902, 3, 1, 107, 127, 'C' },
+			{ 902, 3, 2, 109, 123, 'C' },
+			{ 902, 3, 3, 97, 115, 'C' },
+			{ 902, 4, 0, 58, 70, 'C' },
+			{ 902, 4, 1, 44, 58, 'C' },
+			{ 902, 4, 2, 58, 72, 'C' },
+			{ 902, 4, 3, 113, 131, 'C' },
+			{ 902, 5, 0, 46, 58, 'C' },
+			{ 902, 5, 1, 114, 136, 'C' },
+			{ 902, 5, 2, 117, 133, 'C' },
+			{ 908, 1, 0, 62, 66, 'C' },
+			{ 908, 1, 1, 62, 66, 'C' },
+			{ 908, 1, 2, 62, 66, 'C' },
+			{ 908, 1, 3, 60, 64, 'C' },
+			{ 908, 1, 4, 60, 64, 'C' },
+			{ 908, 1, 5, 60, 64, 'C' },
+			{ 908, 1, 6, 60, 66, 'C' },
+			{ 908, 1, 7, 60, 80, 'C' },
+			{ 913, 1, 3, 56, 60, 'C' },
+		};
+		for (uint i = 0; i < ARRAYSIZE(kWiden); ++i) {
+			const W &w = kWiden[i];
+			if (w.view != _resourceId || (int)_loop.size() <= w.loop || (int)_loop[w.loop].cel.size() <= w.cel ||
+					_loop[w.loop].cel[w.cel].width != w.from)
+				continue;
+			const SciSpan<const byte> &orig = getBitmap(w.loop, w.cel);
+			CelInfo &cel = _loop[w.loop].cel[w.cel];
+			Common::Array<byte> copy(orig.getUnsafeDataAt(0, cel.width * cel.height), cel.width * cel.height);
+			const int oldW = cel.width;
+			// 'C' grows both sides (stays centred), 'R' only on the left (keeps its right edge), 'L' only on
+			// the right (keeps its left edge): words side by side on one line keep Sierra's gaps between them
+			const int grow = w.to - w.from;
+			const int shift = (w.anchor == 'R') ? grow : (w.anchor == 'L') ? 0 : grow / 2;
+			if (w.anchor == 'R')
+				cel.displaceX -= grow / 2;
+			else if (w.anchor == 'L')
+				cel.displaceX += grow / 2;
+			cel.width = w.to;
+			cel.scriptWidth = w.to;
+			SciSpan<byte> bits = cel.rawBitmap->allocate(cel.width * cel.height, "AGI demake QfG1 lettering");
+			for (int y = 0; y < cel.height; ++y)
+				for (int x = 0; x < cel.width; ++x) {
+					const int sx = x - shift;
+					bits[y * cel.width + x] = (sx >= 0 && sx < oldW) ? copy[y * oldW + sx] : cel.clearKey;
+				}
+		}
+	}
+
 	// AGI demake, QfG1 dining hall sign (view 95 loop 0 cel 0): "BRIGANDS UBER ALLES!" doesn't fit on it in
 	// fat letters, so the cel is made 6 rows taller (growing downwards) for two lines; the sign is drawn
 	// in drawAgiDemake
@@ -3397,6 +3483,225 @@ static const AgiDemakeFatBlock kAgiDemakeFatBlocks[] = {
 		  "fffffffffffffffffffffffff" } },
 };
 
+// QfG1 intro lettering (credits, view 902, and character select, view 506 loop 1): the heading
+// alphabet Tom signed off (pink: light red, light magenta, magenta, with dark blue speckle and the
+// cyan and yellow gem). Names use the same shapes in their own colours (see kAgiDemakeQfg1NameColour).
+// F is the E without its bottom bar, J is the names' own J. One string per row, 11 rows, '.' empty
+struct AgiDemakeLetter {
+	char ch;
+	const char *rows[11];
+};
+static const AgiDemakeLetter kAgiDemakeQfg1Letters[] = {
+	{ 'A', { "..c..", "..cc.", ".c.c.", ".d1d1", ".5555", "1d5d.", ".d.d.", ".d.5d", "55.55", ".....", "....." } },
+	{ 'B', { "cccc.", "cc.c.", ".c.c.", ".dc11", "5c.c.", "1d..d", ".d.1d", "d5..5", "5555.", ".....", "....." } },
+	{ 'C', { ".ccc.", "cc.c.", "c..d1", "c135.", "d3e11", "d13..", "51.1d", "551d5", ".155.", ".....", "....." } },
+	{ 'D', { "ccc..", "cc.c.", ".c.c.", ".d3d.", "5ce3d", "1d3.d", ".d.1d", "d5.5.", "5555.", ".....", "....." } },
+	{ 'E', { "ccccc", "cc.c.", ".c.c.", ".d..1", "1cd..", ".d..1", ".d.1d", "d5.d1", "5555.", ".....", "....." } },
+	{ 'F', { "ccccc", "cc.c.", ".c.c.", ".d..1", "1cd..", ".d..1", ".d...", "d5...", "555..", ".....", "....." } },
+	{ 'G', { ".ccc.", "cc.cc", "c....", "d13..", "d3edd", "d13.d", "d...d", "55.55", ".555.", ".....", "....." } },
+	{ 'H', { "cc.cc", "cc.c.", ".c.c.", ".d.d.", "5dd55", ".d.d.", ".d.d.", "d5.d.", "55.55", ".....", "....." } },
+	{ 'I', { "ccc", "cc.", "1c.", ".d1", "15.", ".d.", ".d.", "d5.", "555", "...", "..." } },
+	{ 'J', { "ccccc", "c..c.", "d..c.", "53.1.", ".33c.", "13.d.", "...d.", "d..d1", "d5.d5", "d5d5.", ".55.." } },
+	{ 'K', { "cc.cc", "cc.c.", ".c.c1", "1dd.1", "5dd15", "1dd.1", ".d.d1", "d51d.", "55.5.", "....5", "....5" } },
+	{ 'L', { "ccc.", "cc..", "1c..", ".d1.", "55..", "1d11", ".d1.", "d5.d", "5555", "....", "...." } },
+	{ 'M', { "ccc.cc", ".ccccc", "1c.c.c", "1d.d.d", "151d.c", ".d5c.d", "1d.d.d", ".d...5", "555.55", "......", "......" } },
+	{ 'N', { "cc..c", "ccc.c", ".cc.c", ".dd.d", ".d.dd", ".d.dd", ".d.dd", "55..5", "55..5", ".....", "....." } },
+	{ 'O', { ".ccc.", "cc.cc", "c...c", "d.3.d", "d3e3d", "d.3.d", "d...d", "55.55", ".555.", ".....", "....." } },
+	{ 'P', { "cccc", "cc.c", ".c.c", ".d.d", "5dd.", "1d..", ".d.1", "d5..", "555.", "....", "...." } },
+	{ 'R', { "cccc.", "cc.c.", ".c.c1", "1d.d.", "5dd11", ".d.d.", "1d.d.", "d51d.", "55.5.", "....5", "....5" } },
+	{ 'S', { ".ccc.", "cc.cc", "cc...", ".dd..", "..dd.", "...dd", "d..dd", "55.55", ".555.", ".....", "....." } },
+	{ 'T', { "cccc.", "c.ccc", "c.c.c", ".1d.1", "15c1.", ".1d.1", "..d1.", ".d5..", ".5551", ".....", "....." } },
+	{ 'U', { "cc.c", "cc.c", "c..c", "d.3d", "c.e5", "d.3d", "d.1d", "1dd5", ".551", "....", "...." } },
+	{ 'V', { "cc..c", ".cc.c", "1.c.c", "..d3d", ".5ce5", "1.d3d", "..d1d", ".1dd.", "...5.", ".....", "....." } },
+	{ 'W', { "cc..cc", "cc...c", ".c.d.c", ".d.5.d", "5c.d.c", "1d.d.d", ".d.51d", ".55555", ".5..5.", "......", "......" } },
+	{ 'X', { "cc.cc", ".c1cc", ".c.c.", "1ccc1", ".1c.1", "1ddd.", ".d.d.", "1d.5d", "55.55", ".....", "....." } },
+	{ 'Y', { "c..c", "c.cc", "c.c1", "d.d1", "d.5.", ".dd1", "1.d1", "d1d.", "d.5.", "d.d.", ".55." } },
+};
+
+// Which cel says what (read from the cels), and whether it is a name (green) or a heading (pink)
+struct AgiDemakeQfg1Word {
+	int16 view, loop, cel;
+	bool name;
+	const char *text;
+	char anchor;	// 'C' centred on Sierra's word, 'R' keeps its right edge, 'L' its left edge
+};
+static const AgiDemakeQfg1Word kAgiDemakeQfg1Words[] = {
+	{ 506, 1, 0, false, "CHOOSE", 'R' },
+	{ 506, 1, 1, false, "YOUR", 'C' },
+	{ 506, 1, 2, false, "CHARACTER", 'L' },
+	{ 506, 1, 3, true, "FIGHTER", 'C' },
+	{ 506, 1, 4, true, "MAGIC", 'C' },
+	{ 506, 1, 5, true, "THIEF", 'C' },
+	{ 506, 1, 6, true, "USER", 'C' },
+	{ 902, 0, 0, false, "WRITTEN", 'R' },
+	{ 902, 0, 3, false, "DIRECTED", 'L' },
+	{ 902, 0, 4, false, "PROGRAMMING", 'C' },
+	{ 902, 0, 5, false, "ANIMATION", 'R' },
+	{ 902, 0, 6, false, "BACKGROUND", 'R' },
+	{ 902, 0, 7, false, "SCENES", 'L' },
+	{ 902, 0, 8, false, "GAME", 'R' },
+	{ 902, 0, 9, false, "DEVELOPMENT", 'L' },
+	{ 902, 0, 10, false, "SYSTEM", 'C' },
+	{ 902, 0, 11, false, "PRODUCED", 'C' },
+	{ 902, 0, 12, false, "EXECUTIVE", 'C' },
+	{ 902, 0, 13, false, "PRODUCER", 'C' },
+	{ 902, 1, 0, true, "LORI ANN COLE", 'C' },
+	{ 902, 1, 1, true, "ROBERT FISCHBACH", 'C' },
+	{ 902, 1, 2, true, "COREY COLE", 'C' },
+	{ 902, 1, 3, true, "KENN NISHIUYE", 'C' },
+	{ 902, 1, 4, true, "JEFF CROWE", 'C' },
+	{ 902, 2, 0, true, "JEFF STEPHENSON", 'C' },
+	{ 902, 2, 1, true, "ROBERT HEITMAN", 'C' },
+	{ 902, 2, 2, true, "PABLO GHENIS", 'C' },
+	{ 902, 2, 3, true, "STUART GOLDSTEIN", 'C' },
+	{ 902, 3, 1, true, "JERRY MOORE", 'C' },
+	{ 902, 3, 2, true, "LARRY SCOTT", 'C' },
+	{ 902, 3, 3, true, "JERRY SHAW", 'C' },
+	{ 902, 4, 0, true, "GURUKA", 'C' },
+	{ 902, 4, 1, true, "SINGH", 'C' },
+	{ 902, 4, 2, true, "KHALSA", 'C' },
+	{ 902, 4, 3, true, "KEN WILLIAMS", 'C' },
+	{ 902, 5, 0, false, "MUSIC", 'C' },
+	{ 902, 5, 1, true, "MARK SEIBERT", 'C' },
+	{ 902, 5, 2, true, "CINDY WALKER", 'C' },
+};
+
+// Names: the heading shapes in the names' colours, band by band (light red -> yellow, light magenta
+// -> light green, magenta -> green, the gem's cyan and yellow -> magenta and light red)
+static byte agiDemakeQfg1NameColour(byte c) {
+	switch (c) {
+	case 12: return 14;
+	case 13: return 10;
+	case 5: return 2;
+	case 3: return 5;
+	case 14: return 12;
+	default: return c;
+	}
+}
+
+// The fat columns the cel's lettering covers now, so the new lettering can be centred on the same spot
+static bool agiDemakeFatExtent(const byte *fat, int fatW, int h, byte clearKey, int &lo, int &hi) {
+	lo = fatW;
+	hi = -1;
+	for (int y = 0; y < h; ++y)
+		for (int x = 0; x < fatW; ++x)
+			if (fat[y * fatW + x] != clearKey) {
+				lo = MIN(lo, x);
+				hi = MAX(hi, x);
+			}
+	return hi >= lo;
+}
+
+// Lays out columns of lettering on the old lettering: centred on its middle, or lined up with its
+// right or left edge
+static void agiDemakePlaceColumns(const Common::Array<Common::Array<byte> > &cols, int h, byte clearKey, byte *fat, int fatW, char anchor = 'C') {
+	int lo, hi;
+	if (!agiDemakeFatExtent(fat, fatW, h, clearKey, lo, hi))
+		return;
+	const int width = cols.size();
+	int start = (anchor == 'R') ? hi + 1 - width : (anchor == 'L') ? lo : lo + ((hi - lo + 1) - width) / 2;
+	start = CLIP(start, 0, MAX(0, fatW - width));
+	for (int i = 0; i < fatW * h; ++i)
+		fat[i] = clearKey;
+	for (int x = 0; x < width && start + x < fatW; ++x)
+		for (int y = 0; y < h && y < (int)cols[x].size(); ++y)
+			if (cols[x][y] != clearKey)
+				fat[y * fatW + start + x] = cols[x][y];
+}
+
+// QfG1 credits (view 902) and character select (view 506 loop 1): Sierra's fancy lettering is redrawn
+// from the alphabet above, one fat pixel between letters and three between words, centred where
+// Sierra's word was. The words come out wider than Sierra's, whose letters overlap their serifs
+static void agiDemakeQfg1Lettering(GuiResourceId view, int16 loop, int16 cel, int h, byte clearKey, byte *fat, int fatW) {
+	if (g_sci->getGameId() != GID_QFG1)
+		return;
+	const AgiDemakeQfg1Word *word = nullptr;
+	for (uint i = 0; i < ARRAYSIZE(kAgiDemakeQfg1Words); ++i)
+		if (kAgiDemakeQfg1Words[i].view == view && kAgiDemakeQfg1Words[i].loop == loop && kAgiDemakeQfg1Words[i].cel == cel)
+			word = &kAgiDemakeQfg1Words[i];
+	if (!word)
+		return;
+	Common::Array<Common::Array<byte> > cols;
+	bool letterBefore = false;
+	for (const char *t = word->text; *t; ++t) {
+		if (*t == ' ') {
+			for (int g = 0; g < 3; ++g)
+				cols.push_back(Common::Array<byte>(11, clearKey));
+			letterBefore = false;
+			continue;
+		}
+		const AgiDemakeLetter *letter = nullptr;
+		for (uint i = 0; i < ARRAYSIZE(kAgiDemakeQfg1Letters); ++i)
+			if (kAgiDemakeQfg1Letters[i].ch == *t)
+				letter = &kAgiDemakeQfg1Letters[i];
+		if (!letter)
+			return;	// a letter the alphabet doesn't have: leave Sierra's lettering
+		if (letterBefore)
+			cols.push_back(Common::Array<byte>(11, clearKey));
+		const int w = strlen(letter->rows[0]);
+		for (int x = 0; x < w; ++x) {
+			Common::Array<byte> col(11, clearKey);
+			for (int y = 0; y < 11; ++y) {
+				const char ch = letter->rows[y][x];
+				if (ch == '.')
+					continue;
+				const byte c = (ch >= 'a') ? ch - 'a' + 10 : ch - '0';
+				col[y] = word->name ? agiDemakeQfg1NameColour(c) : c;
+			}
+			cols.push_back(col);
+		}
+		letterBefore = true;
+	}
+	agiDemakePlaceColumns(cols, h, clearKey, fat, fatW, word->anchor);
+}
+
+// QfG1 "PRESENTS" (view 908 loop 1) and the title "So You Want To Be A Hero" (view 913 loop 1, a cel
+// per word or two): each letter (a run of lit columns in Sierra's cel) is collapsed on its own, so
+// letters no longer merge, with one fat pixel between letters and two between words. Dark blue
+// speckle is left out. Centred where Sierra's lettering was
+static void agiDemakeQfg1Respace(GuiResourceId view, int16 loop, int16 cel, const SciSpan<const byte> &bitmap, int w, int h, byte clearKey, byte *fat, int fatW) {
+	if (g_sci->getGameId() != GID_QFG1 || loop != 1 || !((view == 908 && cel <= 7) || (view == 913 && cel <= 3)))
+		return;
+	auto px = [&](int x, int y) -> byte {
+		const byte v = bitmap[y * w + x];
+		return (v == 1) ? clearKey : v;
+	};
+	Common::Array<bool> lit(w, false);
+	for (int x = 0; x < w; ++x)
+		for (int y = 0; y < h; ++y)
+			if (px(x, y) != clearKey)
+				lit[x] = true;
+	Common::Array<Common::Array<byte> > cols;
+	int prevEnd = -1;
+	for (int x = 0; x < w;) {
+		if (!lit[x]) {
+			++x;
+			continue;
+		}
+		const int s = x;
+		while (x < w && lit[x])
+			++x;
+		const int e = x;
+		if (prevEnd >= 0) {
+			cols.push_back(Common::Array<byte>(h, clearKey));
+			if (s - prevEnd >= 3)
+				cols.push_back(Common::Array<byte>(h, clearKey));
+		}
+		for (int c = s; c < e; c += 2) {
+			Common::Array<byte> col(h, clearKey);
+			for (int y = 0; y < h; ++y) {
+				const byte a = px(c, y);
+				const byte b = (c + 1 < e) ? px(c + 1, y) : clearKey;
+				col[y] = (a != clearKey) ? a : b;
+			}
+			cols.push_back(col);
+		}
+		prevEnd = e;
+	}
+	if (!cols.empty())
+		agiDemakePlaceColumns(cols, h, clearKey, fat, fatW);
+}
+
 static void agiDemakeApplyFatBlocks(GuiResourceId view, int16 loop, int16 cel, int h, byte clearKey, byte *fat, int fatW, int pad, int numPairs) {
 	for (uint i = 0; i < ARRAYSIZE(kAgiDemakeFatBlocks); ++i) {
 		const AgiDemakeFatBlock &b = kAgiDemakeFatBlocks[i];
@@ -3921,6 +4226,8 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		for (uint i = 0; i < fat.size(); ++i)
 			fat[i] = clearKey;
 	agiDemakeTidyPaintEdges(textOverride, startX, celHeight, fat.data(), fatW, pad, numPairs);
+	agiDemakeQfg1Lettering(_resourceId, loopNo, celNo, celHeight, clearKey, fat.data(), fatW);
+	agiDemakeQfg1Respace(_resourceId, loopNo, celNo, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW);
 	agiDemakeApplyFatBlocks(_resourceId, loopNo, celNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyPairPrefers(bitmap, _resourceId, loopNo, celNo, startX, celWidth, celHeight, fat.data(), fatW, pad, numPairs);
 	agiDemakeMirrorEyes(_resourceId, loopNo, celNo, startX, celHeight, fat.data(), fatW, pad, numPairs);
