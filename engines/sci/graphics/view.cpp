@@ -38,6 +38,82 @@
 
 namespace Sci {
 
+// QfG1 intro lettering, drawn ready: the credits (view 902) and character select (view 506 loop 1)
+// in the alphabet Tom signed off (headings pink, names the same shapes in green), letters kerned
+// so every row keeps a fat pixel between them and 2 between words, and the title (view 913 loop 1)
+// with Sierra's letters re-spaced, 3 fat pixels between every word. Each cel is resized to its
+// lettering and moved to "left" on screen (the cel is placed by the script at posnX, centred), so:
+// words on their own stay centred, words sharing a line keep Sierra's gaps (WRITTEN & DIRECTED,
+// GAME DEVELOPMENT, CHOOSE YOUR CHARACTER), ANIMATIONS ends a word gap before the "&" and BACKGROUNDS
+// ends where the "&" does, and the title is one evenly spaced line. "BY" is plain pink letters and
+// SCENES is gone (no rows). One string per row, colours in hex, '.' empty
+struct AgiDemakeQfg1Art {
+	int16 view, loop, cel;
+	int16 posnX, from, left;
+	const char *rows[17];
+};
+static const AgiDemakeQfg1Art kAgiDemakeQfg1Art[] = {
+	{ 902, 0, 0, 110, 67, 66, { "cc..cc.cccc.ccc.cccc..cccc..ccccc.cc..c", "cc...c.cc.c.cc..c.ccc.c.ccc.cc.c..ccc.c", ".c.d.c..c.c11c..c.c.c.c.c.c..c.c...cc.c", ".d.5.d.1d.d..d1..1d.1..1d.1..d..1..dd.d", "5c.d.c.5dd1115..15c1..15c1..1cd....d.dd", "1d.d.d..d.d..d...1d.1..1d.1..d..1..d.dd", ".d.51d.1d.d..d....d1....d1...d.1d..d.dd", ".55555.d51d.d5...d5....d5...d5.d1.55..5", ".5..5..55.5.555..5551..5551.5555..55..5", "...........5...........................", "...........5..........................." } },
+	{ 902, 0, 3, 203, 75, 166, { "ccc..ccc.cccc.ccccc..ccc.cccc..ccccc.ccc..", "cc.c.cc..cc.c.cc.c..cc.c.c.ccc.cc.c..cc.c.", ".c.c.1c...c.c1.c.c..c..d1c.c.c..c.c...c.c.", ".d3d..d1.1d.d..d..1.c135..1d.1..d..1..d3d.", "5ce3d15..5dd111cd...d3e1115c1..1cd...5ce3d", "1d3.d.d...d.d..d..1.d13...1d.1..d..1.1d3.d", ".d.1d.d..1d.d..d.1d.51.1d..d1...d.1d..d.1d", "d5.5.d5..d51d.d5.d1.551d5.d5...d5.d1.d5.5.", "5555.555.55.5.5555...155..5551.5555..5555.", ".............5............................", ".............5............................" } },
+	{ 902, 0, 4, 157, 110, 94, { "cccc.cccc..ccc...ccc..cccc...c...ccc.cc.ccc.cc.ccc.cc..c..ccc.", "cc.c.cc.c.cc.cc.cc.cc.cc.c...cc...ccccc..ccccc.cc..ccc.c.cc.cc", ".c.c..c.c1c...c.c......c.c1.c.c..1c.c.c.1c.c.c.1c...cc.c.c....", ".d.d.1d.d.d.3.d.d13...1d.d..d1d1.1d.d.d.1d.d.d..d1..dd.d.d13..", "5dd..5dd11d3e3d.d3edd.5dd11.5555.151d.c.151d.c.15...d.dd.d3edd", "1d....d.d.d.3.d.d13.d..d.d.1d5d...d5c.d..d5c.d..d...d.dd.d13.d", ".d.1.1d.d.d...d.d...d.1d.d..d.d..1d.d.d.1d.d.d..d...d.dd.d...d", "d5...d51d.55.55.55.55.d51d..d.5d..d...5..d...5.d5..55..5.55.55", "555..55.5..555...555..55.5.55.55.555.55.555.55.555.55..5..555.", ".........5................5...................................", ".........5................5..................................." } },
+	{ 902, 0, 5, 143, 81, 86, { "..c...cc..c.ccc.ccc.cc...c..cccc..ccc.ccc..cc..c..ccc.", "..cc..ccc.c.cc...ccccc...cc.c.ccc.cc.cc.cc.ccc.c.cc.cc", ".c.c...cc.c.1c..1c.c.c..c.c.c.c.c.1c.c...c..cc.c.cc...", ".d1d1..dd.d..d1.1d.d.d..d1d1.1d.1..d1d.3.d..dd.d..dd..", ".5555..d.dd.15..151d.c..555515c1..15.d3e3d..d.dd...dd.", "1d5d...d.dd..d...d5c.d.1d5d..1d.1..d.d.3.d..d.dd....dd", ".d.d...d.dd..d..1d.d.d..d.d...d1...d.d...d..d.dd.d..dd", ".d.5d.55..5.d5...d...5..d.5d.d5...d5.55.55.55..5.55.55", "55.55.55..5.555.555.55.55.55.5551.555.555..55..5..555.", "......................................................", "......................................................" } },
+	{ 902, 0, 6, 124, 99, 82, { "cccc...c....ccc..cc.cc..ccc..cccc..ccc..cc.c.cc..c.ccc....ccc.", "cc.c...cc..cc.c..cc.c..cc.cc.cc.c.cc.cc.cc.c.ccc.c.cc.c..cc.cc", ".c.c..c.c..c..d1..c.c1.c......c.c1c...c.c..c..cc.c..c.c..cc...", ".dc11.d1d1.c135..1dd.1.d13...1d.d.d.3.d.d.3d..dd.d..d3d...dd..", "5c.c..5555.d3e11.5dd15.d3edd.5dd11d3e3d.c.e5..d.dd.5ce3d...dd.", "1d..d1d5d..d13...1dd.1.d13.d..d.d.d.3.d.d.3d..d.dd.1d3.d....dd", ".d.1d.d.d..51.1d..d.d1.d...d.1d.d.d...d.d.1d..d.dd..d.1d.d..dd", "d5..5.d.5d.551d5.d51d..55.55.d51d.55.55.1dd5.55..5.d5.5..55.55", "5555.55.55..155..55.5...555..55.5..555...551.55..5.5555...555.", ".....................5...........5............................", ".....................5...........5............................" } },
+	{ 902, 0, 7, 211, 59, 210, {  } },
+	{ 902, 0, 8, 99, 42, 74, { ".ccc...c...ccc.cc.ccccc", "cc.cc..cc...ccccc.cc.c.", "c.....c.c..1c.c.c..c.c.", "d13...d1d1.1d.d.d..d..1", "d3edd.5555.151d.c.1cd..", "d13.d1d5d...d5c.d..d..1", "d...d.d.d..1d.d.d..d.1d", "55.55.d.5d..d...5.d5.d1", ".555.55.55.555.55.5555.", ".......................", "......................." } },
+	{ 902, 0, 9, 180, 109, 126, { "ccc..ccccc.cc..c.ccccc.ccc...ccc..cccc.ccc.cc.ccccc.cc..c.cccc.", "cc.c.cc.c...cc.c.cc.c..cc...cc.cc.cc.c..ccccc.cc.c..ccc.c.c.ccc", ".c.c..c.c..1.c.c..c.c..1c...c...c..c.c.1c.c.c..c.c...cc.c.c.c.c", ".d3d..d..1...d3d..d..1..d1..d.3.d..d.d.1d.d.d..d..1..dd.d..1d.1", "5ce3d1cd....5ce5.1cd...55...d3e3d.5dd..151d.c.1cd....d.dd.15c1.", "1d3.d.d..1.1.d3d..d..1.1d11.d.3.d.1d....d5c.d..d..1..d.dd..1d.1", ".d.1d.d.1d...d1d..d.1d..d1..d...d..d.1.1d.d.d..d.1d..d.dd...d1.", "d5.5.d5.d1..1dd..d5.d1.d5.d.55.55.d5....d...5.d5.d1.55..5..d5..", "5555.5555.....5..5555..5555..555..555..555.55.5555..55..5..5551", "...............................................................", "..............................................................." } },
+	{ 902, 0, 10, 156, 59, 120, { ".ccc..c..c..ccc..cccc..ccccc.ccc.cc", "cc.cc.c.cc.cc.cc.c.ccc.cc.c...ccccc", "cc....c.c1.cc....c.c.c..c.c..1c.c.c", ".dd...d.d1..dd....1d.1..d..1.1d.d.d", "..dd..d.5....dd..15c1..1cd...151d.c", "...dd..dd1....dd..1d.1..d..1..d5c.d", "d..dd.1.d1.d..dd...d1...d.1d.1d.d.d", "55.55.d1d..55.55..d5...d5.d1..d...5", ".555..d.5...555...5551.5555..555.55", "......d.d..........................", ".......55.........................." } },
+	{ 902, 0, 11, 157, 76, 112, { "cccc.cccc..ccc..ccc...cc.c..ccc..ccccc.ccc..", "cc.c.cc.c.cc.cc.cc.c..cc.c.cc.c..cc.c..cc.c.", ".c.c..c.c1c...c..c.c..c..c.c..d1..c.c...c.c.", ".d.d.1d.d.d.3.d..d3d..d.3d.c135...d..1..d3d.", "5dd..5dd11d3e3d.5ce3d.c.e5.d3e11.1cd...5ce3d", "1d....d.d.d.3.d.1d3.d.d.3d.d13....d..1.1d3.d", ".d.1.1d.d.d...d..d.1d.d.1d.51.1d..d.1d..d.1d", "d5...d51d.55.55.d5.5..1dd5.551d5.d5.d1.d5.5.", "555..55.5..555..5555...551..155..5555..5555.", ".........5..................................", ".........5.................................." } },
+	{ 902, 0, 12, 158, 84, 108, { "ccccc.cc.cc.ccccc..ccc..cc.c.cccc..ccc.cc..c.ccccc", "cc.c...c1cc.cc.c..cc.c..cc.c.c.ccc.cc...cc.c.cc.c.", ".c.c...c.c...c.c..c..d1.c..c.c.c.c.1c..1.c.c..c.c.", ".d..1.1ccc1..d..1.c135..d.3d..1d.1..d1...d3d..d..1", "1cd....1c.1.1cd...d3e11.c.e5.15c1..15...5ce5.1cd..", ".d..1.1ddd...d..1.d13...d.3d..1d.1..d..1.d3d..d..1", ".d.1d..d.d...d.1d.51.1d.d.1d...d1...d....d1d..d.1d", "d5.d1.1d.5d.d5.d1.551d5.1dd5..d5...d5...1dd..d5.d1", "5555..55.55.5555...155...551..5551.555....5..5555.", "..................................................", ".................................................." } },
+	{ 902, 0, 13, 159, 79, 114, { "cccc.cccc..ccc..ccc...cc.c..ccc..ccccc.cccc.", "cc.c.cc.c.cc.cc.cc.c..cc.c.cc.c..cc.c..cc.c.", ".c.c..c.c1c...c..c.c..c..c.c..d1..c.c...c.c1", ".d.d.1d.d.d.3.d..d3d..d.3d.c135...d..1.1d.d.", "5dd..5dd11d3e3d.5ce3d.c.e5.d3e11.1cd...5dd11", "1d....d.d.d.3.d.1d3.d.d.3d.d13....d..1..d.d.", ".d.1.1d.d.d...d..d.1d.d.1d.51.1d..d.1d.1d.d.", "d5...d51d.55.55.d5.5..1dd5.551d5.d5.d1.d51d.", "555..55.5..555..5555...551..155..5555..55.5.", ".........5.................................5", ".........5.................................5" } },
+	{ 902, 5, 0, 156, 46, 130, { "ccc.cc.cc.c..ccc..ccc.ccc.", ".ccccc.cc.c.cc.cc.cc.cc.c.", "1c.c.c.c..c.cc....1c.c..d1", "1d.d.d.d.3d..dd....d1c135.", "151d.c.c.e5...dd..15.d3e11", ".d5c.d.d.3d....dd..d.d13..", "1d.d.d.d.1d.d..dd..d.51.1d", ".d...5.1dd5.55.55.d5.551d5", "555.55..551..555..555.155.", "..........................", ".........................." } },
+	{ 506, 1, 0, 83, 61, 44, { ".ccc..cc.cc..ccc...ccc...ccc..ccccc", "cc.c..cc.c..cc.cc.cc.cc.cc.cc.cc.c.", "c..d1..c.c..c...c.c...c.cc.....c.c.", "c135...d.d..d.3.d.d.3.d..dd....d..1", "d3e11.5dd55.d3e3d.d3e3d...dd..1cd..", "d13....d.d..d.3.d.d.3.d....dd..d..1", "51.1d..d.d..d...d.d...d.d..dd..d.1d", "551d5.d5.d..55.55.55.55.55.55.d5.d1", ".155..55.55..555...555...555..5555." } },
+	{ 506, 1, 1, 146, 42, 124, { "c..c..ccc..cc.c.cccc.", "c.cc.cc.cc.cc.c.cc.c.", "c.c1.c...c.c..c..c.c1", "d.d1.d.3.d.d.3d.1d.d.", "d.5..d3e3d.c.e5.5dd11", ".dd1.d.3.d.d.3d..d.d.", "1.d1.d...d.d.1d.1d.d.", "d1d..55.55.1dd5.d51d.", "d.5...555...551.55.5.", "d.d.................5", ".55.................5" } },
+	{ 506, 1, 2, 220, 92, 174, { ".ccc..cc.cc...c...cccc...c....ccc.cccc..ccccc.cccc.", "cc.c..cc.c....cc..cc.c...cc..cc.c.c.ccc.cc.c..cc.c.", "c..d1..c.c...c.c...c.c1.c.c..c..d1c.c.c..c.c...c.c1", "c135...d.d...d1d1.1d.d..d1d1.c135..1d.1..d..1.1d.d.", "d3e11.5dd55..5555.5dd11.5555.d3e1115c1..1cd...5dd11", "d13....d.d..1d5d...d.d.1d5d..d13...1d.1..d..1..d.d.", "51.1d..d.d...d.d..1d.d..d.d..51.1d..d1...d.1d.1d.d.", "551d5.d5.d...d.5d.d51d..d.5d.551d5.d5...d5.d1.d51d.", ".155..55.55.55.55.55.5.55.55..155..5551.5555..55.5.", "......................5...........................5", "......................5...........................5" } },
+	{ 902, 1, 0, 157, 117, 94, { "eee...eee..eeee.eee....e...ee..e.ee..e...eee...eee..eee..eeeee", "ee...ee.ee.ee.e.ee.....ee..eee.e.eee.e..ee.e..ee.ee.ee...ee.e.", "1e...e...e..e.e11e....e.e...ee.e..ee.e..e..a1.e...e.1e....e.e.", ".a1..a.5.a.1a.a..a1...a1a1..aa.a..aa.a..e152..a.5.a..a1...a..1", "22...a5c5a.2aa1112....2222..a.aa..a.aa..a5c11.a5c5a.22...1ea..", "1a11.a.5.a..a.a..a...1a2a...a.aa..a.aa..a15...a.5.a.1a11..a..1", ".a1..a...a.1a.a..a....a.a...a.aa..a.aa..21.1a.a...a..a1...a.1a", "a2.a.22.22.a21a.a2....a.2a.22..2.22..2..221a2.22.22.a2.a.a2.a1", "2222..222..22.2.222..22.22.22..2.22..2...122...222..2222.2222.", "...............2..............................................", "...............2.............................................." } },
+	{ 902, 1, 1, 158, 148, 74, { "eeee..eee..eeee..eeeee.eeee.eeee...eeeee.eee.eee...eee..ee.ee.eeee...e....eee..ee.ee", "ee.e.ee.ee.ee.e..ee.e..ee.e.e.eee..ee.e..ee.ee.ee.ee.e..ee.e..ee.e...ee..ee.e..ee.e.", ".e.e1e...e..e.e...e.e...e.e1e.e.e...e.e..1e.ee....e..a1..e.e...e.e..e.e..e..a1..e.e.", "1a.a.a.5.a..ae11..a..1.1a.a..1a.1...a..1..a1.aa...e152...a.a...ae11.a1a1.e152...a.a.", "2aa11a5c5a.2e.e..1ea...2aa1112e1...1ea...12...aa..a5c11.2aa22.2e.e..2222.a5c11.2aa22", ".a.a.a.5.a.1a..a..a..1..a.a..1a.1...a..1..a....aa.a15....a.a..1a..a1a2a..a15....a.a.", "1a.a.a...a..a.1a..a.1a.1a.a...a1....a.....a.a..aa.21.1a..a.a...a.1a.a.a..21.1a..a.a.", "a21a.22.22.a2..2.a2.a1.a21a..a2....a2....a2.22.22.221a2.a2.a..a2..2.a.2a.221a2.a2.a.", "22.2..222..2222..2222..22.2..2221..222...222.222...122..22.22.2222.22.22..122..22.22", "....2......................2........................................................", "....2......................2........................................................" } },
+	{ 902, 1, 2, 158, 97, 106, { ".eee...eee..eeee.eeeee.e..e...eee...eee..eee..eeeee", "ee.e..ee.ee.ee.e.ee.e..e.ee..ee.e..ee.ee.ee...ee.e.", "e..a1.e...e..e.e1.e.e..e.e1..e..a1.e...e.1e....e.e.", "e152..a.5.a.1a.a..a..1.a.a1..e152..a.5.a..a1...a..1", "a5c11.a5c5a.2aa111ea...a.2...a5c11.a5c5a.22...1ea..", "a15...a.5.a..a.a..a..1..aa1..a15...a.5.a.1a11..a..1", "21.1a.a...a.1a.a..a.1a.1.a1..21.1a.a...a..a1...a.1a", "221a2.22.22.a21a.a2.a1.a1a...221a2.22.22.a2.a.a2.a1", ".122...222..22.2.2222..a.2....122...222..2222.2222.", "................2......a.a.........................", "................2.......22........................." } },
+	{ 902, 1, 3, 158, 116, 92, { "ee.ee.eeeee.ee..e.ee..e..ee..e.eee.eee..ee.ee.eee.ee.e.e..e.eeeee", "ee.e..ee.e..eee.e.eee.e..eee.e.ee.ee.ee.ee.e..ee..ee.e.e.ee.ee.e.", ".e.e1..e.e...ee.e..ee.e...ee.e.1e.ee.....e.e..1e..e..e.e.e1..e.e.", "1aa.1..a..1..aa.a..aa.a...aa.a..a1.aa....a.a...a1.a.5a.a.a1..a..1", "2aa12.1ea....a.aa..a.aa...a.aa.12...aa..2aa22.12..e.c2.a.2..1ea..", "1aa.1..a..1..a.aa..a.aa...a.aa..a....aa..a.a...a..a.5a..aa1..a..1", ".a.a1..a.1a..a.aa..a.aa...a.aa..a.a..aa..a.a...a..a.1a.1.a1..a.1a", "a21a..a2.a1.22..2.22..2..22..2.a2.22.22.a2.a..a2..1aa2.a1a..a2.a1", "22.2..2222..22..2.22..2..22..2.222.222..22.22.222..221.a.2..2222.", "....2..................................................a.a.......", "....2...................................................22......." } },
+	{ 902, 1, 4, 158, 91, 104, { "eeeee.eeeee.eeeee.eeeee...eee..eeee..eee..ee..ee.eeeee", "e..e..ee.e..ee.e..ee.e...ee.e..ee.e.ee.ee.ee...e.ee.e.", "a..e...e.e...e.e...e.e...e..a1..e.e1e...e..e.a.e..e.e.", "25.1...a..1..a..1..a..1..e152..1a.a.a.5.a..a.2.a..a..1", ".55e..1ea...1ea...1ea....a5c11.2aa11a5c5a.2e.a.e.1ea..", "15.a...a..1..a..1..a..1..a15....a.a.a.5.a.1a.a.a..a..1", "...a...a.1a..a.....a.....21.1a.1a.a.a...a..a.21a..a.1a", "a..a1.a2.a1.a2....a2.....221a2.a21a.22.22..22222.a2.a1", "a2.a2.2222..222...222.....122..22.2..222...2..2..2222.", "a2a2...............................2..................", ".22................................2.................." } },
+	{ 902, 2, 0, 157, 141, 74, { "eeeee.eeeee.eeeee.eeeee...eee..eeee..eeeee.eeee.ee.ee.eeeee.ee..e..eee...eee..ee..e", "e..e..ee.e..ee.e..ee.e...ee.ee.e.eee.ee.e..ee.e.ee.e..ee.e..eee.e.ee.ee.ee.ee.eee.e", "a..e...e.e...e.e...e.e...ee....e.e.e..e.e...e.e..e.e...e.e...ee.e.ee....e...e..ee.e", "25.1...a..1..a..1..a..1...aa....1a.1..a..1..a.a..a.a...a..1..aa.a..aa...a.5.a..aa.a", ".55e..1ea...1ea...1ea......aa..12e1..1ea...2aa..2aa22.1ea....a.aa...aa..a5c5a..a.aa", "15.a...a..1..a..1..a..1.....aa..1a.1..a..1.1a....a.a...a..1..a.aa....aa.a.5.a..a.aa", "...a...a.1a..a.....a.....a..aa...a1...a.1a..a.1..a.a...a.1a..a.aa.a..aa.a...a..a.aa", "a..a1.a2.a1.a2....a2.....22.22..a2...a2.a1.a2...a2.a..a2.a1.22..2.22.22.22.22.22..2", "a2.a2.2222..222...222.....222...2221.2222..222..22.22.2222..22..2..222...222..22..2", "a2a2...............................................................................", ".22................................................................................" } },
+	{ 902, 2, 1, 157, 131, 82, { "eeee..eee..eeee..eeeee.eeee.eeee...ee.ee.eeeee.eee.eeee.eee.ee...e...ee..e", "ee.e.ee.ee.ee.e..ee.e..ee.e.e.eee..ee.e..ee.e..ee..e.eee.eeeee...ee..eee.e", ".e.e1e...e..e.e...e.e...e.e1e.e.e...e.e...e.e..1e..e.e.e1e.e.e..e.e...ee.e", "1a.a.a.5.a..ae11..a..1.1a.a..1a.1...a.a...a..1..a1..1a.11a.a.a..a1a1..aa.a", "2aa11a5c5a.2e.e..1ea...2aa1112e1...2aa22.1ea...12..12e1.121a.e..2222..a.aa", ".a.a.a.5.a.1a..a..a..1..a.a..1a.1...a.a...a..1..a...1a.1.a2e.a.1a2a...a.aa", "1a.a.a...a..a.1a..a.1a.1a.a...a1....a.a...a.1a..a....a1.1a.a.a..a.a...a.aa", "a21a.22.22.a2..2.a2.a1.a21a..a2....a2.a..a2.a1.a2...a2...a...2..a.2a.22..2", "22.2..222..2222..2222..22.2..2221..22.22.2222..222..2221222.22.22.22.22..2", "....2......................2..............................................", "....2......................2.............................................." } },
+	{ 902, 2, 2, 158, 110, 98, { "eeee..e...eeee..eee...eee....eee..ee.ee.eeeee.ee..e.eee.eee.", "ee.e..ee..ee.e..ee...ee.ee..ee.ee.ee.e..ee.e..eee.e.ee.ee.ee", ".e.e.e.e...e.e..1e...e...e..e......e.e...e.e...ee.e.1e.ee...", ".a.a.a1a1..ae11..a1..a.5.a..a15....a.a...a..1..aa.a..a1.aa..", "2aa..2222.2e.e..22...a5c5a..a5caa.2aa22.1ea....a.aa.12...aa.", "1a..1a2a..1a..a.1a11.a.5.a..a15.a..a.a...a..1..a.aa..a....aa", ".a.1.a.a...a.1a..a1..a...a..a...a..a.a...a.1a..a.aa..a.a..aa", "a2...a.2a.a2..2.a2.a.22.22..22.22.a2.a..a2.a1.22..2.a2.22.22", "222.22.22.2222..2222..222....222..22.22.2222..22..2.222.222.", "............................................................", "............................................................" } },
+	{ 902, 2, 3, 158, 150, 74, { ".eee..eeee..ee.e..e...eeee.eeee....eee...eee..eee..eee....eee..eeee..eeeee.eee.ee..e", "ee.ee.e.eee.ee.e..ee..ee.e.e.eee..ee.ee.ee.ee.ee...ee.e..ee.ee.e.eee.ee.e..ee..eee.e", "ee....e.e.e.e..e.e.e...e.e1e.e.e..e.....e...e.1e....e.e..ee....e.e.e..e.e..1e...ee.e", ".aa....1a.1.a.5a.a1a1.1a.a..1a.1..a15...a.5.a..a1...a5a...aa....1a.1..a..1..a1..aa.a", "..aa..12e1..e.c2.2222.2aa1112e1...a5caa.a5c5a.22...2ec5a...aa..12e1..1ea...12...a.aa", "...aa..1a.1.a.5a1a2a...a.a..1a.1..a15.a.a.5.a.1a11.1a5.a....aa..1a.1..a..1..a...a.aa", "a..aa...a1..a.1a.a.a..1a.a...a1...a...a.a...a..a1...a.1a.a..aa...a1...a.1a..a...a.aa", "22.22..a2...1aa2.a.2a.a21a..a2....22.22.22.22.a2.a.a2.2..22.22..a2...a2.a1.a2..22..2", ".222...2221..22122.22.22.2..2221...222...222..2222.2222...222...2221.2222..222.22..2", "..........................2.........................................................", "..........................2........................................................." } },
+	{ 902, 3, 1, 158, 107, 100, { "eeeee.eeeee.eeee.eeee..e..e..eee.ee..eee...eee..eeee.eeeee", "e..e..ee.e..ee.e.ee.e..e.ee...eeeee.ee.ee.ee.ee.ee.e.ee.e.", "a..e...e.e...e.e1.e.e1.e.e1..1e.e.e.e...e.e...e..e.e1.e.e.", "25.1...a..1.1a.a.1a.a..a.a1..1a.a.a.a.5.a.a.5.a.1a.a..a..1", ".55e..1ea...2aa112aa11.a.2...121a.e.a5c5a.a5c5a.2aa111ea..", "15.a...a..1..a.a..a.a...aa1...a2e.a.a.5.a.a.5.a..a.a..a..1", "...a...a.1a.1a.a.1a.a..1.a1..1a.a.a.a...a.a...a.1a.a..a.1a", "a..a1.a2.a1.a21a.a21a..a1a....a...2.22.22.22.22.a21a.a2.a1", "a2.a2.2222..22.2.22.2..a.2...222.22..222...222..22.2.2222.", "a2a2............2....2.a.a..........................2.....", ".22.............2....2..22..........................2....." } },
+	{ 902, 3, 2, 158, 109, 100, { "eee....e...eeee.eeee..e..e...eee...eee...eee..eeee..eeee.", "ee.....ee..ee.e.ee.e..e.ee..ee.ee.ee.e..ee.ee.e.eee.e.eee", "1e....e.e...e.e1.e.e1.e.e1..ee....e..a1.e...e.e.e.e.e.e.e", ".a1...a1a1.1a.a.1a.a..a.a1...aa...e152..a.5.a..1a.1..1a.1", "22....2222.2aa112aa11.a.2.....aa..a5c11.a5c5a.12e1..12e1.", "1a11.1a2a...a.a..a.a...aa1.....aa.a15...a.5.a..1a.1..1a.1", ".a1...a.a..1a.a.1a.a..1.a1..a..aa.21.1a.a...a...a1....a1.", "a2.a..a.2a.a21a.a21a..a1a...22.22.221a2.22.22..a2....a2..", "2222.22.22.22.2.22.2..a.2....222...122...222...2221..2221", "...............2....2.a.a................................", "...............2....2..22................................" } },
+	{ 902, 3, 3, 158, 97, 104, { "eeeee.eeeee.eeee.eeee..e..e...eee..ee.ee...e...ee..ee", "e..e..ee.e..ee.e.ee.e..e.ee..ee.ee.ee.e....ee..ee...e", "a..e...e.e...e.e1.e.e1.e.e1..ee.....e.e...e.e...e.a.e", "25.1...a..1.1a.a.1a.a..a.a1...aa....a.a...a1a1..a.2.a", ".55e..1ea...2aa112aa11.a.2.....aa..2aa22..2222.2e.a.e", "15.a...a..1..a.a..a.a...aa1.....aa..a.a..1a2a..1a.a.a", "...a...a.1a.1a.a.1a.a..1.a1..a..aa..a.a...a.a...a.21a", "a..a1.a2.a1.a21a.a21a..a1a...22.22.a2.a...a.2a..22222", "a2.a2.2222..22.2.22.2..a.2....222..22.22.22.22..2..2.", "a2a2............2....2.a.a...........................", ".22.............2....2..22..........................." } },
+	{ 902, 4, 0, 106, 58, 74, { ".eee..ee.e.eeee.ee.e.ee.ee..e..", "ee.ee.ee.e.ee.e.ee.e.ee.e...ee.", "e.....e..e..e.e1e..e..e.e1.e.e.", "a15...a.5a.1a.a.a.5a.1aa.1.a1a1", "a5caa.e.c2.2aa11e.c2.2aa12.2222", "a15.a.a.5a..a.a.a.5a.1aa.11a2a.", "a...a.a.1a.1a.a.a.1a..a.a1.a.a.", "22.22.1aa2.a21a.1aa2.a21a..a.2a", ".222...221.22.2..221.22.2.22.22", "...............2.........2.....", "...............2.........2....." } },
+	{ 902, 4, 1, 159, 44, 132, { ".eee..eee.ee..e..eee..ee.ee", "ee.ee.ee..eee.e.ee.ee.ee.e.", "ee....1e...ee.e.e......e.e.", ".aa....a1..aa.a.a15....a.a.", "..aa..12...a.aa.a5caa.2aa22", "...aa..a...a.aa.a15.a..a.a.", "a..aa..a...a.aa.a...a..a.a.", "22.22.a2..22..2.22.22.a2.a.", ".222..222.22..2..222..22.22", "...........................", "..........................." } },
+	{ 902, 4, 2, 211, 58, 178, { "ee.ee.ee.ee...e...eee...eee...e..", "ee.e..ee.e....ee..ee...ee.ee..ee.", ".e.e1..e.e...e.e..1e...ee....e.e.", "1aa.1..a.a...a1a1..a1...aa...a1a1", "2aa12.2aa22..2222.22.....aa..2222", "1aa.1..a.a..1a2a..1a11....aa1a2a.", ".a.a1..a.a...a.a...a1..a..aa.a.a.", "a21a..a2.a...a.2a.a2.a.22.22.a.2a", "22.2..22.22.22.22.2222..222.22.22", "....2............................", "....2............................" } },
+	{ 902, 4, 3, 159, 113, 96, { "ee.ee.eeeee.ee..e..ee..ee.eee.eee..eee..eee...e...eee.ee..eee.", "ee.e..ee.e..eee.e..ee...e.ee..ee...ee...ee....ee...eeeee.ee.ee", ".e.e1..e.e...ee.e...e.a.e.1e..1e...1e...1e...e.e..1e.e.e.ee...", "1aa.1..a..1..aa.a...a.2.a..a1..a1...a1...a1..a1a1.1a.a.a..aa..", "2aa12.1ea....a.aa..2e.a.e.12..22...22...12...2222.121a.e...aa.", "1aa.1..a..1..a.aa..1a.a.a..a..1a11.1a11..a..1a2a...a2e.a....aa", ".a.a1..a.1a..a.aa...a.21a..a...a1...a1...a...a.a..1a.a.a.a..aa", "a21a..a2.a1.22..2...22222.a2..a2.a.a2.a.a2...a.2a..a...2.22.22", "22.2..2222..22..2...2..2..222.2222.2222.222.22.22.222.22..222.", "....2.........................................................", "....2........................................................." } },
+	{ 902, 5, 1, 159, 114, 96, { "eee.ee...e...eeee.ee.ee...eee..eeeee.eee.eeee..eeeee.eeee.eeee.", ".eeeee...ee..ee.e.ee.e...ee.ee.ee.e..ee..ee.e..ee.e..ee.e.e.eee", "1e.e.e..e.e...e.e1.e.e1..ee.....e.e..1e...e.e...e.e...e.e1e.e.e", "1a.a.a..a1a1.1a.a.1aa.1...aa....a..1..a1..ae11..a..1.1a.a..1a.1", "121a.e..2222.2aa112aa12....aa..1ea...12..2e.e..1ea...2aa1112e1.", ".a2e.a.1a2a...a.a.1aa.1.....aa..a..1..a..1a..a..a..1..a.a..1a.1", "1a.a.a..a.a..1a.a..a.a1..a..aa..a.1a..a...a.1a..a.1a.1a.a...a1.", ".a...2..a.2a.a21a.a21a...22.22.a2.a1.a2..a2..2.a2.a1.a21a..a2..", "222.22.22.22.22.2.22.2....222..2222..222.2222..2222..22.2..2221", ".................2....2..................................2.....", ".................2....2..................................2....." } },
+	{ 902, 5, 2, 158, 117, 96, { ".eee..eee.ee..e.eee...e..e..ee..ee..e...eee..ee.ee.eeeee.eeee.", "ee.e..ee..eee.e.ee.e..e.ee..ee...e..ee..ee...ee.e..ee.e..ee.e.", "e..a1.1e...ee.e..e.e..e.e1...e.a.e.e.e..1e....e.e1..e.e...e.e1", "e152...a1..aa.a..a5a..a.a1...a.2.a.a1a1..a1..1aa.1..a..1.1a.a.", "a5c11.12...a.aa.2ec5a.a.2...2e.a.e.2222.22...2aa12.1ea...2aa11", "a15....a...a.aa.1a5.a..aa1..1a.a.a1a2a..1a11.1aa.1..a..1..a.a.", "21.1a..a...a.aa..a.1a.1.a1...a.21a.a.a...a1...a.a1..a.1a.1a.a.", "221a2.a2..22..2.a2.2..a1a....22222.a.2a.a2.a.a21a..a2.a1.a21a.", ".122..222.22..2.2222..a.2....2..2.22.22.2222.22.2..2222..22.2.", "......................a.a........................2...........2", ".......................22........................2...........2" } },
+	{ 506, 1, 3, 65, 68, 26, { "eeeee.eee.eee..ee.ee.eeee..eeeee.eeee.", "ee.e..ee.ee.ee.ee.e..e.eee.ee.e..ee.e.", ".e.e..1e.e......e.e..e.e.e..e.e...e.e1", ".a..1..a1a15....a.a...1a.1..a..1.1a.a.", "1ea...12.a5caa.2aa22.12e1..1ea...2aa11", ".a..1..a.a15.a..a.a...1a.1..a..1..a.a.", ".a.....a.a...a..a.a....a1...a.1a.1a.a.", "a2....a2.22.22.a2.a...a2...a2.a1.a21a.", "222...222.222..22.22..2221.2222..22.2.", ".....................................2", ".....................................2" } },
+	{ 506, 1, 4, 159, 47, 132, { "eee.ee...e....eee..eee.eee.", ".eeeee...ee..ee.ee.ee.ee.e.", "1e.e.e..e.e..e.....1e.e..a1", "1a.a.a..a1a1.a15....a1e152.", "121a.e..2222.a5caa.12.a5c11", ".a2e.a.1a2a..a15.a..a.a15..", "1a.a.a..a.a..a...a..a.21.1a", ".a...2..a.2a.22.22.a2.221a2", "222.22.22.22..222..222.122." } },
+	{ 506, 1, 5, 252, 45, 224, { "eeee..ee.ee.eee.eeeee.eeeee", "e.eee.ee.e..ee..ee.e..ee.e.", "e.e.e..e.e..1e...e.e...e.e.", ".1a.1..a.a...a1..a..1..a..1", "12e1..2aa22.12..1ea...1ea..", ".1a.1..a.a...a...a..1..a..1", "..a1...a.a...a...a.1a..a...", ".a2...a2.a..a2..a2.a1.a2...", ".2221.22.22.222.2222..222.." } },
+	{ 506, 1, 6, 161, 40, 138, { "ee.e..eee..eeeee.eeee.", "ee.e.ee.ee.ee.e..ee.e.", "e..e.ee.....e.e...e.e1", "a.5a..aa....a..1.1a.a.", "e.c2...aa..1ea...2aa11", "a.5a....aa..a..1..a.a.", "a.1a.a..aa..a.1a.1a.a.", "1aa2.22.22.a2.a1.a21a.", ".221..222..2222..22.2.", ".....................2", ".....................2" } },
+	{ 902, 0, 1, 156, 17, 146, { "cccc..c..c", "cc.c..c.cc", ".c.c..c.c1", ".dc11.d.d1", "5c.c..d.5.", "1d..d..dd1", ".d.1d.1.d1", "d5..5.d1d.", "5555..d.5.", "......d.d.", ".......55." } },
+	{ 913, 1, 0, 50, 88, 14, { "bbbbbbbb..........bbb.bbb..............", "8dddddd8..........8d8.8d8..............", "8dddddd8..........8d8.8d8..............", "8dd88888..........8d8.8d8..............", "8dd...............8d8.8d8..............", "8dd...............8dbbbd8..............", "8ddbbbbb.bbbbbb...8ddddd8.bbbbbb.bbbbbb", "8dddddd8.8dddd8...8ddddd8.8dddd8.8d88d8", "8dddddd8.8dddd8...888d888.8dddd8.8d88d8", "888888d8.8d88d8.....8d8...8d88d8.8d88d8", ".....8d8.8d88d8.....8d8...8d88d8.8d88d8", ".....8d8.8d88d8.....8d8...8d88d8.8d88d8", "bbbbb8d8.8dbbd8.....8d8...8dbbd8.8dbbd8", "8dddddd8.8dddd8.....8d8...8dddd8.8dddd8", "8dddddd8.8dddd8.....8d8...8dddd8.8dddd8", "b8888888.b88888.....b88...b88888.b88888", "88888888.888888.....888...888888.888888" } },
+	{ 913, 1, 1, 127, 66, 98, { ".............................", "bbb..bbb.....................", "8d8..8d8.....................", "8d8..8d8.....................", "8d8..8d8.....................", "8d8..8d8.....................", "8d8..8d8...bb...bbbbbb.bbbbbb", "8d8bb8d8..bbdb..8d88d8.8ddddd", "8d88d8d8..bd8d..8d88d8.888d88", "8d88d8d8.8d88d8.8d88d8...8d..", "8d88d8d8.8d88d8.8dd8d8...8d..", "8d88d8d8.8dbbd8.8ddbd8...8d..", "8d88d8d8.8dddd8.8d8dd8...8d..", "8dbbdbd8.8d88d8.8d8dd8...8d..", "8dddddd8.8d88d8.8d88d8...8d..", "bdddddd8.bd88d8.bd88d8..b8db.", "88888888.888888.888888..8888." } },
+	{ 913, 1, 2, 209, 98, 162, { "bbbbbbbb.........bbbbbb..........bbbbbbb", "8dddddd8.........8ddddd..........8ddddd8", "ddddddd..........8ddddd..........8ddddd.", "888dd88..........8d888d..........8d888d.", "..8dd............8d8.8d..........8d8.8d.", "..8dd............8d8.8d..........8d8.8d.", "..8dd..bbbbbbb...8d8.8d.bbbbbb...8d8.8d.", "..8dd..88dddd8...8dbbbd.8dddd8...8dbbbd.", "..8dd...8dddd....8dddd..8dddd8...8ddddd.", "..8dd...8d88d....8ddddd.8d8888...8ddddd.", "..8dd...8d.8d....8d888d.8dbb.....8d888d.", "..8dd...8d.8d....8d8.8d.8ddd.....8d8.8d.", "..8dd...8dbbd....8d8.8d.8d88.....8d8.8d.", "..8dd...8dddd....8dbbbd.8dbbb8...8d8.8d.", "..8dd...8dddd....8ddddd.8dddd8...8d8.8d.", "..b88b.b88888b...bddddd.bdddd8...bd8.8db", "..8888.8888888...888888.888888...8888888" } },
+	{ 913, 1, 3, 286, 56, 248, { "bbb.bbb.....................", "8d8.8d8.....................", "8d8.8d8.....................", "8d8.8d8.....................", "8d8.8d8.....................", "8d8.8d8.....................", "8dbbbd8.bbbbbb.bbbbbb.bbbbbb", "8ddddd8.8dddd8.8dddd8.8dddd8", "8ddddd8.8dddd8.8dddd8.8dddd8", "8d888d8.8d8888.8d88d8.8d88d8", "8d8.8d8.8dbb...8dbbd8.8d88d8", "8d8.8d8.8ddd...8dddd8.8d88d8", "8d8.8d8.8d88...8d8db..8dbbd8", "8d8.8d8.8dbbb8.8d88d..8dddd8", "8d8.8d8.8dddd8.8d88d..8dddd8", "bd8.bd8.bdddd8.bd88db.b88888", "888.888.888888.888888.888888" } },
+};
+
+static const AgiDemakeQfg1Art *agiDemakeQfg1FindArt(GuiResourceId view, int16 loop, int16 cel) {
+	if (g_sci->getGameId() != GID_QFG1)
+		return nullptr;
+	for (uint i = 0; i < ARRAYSIZE(kAgiDemakeQfg1Art); ++i)
+		if (kAgiDemakeQfg1Art[i].view == view && kAgiDemakeQfg1Art[i].loop == loop && kAgiDemakeQfg1Art[i].cel == cel)
+			return &kAgiDemakeQfg1Art[i];
+	return nullptr;
+}
+
+// The cel's width once resized to its lettering: 2 pixels per fat pixel, plus 2 spare so a cel
+// placed on an odd column still holds every fat pixel
+static int agiDemakeQfg1ArtWidth(const AgiDemakeQfg1Art &art) {
+	return art.rows[0] ? 2 * (int)strlen(art.rows[0]) + 2 : art.from;
+}
+
+
 GfxView::GfxView(ResourceManager *resMan, GfxScreen *screen, GfxPalette *palette, GuiResourceId resourceId)
 	: _resMan(resMan), _screen(screen), _palette(palette), _resourceId(resourceId) {
 	assert(resourceId != -1);
@@ -416,44 +492,6 @@ void GfxView::initData() {
 			(_resourceId == 902 || _resourceId == 506 || _resourceId == 908 || _resourceId == 913)) {
 		struct W { int view, loop, cel, from, to; char anchor; };
 		static const W kWiden[] = {
-			{ 506, 1, 0, 61, 75, 'R' },
-			{ 506, 1, 1, 42, 46, 'C' },
-			{ 506, 1, 2, 92, 110, 'L' },
-			{ 506, 1, 3, 68, 82, 'C' },
-			{ 506, 1, 4, 47, 61, 'C' },
-			{ 506, 1, 5, 45, 59, 'C' },
-			{ 506, 1, 6, 40, 48, 'C' },
-			{ 902, 0, 0, 67, 85, 'R' },
-			{ 902, 0, 3, 75, 95, 'L' },
-			{ 902, 0, 4, 110, 132, 'C' },
-			{ 902, 0, 5, 81, 105, 'R' },
-			{ 902, 0, 6, 99, 121, 'R' },
-			{ 902, 0, 7, 59, 75, 'L' },
-			{ 902, 0, 8, 42, 52, 'R' },
-			{ 902, 0, 9, 109, 133, 'L' },
-			{ 902, 0, 10, 59, 75, 'C' },
-			{ 902, 0, 11, 76, 94, 'C' },
-			{ 902, 0, 12, 84, 104, 'C' },
-			{ 902, 0, 13, 79, 95, 'C' },
-			{ 902, 1, 0, 117, 135, 'C' },
-			{ 902, 1, 1, 148, 182, 'C' },
-			{ 902, 1, 2, 97, 111, 'C' },
-			{ 902, 1, 3, 116, 138, 'C' },
-			{ 902, 1, 4, 91, 117, 'C' },
-			{ 902, 2, 0, 141, 173, 'C' },
-			{ 902, 2, 1, 131, 161, 'C' },
-			{ 902, 2, 2, 110, 130, 'C' },
-			{ 902, 2, 3, 150, 178, 'C' },
-			{ 902, 3, 1, 107, 127, 'C' },
-			{ 902, 3, 2, 109, 123, 'C' },
-			{ 902, 3, 3, 97, 115, 'C' },
-			{ 902, 4, 0, 58, 70, 'C' },
-			{ 902, 4, 1, 44, 58, 'C' },
-			{ 902, 4, 2, 58, 72, 'C' },
-			{ 902, 4, 3, 113, 131, 'C' },
-			{ 902, 5, 0, 46, 58, 'C' },
-			{ 902, 5, 1, 114, 136, 'C' },
-			{ 902, 5, 2, 117, 133, 'C' },
 			{ 908, 1, 0, 62, 66, 'C' },
 			{ 908, 1, 1, 62, 66, 'C' },
 			{ 908, 1, 2, 62, 66, 'C' },
@@ -462,7 +500,6 @@ void GfxView::initData() {
 			{ 908, 1, 5, 60, 64, 'C' },
 			{ 908, 1, 6, 60, 66, 'C' },
 			{ 908, 1, 7, 60, 80, 'C' },
-			{ 913, 1, 3, 56, 60, 'C' },
 		};
 		for (uint i = 0; i < ARRAYSIZE(kWiden); ++i) {
 			const W &w = kWiden[i];
@@ -492,6 +529,28 @@ void GfxView::initData() {
 					bits[y * cel.width + x] = (sx >= 0 && sx < oldW) ? copy[y * oldW + sx] : cel.clearKey;
 				}
 		}
+	}
+
+	// AGI demake, QfG1 intro lettering drawn ready (kAgiDemakeQfg1Art): each cel is resized to its
+	// lettering and moved to where it goes on screen. Its own picture is blanked, the lettering is
+	// drawn in drawAgiDemake
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_QFG1 &&
+			(_resourceId == 902 || _resourceId == 506 || _resourceId == 913)) {
+		for (int l = 0; l < (int)_loop.size(); ++l)
+			for (int c = 0; c < (int)_loop[l].cel.size(); ++c) {
+				const AgiDemakeQfg1Art *art = agiDemakeQfg1FindArt(_resourceId, l, c);
+				CelInfo &cel = _loop[l].cel[c];
+				if (!art || cel.width != art->from)
+					continue;
+				const int to = agiDemakeQfg1ArtWidth(*art);
+				cel.width = to;
+				cel.scriptWidth = to;
+				cel.displaceX = art->left - art->posnX + (to >> 1);
+				cel.rawBitmap.clear();
+				SciSpan<byte> bits = cel.rawBitmap->allocate(cel.width * cel.height, "AGI demake QfG1 lettering");
+				for (int i = 0; i < cel.width * cel.height; ++i)
+					bits[i] = cel.clearKey;
+			}
 	}
 
 	// AGI demake, QfG1 dining hall sign (view 95 loop 0 cel 0): "BRIGANDS UBER ALLES!" doesn't fit on it in
@@ -3485,100 +3544,20 @@ static const AgiDemakeFatBlock kAgiDemakeFatBlocks[] = {
 		  "fffffffffffffffffffffffff" } },
 };
 
-// QfG1 intro lettering (credits, view 902, and character select, view 506 loop 1): the heading
-// alphabet Tom signed off (pink: light red, light magenta, magenta, with dark blue speckle and the
-// cyan and yellow gem). Names use the same shapes in their own colours (see kAgiDemakeQfg1NameColour).
-// F is the E without its bottom bar, J is the names' own J. One string per row, 11 rows, '.' empty
-struct AgiDemakeLetter {
-	char ch;
-	const char *rows[11];
-};
-static const AgiDemakeLetter kAgiDemakeQfg1Letters[] = {
-	{ 'A', { "..c..", "..cc.", ".c.c.", ".d1d1", ".5555", "1d5d.", ".d.d.", ".d.5d", "55.55", ".....", "....." } },
-	{ 'B', { "cccc.", "cc.c.", ".c.c.", ".dc11", "5c.c.", "1d..d", ".d.1d", "d5..5", "5555.", ".....", "....." } },
-	{ 'C', { ".ccc.", "cc.c.", "c..d1", "c135.", "d3e11", "d13..", "51.1d", "551d5", ".155.", ".....", "....." } },
-	{ 'D', { "ccc..", "cc.c.", ".c.c.", ".d3d.", "5ce3d", "1d3.d", ".d.1d", "d5.5.", "5555.", ".....", "....." } },
-	{ 'E', { "ccccc", "cc.c.", ".c.c.", ".d..1", "1cd..", ".d..1", ".d.1d", "d5.d1", "5555.", ".....", "....." } },
-	{ 'F', { "ccccc", "cc.c.", ".c.c.", ".d..1", "1cd..", ".d..1", ".d...", "d5...", "555..", ".....", "....." } },
-	{ 'G', { ".ccc.", "cc.cc", "c....", "d13..", "d3edd", "d13.d", "d...d", "55.55", ".555.", ".....", "....." } },
-	{ 'H', { "cc.cc", "cc.c.", ".c.c.", ".d.d.", "5dd55", ".d.d.", ".d.d.", "d5.d.", "55.55", ".....", "....." } },
-	{ 'I', { "ccc", "cc.", "1c.", ".d1", "15.", ".d.", ".d.", "d5.", "555", "...", "..." } },
-	{ 'J', { "ccccc", "c..c.", "d..c.", "53.1.", ".33c.", "13.d.", "...d.", "d..d1", "d5.d5", "d5d5.", ".55.." } },
-	{ 'K', { "cc.cc", "cc.c.", ".c.c1", "1dd.1", "5dd15", "1dd.1", ".d.d1", "d51d.", "55.5.", "....5", "....5" } },
-	{ 'L', { "ccc.", "cc..", "1c..", ".d1.", "55..", "1d11", ".d1.", "d5.d", "5555", "....", "...." } },
-	{ 'M', { "ccc.cc", ".ccccc", "1c.c.c", "1d.d.d", "151d.c", ".d5c.d", "1d.d.d", ".d...5", "555.55", "......", "......" } },
-	{ 'N', { "cc..c", "ccc.c", ".cc.c", ".dd.d", ".d.dd", ".d.dd", ".d.dd", "55..5", "55..5", ".....", "....." } },
-	{ 'O', { ".ccc.", "cc.cc", "c...c", "d.3.d", "d3e3d", "d.3.d", "d...d", "55.55", ".555.", ".....", "....." } },
-	{ 'P', { "cccc", "cc.c", ".c.c", ".d.d", "5dd.", "1d..", ".d.1", "d5..", "555.", "....", "...." } },
-	{ 'R', { "cccc.", "cc.c.", ".c.c1", "1d.d.", "5dd11", ".d.d.", "1d.d.", "d51d.", "55.5.", "....5", "....5" } },
-	{ 'S', { ".ccc.", "cc.cc", "cc...", ".dd..", "..dd.", "...dd", "d..dd", "55.55", ".555.", ".....", "....." } },
-	{ 'T', { "cccc.", "c.ccc", "c.c.c", ".1d.1", "15c1.", ".1d.1", "..d1.", ".d5..", ".5551", ".....", "....." } },
-	{ 'U', { "cc.c", "cc.c", "c..c", "d.3d", "c.e5", "d.3d", "d.1d", "1dd5", ".551", "....", "...." } },
-	{ 'V', { "cc..c", ".cc.c", "1.c.c", "..d3d", ".5ce5", "1.d3d", "..d1d", ".1dd.", "...5.", ".....", "....." } },
-	{ 'W', { "cc..cc", "cc...c", ".c.d.c", ".d.5.d", "5c.d.c", "1d.d.d", ".d.51d", ".55555", ".5..5.", "......", "......" } },
-	{ 'X', { "cc.cc", ".c1cc", ".c.c.", "1ccc1", ".1c.1", "1ddd.", ".d.d.", "1d.5d", "55.55", ".....", "....." } },
-	{ 'Y', { "c..c", "c.cc", "c.c1", "d.d1", "d.5.", ".dd1", "1.d1", "d1d.", "d.5.", "d.d.", ".55." } },
-};
-
-// Which cel says what (read from the cels), and whether it is a name (green) or a heading (pink)
-struct AgiDemakeQfg1Word {
-	int16 view, loop, cel;
-	bool name;
-	const char *text;
-	char anchor;	// 'C' centred on Sierra's word, 'R' keeps its right edge, 'L' its left edge
-};
-static const AgiDemakeQfg1Word kAgiDemakeQfg1Words[] = {
-	{ 506, 1, 0, false, "CHOOSE", 'R' },
-	{ 506, 1, 1, false, "YOUR", 'C' },
-	{ 506, 1, 2, false, "CHARACTER", 'L' },
-	{ 506, 1, 3, true, "FIGHTER", 'C' },
-	{ 506, 1, 4, true, "MAGIC", 'C' },
-	{ 506, 1, 5, true, "THIEF", 'C' },
-	{ 506, 1, 6, true, "USER", 'C' },
-	{ 902, 0, 0, false, "WRITTEN", 'R' },
-	{ 902, 0, 3, false, "DIRECTED", 'L' },
-	{ 902, 0, 4, false, "PROGRAMMING", 'C' },
-	{ 902, 0, 5, false, "ANIMATION", 'R' },
-	{ 902, 0, 6, false, "BACKGROUND", 'R' },
-	{ 902, 0, 7, false, "SCENES", 'L' },
-	{ 902, 0, 8, false, "GAME", 'R' },
-	{ 902, 0, 9, false, "DEVELOPMENT", 'L' },
-	{ 902, 0, 10, false, "SYSTEM", 'C' },
-	{ 902, 0, 11, false, "PRODUCED", 'C' },
-	{ 902, 0, 12, false, "EXECUTIVE", 'C' },
-	{ 902, 0, 13, false, "PRODUCER", 'C' },
-	{ 902, 1, 0, true, "LORI ANN COLE", 'C' },
-	{ 902, 1, 1, true, "ROBERT FISCHBACH", 'C' },
-	{ 902, 1, 2, true, "COREY COLE", 'C' },
-	{ 902, 1, 3, true, "KENN NISHIUYE", 'C' },
-	{ 902, 1, 4, true, "JEFF CROWE", 'C' },
-	{ 902, 2, 0, true, "JEFF STEPHENSON", 'C' },
-	{ 902, 2, 1, true, "ROBERT HEITMAN", 'C' },
-	{ 902, 2, 2, true, "PABLO GHENIS", 'C' },
-	{ 902, 2, 3, true, "STUART GOLDSTEIN", 'C' },
-	{ 902, 3, 1, true, "JERRY MOORE", 'C' },
-	{ 902, 3, 2, true, "LARRY SCOTT", 'C' },
-	{ 902, 3, 3, true, "JERRY SHAW", 'C' },
-	{ 902, 4, 0, true, "GURUKA", 'C' },
-	{ 902, 4, 1, true, "SINGH", 'C' },
-	{ 902, 4, 2, true, "KHALSA", 'C' },
-	{ 902, 4, 3, true, "KEN WILLIAMS", 'C' },
-	{ 902, 5, 0, false, "MUSIC", 'C' },
-	{ 902, 5, 1, true, "MARK SEIBERT", 'C' },
-	{ 902, 5, 2, true, "CINDY WALKER", 'C' },
-};
-
-// Names: the heading shapes in the names' colours, band by band (light red -> yellow, light magenta
-// -> light green, magenta -> green, the gem's cyan and yellow -> magenta and light red)
-static byte agiDemakeQfg1NameColour(byte c) {
-	switch (c) {
-	case 12: return 14;
-	case 13: return 10;
-	case 5: return 2;
-	case 3: return 5;
-	case 14: return 12;
-	default: return c;
-	}
+// Draws the lettering into the cel's fat pixels, from the first fat pixel wholly inside the cel
+static void agiDemakeQfg1DrawArt(GuiResourceId view, int16 loop, int16 cel, int h, byte clearKey, byte *fat, int fatW, int first) {
+	const AgiDemakeQfg1Art *art = agiDemakeQfg1FindArt(view, loop, cel);
+	if (!art)
+		return;
+	for (int i = 0; i < fatW * h; ++i)
+		fat[i] = clearKey;
+	for (int y = 0; y < h && y < 17 && art->rows[y]; ++y)
+		for (int x = 0; art->rows[y][x]; ++x) {
+			const char ch = art->rows[y][x];
+			if (ch == '.' || first + x >= fatW)
+				continue;
+			fat[y * fatW + first + x] = (ch >= 'a') ? ch - 'a' + 10 : ch - '0';
+		}
 }
 
 // The fat columns the cel's lettering covers now, so the new lettering can be centred on the same spot
@@ -3611,58 +3590,11 @@ static void agiDemakePlaceColumns(const Common::Array<Common::Array<byte> > &col
 				fat[y * fatW + start + x] = cols[x][y];
 }
 
-// QfG1 credits (view 902) and character select (view 506 loop 1): Sierra's fancy lettering is redrawn
-// from the alphabet above, one fat pixel between letters and three between words, centred where
-// Sierra's word was. The words come out wider than Sierra's, whose letters overlap their serifs
-static void agiDemakeQfg1Lettering(GuiResourceId view, int16 loop, int16 cel, int h, byte clearKey, byte *fat, int fatW) {
-	if (g_sci->getGameId() != GID_QFG1)
-		return;
-	const AgiDemakeQfg1Word *word = nullptr;
-	for (uint i = 0; i < ARRAYSIZE(kAgiDemakeQfg1Words); ++i)
-		if (kAgiDemakeQfg1Words[i].view == view && kAgiDemakeQfg1Words[i].loop == loop && kAgiDemakeQfg1Words[i].cel == cel)
-			word = &kAgiDemakeQfg1Words[i];
-	if (!word)
-		return;
-	Common::Array<Common::Array<byte> > cols;
-	bool letterBefore = false;
-	for (const char *t = word->text; *t; ++t) {
-		if (*t == ' ') {
-			for (int g = 0; g < 3; ++g)
-				cols.push_back(Common::Array<byte>(11, clearKey));
-			letterBefore = false;
-			continue;
-		}
-		const AgiDemakeLetter *letter = nullptr;
-		for (uint i = 0; i < ARRAYSIZE(kAgiDemakeQfg1Letters); ++i)
-			if (kAgiDemakeQfg1Letters[i].ch == *t)
-				letter = &kAgiDemakeQfg1Letters[i];
-		if (!letter)
-			return;	// a letter the alphabet doesn't have: leave Sierra's lettering
-		if (letterBefore)
-			cols.push_back(Common::Array<byte>(11, clearKey));
-		const int w = strlen(letter->rows[0]);
-		for (int x = 0; x < w; ++x) {
-			Common::Array<byte> col(11, clearKey);
-			for (int y = 0; y < 11; ++y) {
-				const char ch = letter->rows[y][x];
-				if (ch == '.')
-					continue;
-				const byte c = (ch >= 'a') ? ch - 'a' + 10 : ch - '0';
-				col[y] = word->name ? agiDemakeQfg1NameColour(c) : c;
-			}
-			cols.push_back(col);
-		}
-		letterBefore = true;
-	}
-	agiDemakePlaceColumns(cols, h, clearKey, fat, fatW, word->anchor);
-}
-
-// QfG1 "PRESENTS" (view 908 loop 1) and the title "So You Want To Be A Hero" (view 913 loop 1, a cel
-// per word or two): each letter (a run of lit columns in Sierra's cel) is collapsed on its own, so
+// QfG1 "PRESENTS" (view 908 loop 1): each letter (a run of lit columns in Sierra's cel) is collapsed on its own, so
 // letters no longer merge, with one fat pixel between letters and two between words. Dark blue
 // speckle is left out. Centred where Sierra's lettering was
 static void agiDemakeQfg1Respace(GuiResourceId view, int16 loop, int16 cel, const SciSpan<const byte> &bitmap, int w, int h, byte clearKey, byte *fat, int fatW) {
-	if (g_sci->getGameId() != GID_QFG1 || loop != 1 || !((view == 908 && cel <= 7) || (view == 913 && cel <= 3)))
+	if (g_sci->getGameId() != GID_QFG1 || view != 908 || loop != 1 || cel > 7)
 		return;
 	auto px = [&](int x, int y) -> byte {
 		const byte v = bitmap[y * w + x];
@@ -4228,7 +4160,8 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		for (uint i = 0; i < fat.size(); ++i)
 			fat[i] = clearKey;
 	agiDemakeTidyPaintEdges(textOverride, startX, celHeight, fat.data(), fatW, pad, numPairs);
-	agiDemakeQfg1Lettering(_resourceId, loopNo, celNo, celHeight, clearKey, fat.data(), fatW);
+	agiDemakeQfg1DrawArt(_resourceId, loopNo, celNo, celHeight, clearKey, fat.data(), fatW,
+		pad + ((rect.left + offsetX) - pairStart + 1) / 2);
 	agiDemakeQfg1Respace(_resourceId, loopNo, celNo, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW);
 	agiDemakeApplyFatBlocks(_resourceId, loopNo, celNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	agiDemakeApplyPairPrefers(bitmap, _resourceId, loopNo, celNo, startX, celWidth, celHeight, fat.data(), fatW, pad, numPairs);
