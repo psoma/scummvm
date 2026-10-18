@@ -4162,6 +4162,16 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	else if (g_sci->getGameId() == GID_QFG1 && (_resourceId == 503 || _resourceId == 519 || _resourceId == 550 ||
 			(_resourceId == 139 && loopNo == 4)) && !qfgHeroKeep)
 		agiDemakeHeroEyes(_resourceId, bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad, numPairs, loopNo);	// facing you in other poses
+	// QfG1 award ceremony, the hero smiling (view 139 loop 4 cel 4): Sierra drew his eyes shut, which
+	// as fat pixels leaves him with none. He gets the same eyes as his open-eyed frames (cels 1 to 3):
+	// row 5, black at the 2nd and 4th of four face-coloured fat pixels
+	if (g_sci->getGameId() == GID_QFG1 && _resourceId == 139 && loopNo == 4 && celNo == 4 && celHeight > 5 && numPairs > 6) {
+		byte *f = fat.data() + 5 * fatW + pad;
+		for (int x = 3; x <= 6; ++x)
+			f[x] = 12;
+		f[4] = 0;
+		f[6] = 0;
+	}
 	if (towards || away)
 		agiDemakeCopyHead(_resourceId, loopNo, celHeight, clearKey, fat.data(), fatW, pad, numPairs);
 	if (g_sci->getGameId() == GID_PQ2 && _resourceId == 205 && celWidth == 73)
