@@ -1,4 +1,4 @@
-# SCI to AGI Demake (unofficial ScummVM fork) - v0.247
+# SCI to AGI Demake (unofficial ScummVM fork) - v0.248
 
 This fork adds an **AGI-style demake** mode to ScummVM's SCI engine. Early Sierra SCI games (SCI0 / SCI01, 16-colour EGA) are drawn the way Sierra's older AGI games looked: 160-pixel-wide "fat" pixels, no dithering, the 8x8 AGI font, AGI-style message boxes, and optional PCjr sound.
 
@@ -39,7 +39,7 @@ It is an unofficial, personal fork. It is not part of ScummVM and is not endorse
 - **Dither handler** (pulldown directly under the AGI demake option, any game): *Flat approximation* (default) shows each dithered colour pair as one colour. *Chunky dither* draws it as a checkerboard of fat pixels in its two colours. Takes effect next time the game starts
 - **Game-specific fixes (Hero's Quest, in progress):**
   - Title sign lettering: every line re-spaced with a hole in each letter
-  - Intro: "PRESENTS" and "So You Want To Be A Hero" letters spaced apart. Title is one evenly spaced line. Credits and the character select lettering redrawn from a cleaned-up alphabet in Sierra's colours, letters kerned, words kept centred or lined up with their neighbours. "BY" in plain letters. Credits screens re-laid on centred lines: "WRITTEN &" / "DIRECTED BY", "ANIMATIONS &" / "BACKGROUNDS", "DEVELOPMENT" / "SYSTEM"
+  - Intro: "PRESENTS" and "So You Want To Be A Hero" letters spaced apart (and PRESENTS' S and N tidied). Title is one evenly spaced line. Credits and the character select lettering redrawn from a cleaned-up alphabet in Sierra's colours, letters kerned, words kept centred or lined up with their neighbours. "BY" in plain letters. Credits screens re-laid on centred lines: "WRITTEN &" / "DIRECTED BY", "ANIMATIONS &" / "BACKGROUNDS", "DEVELOPMENT" / "SYSTEM"
   - Restart and Continue buttons on the same row
   - New hero screen: frame all the way round, name box lined up, "Start" button, wider gap before the points values (also on the character sheet in game), "points to allocate" pop-up fits the screen
   - Hero (walking and standing): Sierra's 1 pixel grey outline dropped, eyes split and centred on his face

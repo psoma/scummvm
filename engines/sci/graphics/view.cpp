@@ -3642,6 +3642,19 @@ static void agiDemakeQfg1Respace(GuiResourceId view, int16 loop, int16 cel, cons
 		}
 		prevEnd = e;
 	}
+	// The resting PRESENTS (cel 0): each S's bottom half was a solid block. Its middle column is
+	// cleared on rows 6 and 7, so the S has its shape (both S's, fat columns 13 and 29), and the N
+	// is tidied
+	if (cel == 0 && cols.size() > 29 && h > 7) {
+		for (int x : { 13, 29 })
+			for (int y : { 6, 7 })
+				cols[x][y] = clearKey;
+		// The N (fat column 20): the light cyan pixel in its left side moves up one, dark green under it
+		if (cols[20][5] == 11) {
+			cols[20][4] = 11;
+			cols[20][5] = 2;
+		}
+	}
 	if (!cols.empty())
 		agiDemakePlaceColumns(cols, h, clearKey, fat, fatW);
 }
