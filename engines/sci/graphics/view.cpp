@@ -483,6 +483,8 @@ void GfxView::initData() {
 				cel.displaceX += grow / 2;
 			cel.width = w.to;
 			cel.scriptWidth = w.to;
+			// the cel was unpacked above to copy it, and a span can only be allocated when empty
+			cel.rawBitmap.clear();
 			SciSpan<byte> bits = cel.rawBitmap->allocate(cel.width * cel.height, "AGI demake QfG1 lettering");
 			for (int y = 0; y < cel.height; ++y)
 				for (int x = 0; x < cel.width; ++x) {
