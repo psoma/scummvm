@@ -340,10 +340,16 @@ Window *GfxPorts::addWindow(const Common::Rect &dims, const Common::Rect *restor
 	r = dims;
 	// AGI demake: re-centre a text box that kTextSize widened (only the window that matches its
 	// width, created right after the measurement)
+	bool sq3FesterLeft = false;
 	if (_screen->agiDemake() && _screen->agiWindowShift() > 0) {
 		const int16 tw = _screen->agiWindowShiftWidth();
-		if (r.width() >= tw && r.width() <= tw + 40)
+		if (r.width() >= tw && r.width() <= tw + 40) {
 			r.translate(-MIN<int16>(_screen->agiWindowShift(), r.left), 0);
+			// SQ3 Fester's talk box on the left (room 470): its frame sits 2 pixels closer to the text
+			// each side (below), so 13 characters a line still end just left of his eyes
+			sq3FesterLeft = g_sci->getGameId() == GID_SQ3 && g_sci->getEngineState() &&
+				g_sci->getEngineState()->currentRoomNumber() == 470;
+		}
 		_screen->setAgiWindowShift(0, 0);
 	}
 	// This looks fishy, but it's exactly what Sierra did. They removed last
@@ -385,8 +391,8 @@ Window *GfxPorts::addWindow(const Common::Rect &dims, const Common::Rect *restor
 		}
 		// AGI demake: room for the AGI inset frame (4 pixels each side, 2 top and bottom)
 		if (_screen->agiDemake()) {
-			r.left -= 4;
-			r.right += 4;
+			r.left -= sq3FesterLeft ? 2 : 4;
+			r.right += sq3FesterLeft ? 2 : 4;
 			r.top -= 2;
 			r.bottom += 2;
 			// Even edges: a white fat pixel, then the red fat pixel frame, on both sides
@@ -396,6 +402,12 @@ Window *GfxPorts::addWindow(const Common::Rect &dims, const Common::Rect *restor
 	}
 
 	pwnd->dims = r;
+	// AGI demake, SQ3 Fester's store (room 470): a tall talk box ends at row 190 at the lowest, clear of
+	// the typing line
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && g_sci->getEngineState() &&
+			g_sci->getEngineState()->currentRoomNumber() == 470 && pwnd->dims.top < 100 &&
+			pwnd->dims.bottom + _wmgrPort->top > 191)
+		pwnd->dims.bottom = 191 - _wmgrPort->top;	// (window coordinates start under the status line)
 
 	// Clip window, if needed
 	Common::Rect wmprect = _wmgrPort->rect;
@@ -856,6 +868,19 @@ void GfxPorts::printWindowList(Console *con) {
 					wnd->rect.left, wnd->rect.top, wnd->rect.right, wnd->rect.bottom,
 					wnd->bDrawn, wnd->wndStyle);
 		}
+	}
+}
+
+// AGI demake: the saved backgrounds of the open boxes (see agiDemakeOpenWindowRects)
+void GfxPorts::agiDemakeOpenWindowSaves(Common::Array<reg_t> &out) const {
+	out.clear();
+	for (PortList::const_iterator it = _windowList.begin(); it != _windowList.end(); ++it) {
+		const Port *p = *it;
+		if (!p->isWindow() || p == _picWind || p == _agiClosingWindow)
+			continue;
+		const Window *w = (const Window *)p;
+		if (!w->hSaved1.isNull())
+			out.push_back(w->hSaved1);
 	}
 }
 

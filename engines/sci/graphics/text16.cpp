@@ -78,6 +78,7 @@ GfxFont *GfxText16::agiFont(GuiResourceId fontId) {
 	if (!_agiFont)
 		_agiFont = new GfxFontAgi(_screen);
 	_agiFont->setFallback(_cache->getFont(fontId));
+	_agiFont->setCode(g_sci->getGameId() == GID_SQ3 && fontId == 603);
 	_agiFont->setTight(_agiTight);
 	_agiFont->setSpaceWidth(_agiSpace);
 	return _agiFont;
@@ -97,7 +98,14 @@ int16 GfxText16::agiWidth(const char *text, bool trimTrailingSpaces) {
 // AGI demake, QfG1: a blank pixel row between lines of text, so a descender (g, y) doesn't touch an
 // ascender (d, h) on the line below. PQ2 keeps the AGI 8 pixel lines it was tuned with
 int16 GfxText16::agiLineGap() const {
-	return (g_sci->getGameId() == GID_QFG1) ? 1 : 0;
+	// QfG1, and SQ3 Fester's store (room 470): a pixel between lines, so descenders don't touch the
+	// letters below
+	if (g_sci->getGameId() == GID_QFG1)
+		return 1;
+	if (g_sci->getGameId() == GID_SQ3 && g_sci->getEngineState() && (g_sci->getEngineState()->currentRoomNumber() == 470 ||
+			g_sci->getEngineState()->currentRoomNumber() == 95 || g_sci->getEngineState()->currentRoomNumber() == 96))
+		return 1;	// (95, 96: Pug's lines in his office and the robot cockpit)
+	return 0;
 }
 
 GfxFont *GfxText16::GetFont() {
@@ -708,6 +716,34 @@ static const struct AgiDemakeTextSub {
 	// PQ2 Colby's business card
 	{ GID_PQ2, "Colby's business card, found in Bains' motel room.",
 		"Colby's business card, found in Bains' motel room: \"Colby Imports, Steelton, U.S.A., 407-555-3323\"" },
+	// SQ3 postcard backs (room 470, font 999): Sierra lines up "Place / Stamp / Here" with runs of
+	// spaces in its narrow card font, which wrap all over the place in the 8 pixel AGI font. Laid out
+	// again for 35 characters: the card's name centred with Place at the right, then a gap line with
+	// Stamp, then the message with Here beside its first line. The first two message lines stop at 28
+	// characters, so nothing sits right under Here (the message is otherwise unchanged)
+	{ GID_SQ3, "             Arrakis                             Place\nA great spot for winter travel,              Stamp\nArrakis holds many delights for               Here\nthe adventurous vacationer.\nNothing can compare with a\nblinding dust storm, or being\ncrushed by a sandworm.",
+		"          Arrakis             Place\n                              Stamp\nA great spot for winter       Here\ntravel, Arrakis holds many\ndelights for the adventurous\nvacationer. Nothing can compare\nwith a blinding dust storm, or\nbeing crushed by a sandworm." },
+	{ GID_SQ3, "     Black Hole Bertha                       Place\nLike a giant interstellar                     Stamp\nvacuum, Black Hole Bertha                  Here\ncomes sweeping through the\ngalaxy. All travelers are\nadvised to stay away from Bertha.\nJust buy the post card, then\ntell everyone you went there.",
+		"     Black Hole Bertha        Place\n                              Stamp\nLike a giant interstellar     Here\nvacuum, Black Hole Bertha\ncomes sweeping through the galaxy.\nAll travelers are advised to stay\naway from Bertha. Just buy the post\ncard, then tell everyone you went\nthere." },
+	{ GID_SQ3, "             Ortega                             Place\nThe volcanoes of Ortega are                 Stamp\nconstantly reshaping its                       Here\nsurface. Dressed in heat\nresistant underwear, the hearty\ntraveler can find a lava lovers\nparadise on this starkly\nenjoyable planet.",
+		"           Ortega             Place\n                              Stamp\nThe volcanoes of Ortega are   Here\nconstantly reshaping its\nsurface. Dressed in heat resistant\nunderwear, the hearty traveler can\nfind a lava lovers paradise on this\nstarkly enjoyable planet." },
+	{ GID_SQ3, "         RobertaLand                           Place\nCome join the fun at the                      Stamp\nfunpark of the future!                         Here\nSee characters from your\nfavorite stories come to\nlife again and again.\nRecently revised, so don't\nmiss a single thrilling scene.",
+		"        RobertaLand           Place\n                              Stamp\nCome join the fun at the      Here\nfunpark of the future! See\ncharacters from your favorite\nstories come to life again and\nagain. Recently revised, so don't\nmiss a single thrilling scene." },
+	{ GID_SQ3, "   Beta Alpha Starless Region               Place\nLooking for some real                      Stamp\nsolitude? Come to a place                   Here\nthat's so far from everything\nthat you can't even see stars.\nMind-numbing boredom greets\nyou as you drift aimlessly\nthrough nothing. A must for the\nbrain-dead!",
+		" Beta Alpha Starless Region   Place\n                              Stamp\nLooking for some real         Here\nsolitude? Come to a place\nthat's so far from everything that\nyou can't even see stars.\nMind-numbing boredom greets you as\nyou drift aimlessly through\nnothing. A must for the brain-dead!" },
+	{ GID_SQ3, "             Achoron                            Place\nThe friendly creatures of                    Stamp\nAchoron are a delight for                     Here\nyoung and old alike. Tame\nenough to come right up and\ncaress you, yet wild enough to\nslash you to shreds if provoked.",
+		"          Achoron             Place\n                              Stamp\nThe friendly creatures of     Here\nAchoron are a delight for\nyoung and old alike. Tame enough to\ncome right up and caress you, yet\nwild enough to slash you to shreds\nif provoked." },
+	// SQ3 decoder ring box (room 290): just the chart, no heading, no blank line
+	{ GID_SQ3, "the secret code goes something like this:\na{{ b{{ c{{ d{{ e{{ f{{ g{ h{ i{{ j{{ k{{ l{{ m\nA B C D E F G H I J K L M\n\nn{ o{ p{ q{ r{{ s{{ t{ u{ v{ w{ x{ y{ z\nN O P Q R S T U V W X Y Z",
+		"a{{ b{{ c{{ d{{ e{{ f{{ g{ h{ i{{ j{{ k{{ l{{ m\nA B C D E F G H I J K L M\nn{ o{ p{ q{ r{{ s{{ t{ u{ v{ w{ x{ y{ z\nN O P Q R S T U V W X Y Z" },
+	// SQ3 robot cockpit (room 96): Sierra centres LET THE GAME BEGIN! with 16 spaces, which push it off to
+	// the right in the AGI font; 3 spaces centre it in Pug's 200 pixel box (19 letters of 8 pixels)
+	{ GID_SQ3, "               LET THE GAME BEGIN!", "   LET THE GAME BEGIN!" },	// (15 spaces in Sierra's text)
+	{ GID_SQ3, "                LET THE GAME BEGIN!", "   LET THE GAME BEGIN!" },
+	// SQ3 Decision Time box (room 81): the three buttons are too wide for the box in the AGI font
+	{ GID_SQ3, "Enter ScumSoft", "Enter" },
+	// SQ3 title screen: the copyright sign is a symbol in Sierra's font, drawn at full resolution
+	{ GID_SQ3, "\x04 1989 Sierra On-Line, Inc.", "(C) 1989 Sierra On-Line, Inc." },
 };
 
 // AGI demake: part of a longer message changed, matched on a distinctive part of the message. Used where only
@@ -719,6 +755,8 @@ static const struct AgiDemakeTextEdit {
 	// PQ2 bomb instructions: the WARNING line is indented like the rest, and broken by hand so the
 	// part that wraps stays indented too
 	{ GID_PQ2, "KUDOFI'S DO-IT-YOURSELF BOMB", "\nWARNING: Only connect same color wires.", "\n  WARNING: Only connect same color\n  wires." },
+	// SQ3 Fester's welcome (room 470): one word shorter, so his tallest box clears the typing line
+	{ GID_SQ3, "Howdy, stranger!", "the known universe", "the universe" },
 	// QfG1 new hero screen: the Start Game button is sized from its text and ran off the right edge
 	{ GID_QFG1, "Start Game", "Start Game", "Start" },
 };
@@ -726,6 +764,25 @@ static const struct AgiDemakeTextEdit {
 static const char *agiDemakeSubstituteText(const char *text) {
 	if (!text)
 		return text;
+	// SQ3 outro (room 116): Sierra's "The Two Guys from Andromeda go on to create..." starts with a space,
+	// which put its first line one letter in
+	if (g_sci->getGameId() == GID_SQ3 && !strncmp(text, " The Two Guys from Andromeda go on", 34))
+		return text + 1;
+	// SQ3 Fester's store (room 470): his lines carry blank lines before and after (room for Sierra's
+	// balloon tail), which only made the AGI boxes taller, and the postcard backs end in a space.
+	// Trimmed first, so the replacements below match the trimmed text
+	if (g_sci->getGameId() == GID_SQ3 && g_sci->getEngineState() && g_sci->getEngineState()->currentRoomNumber() == 470) {
+		const char *b = text, *e = text + strlen(text);
+		while (*b == 0x0A || *b == 0x0D)
+			++b;
+		while (e > b && (e[-1] == 0x0A || e[-1] == 0x0D || e[-1] == ' '))
+			--e;
+		if (b != text || *e) {
+			static Common::String trimmed;
+			trimmed = Common::String(b, e - b);
+			text = trimmed.c_str();
+		}
+	}
 	for (uint i = 0; i < ARRAYSIZE(kAgiDemakeTextSubs); ++i)
 		if (g_sci->getGameId() == kAgiDemakeTextSubs[i].game && !strcmp(text, kAgiDemakeTextSubs[i].from))
 			return kAgiDemakeTextSubs[i].to;
@@ -738,7 +795,8 @@ static const char *agiDemakeSubstituteText(const char *text) {
 		if (!at)
 			continue;
 		edited = Common::String(text, at - text) + e.replace + (at + strlen(e.find));
-		return edited.c_str();
+		text = edited.c_str();
+		break;
 	}
 	return text;
 }
@@ -795,7 +853,23 @@ void GfxText16::Box(const char *text, uint16 languageSplitter, bool show, const 
 			// Sierra's line breaks are often hand-placed and only just fit their own font
 			const int16 absLeft = _ports->_curPort->left + rect.left;
 			const int16 mirrored = _screen->getWidth() - 2 * absLeft;
-			const int16 w = MAX<int16>(agiDemakeOriginalWidth(text, rect.width(), fontId), mirrored);
+			int16 w = MAX<int16>(agiDemakeOriginalWidth(text, rect.width(), fontId), mirrored);
+			// SQ3: never narrower than the widest hand-broken line in the 8x8 font, or the extra line
+			// breaks push text below the area the game saved, and it is never erased (intro credits:
+			// "Mark Seibert" was left on the screen). Still kept inside the screen
+			if (g_sci->getGameId() == GID_SQ3) {
+				int16 widest = 0;
+				const char *line = text;
+				for (const char *p = text; ; ++p) {
+					if (*p == 0 || *p == 0x0A || *p == 0x0D) {
+						widest = MAX<int16>(widest, agiWidth(Common::String(line, p - line).c_str(), true));
+						if (*p == 0)
+							break;
+						line = p + 1;
+					}
+				}
+				w = MAX<int16>(w, MIN<int16>(widest, _screen->getWidth() - absLeft));
+			}
 			if (w > 0 && w < rect.width())
 				rect.right = rect.left + w;
 		}
@@ -1055,12 +1129,32 @@ reg_t GfxText16::allocAndFillReferenceRectArray() {
 void GfxText16::kernelTextSize(const char *text, uint16 languageSplitter, int16 font, int16 maxWidth, int16 *textWidth, int16 *textHeight) {
 	Common::Rect rect(0, 0, 0, 0);
 	bool agiCapped = false;
+	int16 askedWidth = maxWidth;
 	if (_screen->agiDemake()) {
 		text = agiDemakeSubstituteText(text);
 		const int16 asked = maxWidth;
+		askedWidth = asked;
 		maxWidth = agiDemakeCapTextWidth(text, maxWidth);
 		agiCapped = (maxWidth != asked) && g_sci->getGameId() == GID_QFG1;	// PQ2 keeps its approved layouts
+		if (g_sci->getGameId() == GID_SQ3) {
+			// SQ3's full-width boxes (the outro's Print #width 320): in the AGI font the text fills all 320
+			// pixels, so the box outgrew the screen, the text sat on the left frame and ran over the right
+			// one. Capped at 304, the box (304 + its margins) fits the screen with its frame
+			if (maxWidth > 304)
+				maxWidth = 304;
+			// the Two Guys' chatter in the cockpit (room 14, #width 100): a little wider, so long shouts
+			// ("oh noooooooo!!!") aren't cut off on the right
+			if (g_sci->getEngineState() && g_sci->getEngineState()->currentRoomNumber() == 14 && maxWidth == 100)
+				maxWidth = 112;
+		}
 	}
+	// AGI demake, SQ3 Fester's store (room 470): his sales talk (Print #at -1 10 #width 280) covered his
+	// eyes. Anything longer than 3 lines goes in a narrow box down the left of the screen, ending just
+	// left of his head (window x 0-118, text 104 pixels wide, moved to the left edge). Short lines stay
+	// at the top, where they clear his eyes. (Checked against the width the game asked for: the cap
+	// above can change it.)
+	const bool sq3Fester = _screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && askedWidth == 280 &&
+		g_sci->getEngineState() && g_sci->getEngineState()->currentRoomNumber() == 470;
 	// AGI demake, QfG1: a box narrower than its longest word in the 8 pixel font (Erasmus and Fenrus
 	// talk in 82 pixel boxes) is widened to fit that word, so words aren't split across lines
 	if (_screen->agiDemake() && g_sci->getGameId() == GID_QFG1 && maxWidth > 0) {
@@ -1116,6 +1210,12 @@ void GfxText16::kernelTextSize(const char *text, uint16 languageSplitter, int16 
 	Size(rect, text, languageSplitter, font, maxWidth);
 	*textWidth = rect.width();
 	*textHeight = rect.height();
+	if (sq3Fester && rect.height() > 3 * (8 + agiLineGap())) {	// more than 3 lines
+		Size(rect, text, languageSplitter, font, 104);	// 13 characters a line
+		*textWidth = rect.width();
+		*textHeight = rect.height();
+		_screen->setAgiWindowShift(320, rect.width());
+	}
 	// AGI demake, QfG1: Restore, Restart and Quit buttons are reported 3 pixels taller (drawn in the
 	// lower part, see GfxControls16::kernelDrawButton), so the gap above them matches the gap below
 	if (_screen->agiDemake() && agiDemakeIsQfgDeathButton(text))

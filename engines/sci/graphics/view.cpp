@@ -38,6 +38,63 @@
 
 namespace Sci {
 
+// AGI demake, SQ3 ship's computer buttons (view 41): see agiDemakeSq3ButtonText
+struct AgiDemakeSq3Button { byte valid, keyBg, keyInk, labelBg, labelInk; };
+static AgiDemakeSq3Button g_agiDemakeSq3Buttons[10][4];
+static const char *const kAgiDemakeSq3ButtonKey[10] = { "1", "2", "3", "3", "4", "5", "6", "7", "8", nullptr };
+static const char *const kAgiDemakeSq3ButtonLabel[10] = { "ENGINE", "NAV SYS", "LAUNCH", "LAND", "CRUISE", "LIGHT", "ATTACK", "RADAR", "WEAPON", "STAND BY" };
+// AGI demake, SQ3 weapons screen buttons (room 18, view 46): one word each, wiped area and colours
+struct AgiDemakeSq3WeapButton { byte valid, bg, ink; };
+static AgiDemakeSq3WeapButton g_agiDemakeSq3Weap[10][4];
+static const char *const kAgiDemakeSq3WeapLabel[10] = { nullptr, "FRONT", "BACK", "HELP", nullptr, nullptr, nullptr, nullptr, "FIRE", "OFF" };
+static void agiDemakeSq3WeapArea(int16 loop, int w, int h, int &x0, int &x1, int &y0, int &y1);
+// AGI demake, SQ3 speech bubbles: a bubble given as rows of fat pixels ('f' or '#' white, '0' black, '.'
+// clear) is written into a cel one fat pixel bigger on every side, with a black outline round the white
+// (where Sierra's own black edge is already there, none is added outside it)
+extern int g_agiDemakeSq3BubbleShift[4];
+
+static void agiDemakeBubbleWithOutline(CelInfo &cel, const char *const *rows, int nRows,
+		int holeX0 = -1, int holeX1 = -1, int holeY0 = -1, int holeY1 = -1) {
+	const int w2 = (int)strlen(rows[0]), W = w2 + 2, H = nRows + 2;
+	Common::Array<char> g(W * H, '.');
+	for (int y = 0; y < nRows; ++y)
+		for (int x = 0; x < w2; ++x)
+			g[(y + 1) * W + x + 1] = (rows[y][x] == '#') ? 'f' : rows[y][x];
+	Common::Array<char> o(g);
+	for (int y = 0; y < H; ++y)
+		for (int x = 0; x < W; ++x) {
+			if (g[y * W + x] != '.')
+				continue;
+			for (int dy = -1; dy <= 1; ++dy)
+				for (int dx = -1; dx <= 1; ++dx) {
+					const int yy = y + dy, xx = x + dx;
+					if (yy >= 0 && yy < H && xx >= 0 && xx < W && g[yy * W + xx] == 'f')
+						o[y * W + x] = '0';
+				}
+		}
+	cel.width = 2 * W;
+	cel.height = H;
+	cel.scriptWidth = cel.width;
+	cel.scriptHeight = cel.height;
+	cel.displaceY += 1;	// one row more below; the left (or right) edge moves out a fat pixel by the caller's shift
+	cel.rawBitmap.clear();
+	SciSpan<byte> bits = cel.rawBitmap->allocate(cel.width * cel.height, "AGI demake SQ3 speech bubble");
+	for (int y = 0; y < H; ++y)
+		for (int x = 0; x < cel.width; ++x) {
+			const char ch = o[y * W + (x >> 1)];
+			bits[y * cel.width + x] = (ch == 'f') ? 15 : (ch == '0') ? 0 : cel.clearKey;
+			if (x >= holeX0 && x <= holeX1 && y >= holeY0 && y <= holeY1)
+				bits[y * cel.width + x] = cel.clearKey;
+		}
+}
+// AGI demake, SQ3 TERMINATE on the Terminator's visor (view 58 loops 1-2): text colour per frame (+1, 0 = none)
+static byte g_agiDemakeSq3Term[3][10];
+static int agiDemakeWordWidth(const char *word);
+// AGI demake, SQ3 navigation screen buttons (room 19, view 49): key box columns 1-11, label 13 to w-2
+static AgiDemakeSq3Button g_agiDemakeSq3Nav[10][4];
+static const char *const kAgiDemakeSq3NavKey[10] = { "1", nullptr, nullptr, "2", "3", nullptr, nullptr, nullptr, nullptr, nullptr };
+static const char *const kAgiDemakeSq3NavLabel[10] = { "SCAN", nullptr, nullptr, "PLOT", "EXIT", nullptr, nullptr, nullptr, nullptr, nullptr };
+
 // QfG1 intro lettering, drawn ready: the credits (view 902) and character select (view 506 loop 1)
 // in the alphabet Tom signed off (headings pink, names the same shapes in green), letters kerned
 // so every row keeps a fat pixel between them and 2 between words, and the title (view 913 loop 1)
@@ -559,6 +616,1053 @@ void GfxView::initData() {
 				for (int i = 0; i < cel.width * cel.height; ++i)
 					bits[i] = cel.clearKey;
 			}
+	}
+
+	// AGI demake, SQ3 ship's computer buttons (view 41, see g_agiDemakeSq3Buttons): the key box
+	// (columns 1-8) and label area (columns 10 to width-2), rows 1-13, are wiped to their background
+	// colour (the commonest colour there), and the other colour is remembered as the text colour.
+	// STAND BY (loop 9) is one area, columns 1 to width-2
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && _resourceId == 41) {
+		for (int l = 0; l < 10 && l < (int)_loop.size(); ++l) {
+			for (int c = 0; c < 4 && c < (int)_loop[l].cel.size(); ++c) {
+				g_agiDemakeSq3Buttons[l][c].valid = 0;
+				CelInfo &cel = _loop[l].cel[c];
+				if ((cel.width != 58 && cel.width != 60) || cel.height != 15 || !kAgiDemakeSq3ButtonLabel[l])
+					continue;
+				const SciSpan<const byte> &orig = getBitmap(l, c);
+				Common::Array<byte> copy(orig.getUnsafeDataAt(0, cel.width * cel.height), cel.width * cel.height);
+				struct { int x0, x1; byte bg, ink; } area[2];
+				int na = 0;
+				if (l == 9)
+					area[na++] = { 1, cel.width - 2, 0, 0 };
+				else {
+					area[na++] = { 1, 8, 0, 0 };
+					area[na++] = { 10, cel.width - 2, 0, 0 };
+				}
+				for (int a = 0; a < na; ++a) {
+					int count[16] = { 0 };
+					for (int y = 1; y <= 13; ++y)
+						for (int x = area[a].x0; x <= area[a].x1; ++x)
+							++count[copy[y * cel.width + x] & 15];
+					int bg = 0, ink = -1;
+					for (int i = 1; i < 16; ++i)
+						if (count[i] > count[bg])
+							bg = i;
+					for (int i = 0; i < 16; ++i)
+						if (i != bg && count[i] > 0 && (ink < 0 || count[i] > count[ink]))
+							ink = i;
+					area[a].bg = bg;
+					area[a].ink = (ink < 0) ? bg : ink;
+					for (int y = 1; y <= 13; ++y)
+						for (int x = area[a].x0; x <= area[a].x1; ++x)
+							copy[y * cel.width + x] = bg;
+				}
+				AgiDemakeSq3Button &b = g_agiDemakeSq3Buttons[l][c];
+				b.valid = 1;
+				b.labelBg = area[na - 1].bg;
+				b.labelInk = area[na - 1].ink;
+				b.keyBg = area[0].bg;
+				b.keyInk = area[0].ink;
+				cel.rawBitmap.clear();
+				SciSpan<byte> bits = cel.rawBitmap->allocate(cel.width * cel.height, "AGI demake SQ3 computer button");
+				for (int i = 0; i < cel.width * cel.height; ++i)
+					bits[i] = copy[i];
+			}
+		}
+	}
+
+	// AGI demake, SQ3 weapons screen buttons (view 46 loops 1, 2, 3, 8, 9; see agiDemakeSq3WeapText):
+	// the word area is wiped to its commonest colour, the next commonest is kept as the text colour
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && _resourceId == 46) {
+		for (int l = 0; l < 10 && l < (int)_loop.size(); ++l) {
+			for (int c = 0; c < 4 && c < (int)_loop[l].cel.size(); ++c) {
+				g_agiDemakeSq3Weap[l][c].valid = 0;
+				CelInfo &cel = _loop[l].cel[c];
+				if (!kAgiDemakeSq3WeapLabel[l])
+					continue;
+				if (!((l == 8 && cel.width == 43 && cel.height == 11) || (l != 8 && cel.width == 40 && cel.height == 13)))
+					continue;
+				const SciSpan<const byte> &orig = getBitmap(l, c);
+				Common::Array<byte> copy(orig.getUnsafeDataAt(0, cel.width * cel.height), cel.width * cel.height);
+				int x0, x1, y0, y1;
+				agiDemakeSq3WeapArea(l, cel.width, cel.height, x0, x1, y0, y1);
+				int count[16] = { 0 };
+				for (int y = y0; y <= y1; ++y)
+					for (int x = x0; x <= x1; ++x)
+						++count[copy[y * cel.width + x] & 15];
+				int bg = 0, ink = -1;
+				for (int i = 1; i < 16; ++i)
+					if (count[i] > count[bg])
+						bg = i;
+				for (int i = 0; i < 16; ++i)
+					if (i != bg && count[i] > 0 && (ink < 0 || count[i] > count[ink]))
+						ink = i;
+				for (int y = y0; y <= y1; ++y)
+					for (int x = x0; x <= x1; ++x)
+						copy[y * cel.width + x] = bg;
+				g_agiDemakeSq3Weap[l][c].valid = 1;
+				g_agiDemakeSq3Weap[l][c].bg = bg;
+				g_agiDemakeSq3Weap[l][c].ink = (ink < 0) ? bg : ink;
+				cel.rawBitmap.clear();
+				SciSpan<byte> bits = cel.rawBitmap->allocate(cel.width * cel.height, "AGI demake SQ3 weapons button");
+				for (int i = 0; i < cel.width * cel.height; ++i)
+					bits[i] = copy[i];
+			}
+		}
+	}
+
+	// AGI demake, SQ3 navigation screen buttons (view 49, see agiDemakeSq3NavText): key box (columns
+	// 1-11) and label area (13 to width-2), rows 1-13, wiped to their commonest colour, the next
+	// commonest kept as the text colour
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && _resourceId == 49) {
+		for (int l = 0; l < 10 && l < (int)_loop.size(); ++l) {
+			for (int c = 0; c < 4 && c < (int)_loop[l].cel.size(); ++c) {
+				g_agiDemakeSq3Nav[l][c].valid = 0;
+				CelInfo &cel = _loop[l].cel[c];
+				if (cel.width != 51 || cel.height != 15 || !kAgiDemakeSq3NavLabel[l])
+					continue;
+				const SciSpan<const byte> &orig = getBitmap(l, c);
+				Common::Array<byte> copy(orig.getUnsafeDataAt(0, cel.width * cel.height), cel.width * cel.height);
+				const int areaX[2][2] = { { 1, 11 }, { 13, cel.width - 2 } };
+				byte bgs[2], inks[2];
+				for (int a = 0; a < 2; ++a) {
+					int count[16] = { 0 };
+					for (int y = 1; y <= 13; ++y)
+						for (int x = areaX[a][0]; x <= areaX[a][1]; ++x)
+							++count[copy[y * cel.width + x] & 15];
+					int bg = 0, ink = -1;
+					for (int i = 1; i < 16; ++i)
+						if (count[i] > count[bg])
+							bg = i;
+					for (int i = 0; i < 16; ++i)
+						if (i != bg && count[i] > 0 && (ink < 0 || count[i] > count[ink]))
+							ink = i;
+					bgs[a] = bg;
+					inks[a] = (ink < 0) ? bg : ink;
+					for (int y = 1; y <= 13; ++y)
+						for (int x = areaX[a][0]; x <= areaX[a][1]; ++x)
+							copy[y * cel.width + x] = bg;
+				}
+				AgiDemakeSq3Button &b = g_agiDemakeSq3Nav[l][c];
+				b.valid = 1;
+				b.keyBg = bgs[0];
+				b.keyInk = inks[0];
+				b.labelBg = bgs[1];
+				b.labelInk = inks[1];
+				cel.rawBitmap.clear();
+				SciSpan<byte> bits = cel.rawBitmap->allocate(cel.width * cel.height, "AGI demake SQ3 nav button");
+				for (int i = 0; i < cel.width * cel.height; ++i)
+					bits[i] = copy[i];
+			}
+		}
+	}
+	// AGI demake, SQ3 YOU ARE HERE marker (view 50 loop 4 cel 0, 25 x 17): redrawn 47 x 25, keeping its
+	// left edge and growing up and to the right (one row lower too). A fat pixel arrow points down-left
+	// into the box, its tip where Sierra's is. The words YOU / ARE / HERE are AGI font text
+	// (agiDemakeSq3NavText) on black boxes 1 pixel round each word, so the grid lines don't run through
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && _resourceId == 50 && _loop.size() > 4 &&
+			_loop[4].cel.size() > 0 && _loop[4].cel[0].width == 25 && _loop[4].cel[0].height == 17) {
+		CelInfo &cel = _loop[4].cel[0];
+		const int newW = 47, newH = 25;
+		cel.displaceX += (newW >> 1) - (cel.width >> 1);
+		cel.displaceY += 1;
+		cel.width = newW;
+		cel.height = newH;
+		cel.scriptWidth = newW;
+		cel.scriptHeight = newH;
+		cel.rawBitmap.clear();
+		SciSpan<byte> bits = cel.rawBitmap->allocate(newW * newH, "AGI demake SQ3 YOU ARE HERE");
+		for (int i = 0; i < newW * newH; ++i)
+			bits[i] = cel.clearKey;
+		static const char *const kArrow[6] = { "....ff", "f..ff.", "f.ff..", "fff...", "ffff..", "fffff." };
+		for (int y = 0; y < 6; ++y)
+			for (int x = 0; x < 12; ++x)
+				if (kArrow[y][x >> 1] == 'f')
+					bits[(17 + y) * newW + x] = 15;
+		static const struct { int16 x0, x1, y0, y1; } kBack[] = { { 15, 37, 0, 8 }, { 15, 38, 8, 16 }, { 15, 46, 16, 24 } };
+		for (uint i = 0; i < ARRAYSIZE(kBack); ++i)
+			for (int y = kBack[i].y0; y <= kBack[i].y1; ++y)
+				for (int x = kBack[i].x0; x <= kBack[i].x1; ++x)
+					bits[y * newW + x] = 0;
+	}
+
+	// AGI demake, SQ3 TERMINATE (view 58 loops 1-2, 63 x 7): each frame redrawn 66 wide (keeping its
+	// right edge): a black strip behind the letters shown so far, with the AGI font text drawn on it
+	// (agiDemakeSq3TermText). The frame's own colour is kept as the text colour
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && _resourceId == 58) {
+		static const char *const kWord = "ETANIMRET";
+		for (int l = 1; l <= 2 && l < (int)_loop.size(); ++l) {
+			for (int c = 0; c < 10 && c < (int)_loop[l].cel.size(); ++c) {
+				g_agiDemakeSq3Term[l][c] = 0;
+				CelInfo &cel = _loop[l].cel[c];
+				if (cel.width != 63 || cel.height != 7)
+					continue;
+				const SciSpan<const byte> &orig = getBitmap(l, c);
+				int ink = -1;
+				for (int i = 0; i < cel.width * cel.height && ink < 0; ++i)
+					if (orig[i] != cel.clearKey)
+						ink = orig[i];
+				if (ink < 0)
+					continue;
+				const int n = (l == 2) ? 9 : MIN<int>(c + 1, 9);
+				const int tw = agiDemakeWordWidth(kWord + 9 - n);
+				const int newW = 66;
+				cel.displaceX -= 1;
+				cel.width = newW;
+				cel.scriptWidth = newW;
+				cel.rawBitmap.clear();
+				SciSpan<byte> bits = cel.rawBitmap->allocate(newW * cel.height, "AGI demake SQ3 TERMINATE");
+				for (int y = 0; y < cel.height; ++y)
+					for (int x = 0; x < newW; ++x)
+						bits[y * newW + x] = (x >= newW - tw - 1) ? 0 : cel.clearKey;
+				g_agiDemakeSq3Term[l][c] = ink + 1;
+			}
+		}
+	}
+
+	// AGI demake, SQ3 outside Fester's (room 43): the three speech bubbles, redrawn bigger in fat pixels
+	// from Sierra's own bubble shapes, one character per fat pixel ('f' white, '0' black, '.' clear).
+	// Fester's two (view 67 loop 3) keep their bottom left (the tail) in place and get AGI font words
+	// (kAgiDemakeTextOverrides); the alien's (view 66 loop 6) keeps its bottom right, with Sierra's
+	// alien glyphs drawn one fat pixel per original pixel
+	// (also the android's "I SEE YOU / WILCO!" bubble, view 108 loop 6, bottom left kept)
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && (_resourceId == 66 || _resourceId == 67 || _resourceId == 108 || _resourceId == 38 || _resourceId == 59 || _resourceId == 115 || _resourceId == 117 || _resourceId == 102)) {
+		static const char *const kBubbleA[] = {
+			"....fffffffffffffffffffffffffffffffff...",
+			"..ffffffffffffffffffffffffffffffffffff..",
+			".ffffffffffffffffffffffffffffffffffffff.",
+			".ffffffffffffffffffffffffffffffffffffff.",
+			".ffffffffffffffffffffffffffffffffffffff.",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffff",
+			".ffffffffffffffffffffffffffffffffffffff.",
+			".ffffffffffffffffffffffffffffffffffffff.",
+			"..ffffffffffffffffffffffffffffffffffff..",
+			"..ffffffffffffffffffffffffffffffffffff..",
+			"...ffffffffffffffffffffffffffffffffff...",
+			"...ffff.................................",
+			"..ffff..................................",
+			"..fff...................................",
+			"..fff...................................",
+			".ff.....................................",
+			"ff......................................"
+		};
+		static const char *const kBubbleB[] = {
+			"....fffffffffffffffffffffffffffffffffff...",
+			"...fffffffffffffffffffffffffffffffffffff..",
+			"...fffffffffffffffffffffffffffffffffffff..",
+			"..fffffffffffffffffffffffffffffffffffffff.",
+			".fffffffffffffffffffffffffffffffffffffffff",
+			".fffffffffffffffffffffffffffffffffffffffff",
+			".fffffffffffffffffffffffffffffffffffffffff",
+			".fffffffffffffffffffffffffffffffffffffffff",
+			".fffffffffffffffffffffffffffffffffffffffff",
+			".fffffffffffffffffffffffffffffffffffffffff",
+			".fffffffffffffffffffffffffffffffffffffffff",
+			".ffffffffffffffffffffffffffffffffffffffff.",
+			".ffffffffffffffffffffffffffffffffffffffff.",
+			"..fffffffffffffffffffffffffffffffffffff...",
+			"..ffffffffffffffffffffffffffffffffff......",
+			"...ffffff.................................",
+			"...fffff..................................",
+			"...fffff..................................",
+			"...fff....................................",
+			".ff.......................................",
+			".ff.......................................",
+			"..........................................",
+			"..........................................",
+			"f........................................."
+		};
+		static const char *const kBubbleAlien[] = {
+			"...fffffffffffffffffffffffffffffff...",
+			".fffffffffffffffffffffffffffffffffff.",
+			"fffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffff",
+			"ffff000fff0f000f0f0f0ff0f000f0ff0ffff",
+			"ffff0f0fff0f0fff0f0f00f0fff0f0ff0ffff",
+			"ffff0fff000f0fff0ffffff0f0fff0ff0ffff",
+			"ffff0f0f0fff0fff0f0f0ff0fff0f0fffffff",
+			"ffff000f0f0f0f0f0f0f0ff0f000f0ff0ffff",
+			"fffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffff",
+			".fffffffffffffffffffffffffffffffffff.",
+			"...fffffffffffffffffffffffffffffff...",
+			"............................fffff....",
+			".............................fffff...",
+			"..............................ffff...",
+			"..............................ffff...",
+			"................................fff..",
+			"..................................ff."
+		};
+		static const char *const kBubbleWelcome[] = {
+			".........0000000000000000000000000000000000.....",
+			".......0ffffffffffffffffffffffffffffffffffff0...",
+			".......ffffffffffffffffffffffffffffffffffffff...",
+			"......0ffffffffffffffffffffffffffffffffffffff0..",
+			"......0ffffffffffffffffffffffffffffffffffffff0..",
+			".....0ffffffffffffffffffffffffffffffffffffffff0.",
+			".....0ffffffffffffffffffffffffffffffffffffffff0.",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....fffffffffffffffffffffffffffffffffffffffff0.",
+			".....fffffffffffffffffffffffffffffffffffffffff0.",
+			".....ffffffffffffffffffffffffffffffffffffffff0..",
+			".....ffffffffffffffffffffffffffffffffffffffff...",
+			".....fffffffffffffffffffffffffffffffffffffff0...",
+			"....0fffffffffffffffffffffffffffffffffffff0.....",
+			"....ffffff0.....................................",
+			"....ffffff0.....................................",
+			"...0ffff0.......................................",
+			"...fff0.........................................",
+			"...00..........................................."
+		};
+		static const char *const kBubbleOrder[] = {
+			".........0000000000000000000000000000000000.....",
+			".......0ffffffffffffffffffffffffffffffffffff0...",
+			".......ffffffffffffffffffffffffffffffffffffff...",
+			"......0ffffffffffffffffffffffffffffffffffffff0..",
+			"......0ffffffffffffffffffffffffffffffffffffff0..",
+			".....0ffffffffffffffffffffffffffffffffffffffff0.",
+			".....0ffffffffffffffffffffffffffffffffffffffff0.",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....fffffffffffffffffffffffffffffffffffffffff0.",
+			".....fffffffffffffffffffffffffffffffffffffffff0.",
+			".....ffffffffffffffffffffffffffffffffffffffff0..",
+			".....ffffffffffffffffffffffffffffffffffffffff...",
+			".....fffffffffffffffffffffffffffffffffffffff0...",
+			"....0fffffffffffffffffffffffffffffffffffff0.....",
+			"....ffffff0.....................................",
+			"....ffffff0.....................................",
+			"...0ffff0.......................................",
+			"...fff0.........................................",
+			"...00..........................................."
+		};
+		static const char *const kBubbleTotal[] = {
+			".........0000000000000000000000000000000000.....",
+			".......0ffffffffffffffffffffffffffffffffffff0...",
+			".......ffffffffffffffffffffffffffffffffffffff...",
+			"......0ffffffffffffffffffffffffffffffffffffff0..",
+			"......0ffffffffffffffffffffffffffffffffffffff0..",
+			".....0ffffffffffffffffffffffffffffffffffffffff0.",
+			".....0ffffffffffffffffffffffffffffffffffffffff0.",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....ffffffffffffffffffffffffffffffffffffffffff0",
+			".....fffffffffffffffffffffffffffffffffffffffff0.",
+			".....fffffffffffffffffffffffffffffffffffffffff0.",
+			".....ffffffffffffffffffffffffffffffffffffffff0..",
+			".....ffffffffffffffffffffffffffffffffffffffff...",
+			".....fffffffffffffffffffffffffffffffffffffff0...",
+			"....0fffffffffffffffffffffffffffffffffffff0.....",
+			"....ffffff0.....................................",
+			"....ffffff0.....................................",
+			"...0ffff0.......................................",
+			"...fff0.........................................",
+			"...00..........................................."
+		};
+		static const char *const kBubbleNiceDay[] = {
+			"...ffffffffffffffffff...",
+			"..ffffffffffffffffffff..",
+			".ffffffffffffffffffffff.",
+			".ffffffffffffffffffffff.",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			"ffffffffffffffffffffffff",
+			".ffffffffffffffffffffff.",
+			".ffffffffffffffffffffff.",
+			"..ffffffffffffffffffff..",
+			"...ffffffffffffffffff...",
+			"........fffffff.........",
+			"..........fffff.........",
+			"............fff.........",
+			".............ff.........",
+			"........................"
+		};
+		static const char *const kBubbleSecurity[] = {
+			"...fffffffffffffffffffffffffffffffffffffffffffffffffffffffff......",
+			"..fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.....",
+			".fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff....",
+			".fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff....",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			".fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff....",
+			".fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff....",
+			"..fffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.....",
+			"...fffffffffffffffffffffffffffffffffffffffffffffffffffffffff......",
+			"..................................................................",
+			"..................................................................",
+			"..................................................................",
+			".................................................................."
+		};
+		static const char *const kBubbleJanitor[] = {
+			"...fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"..fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff..",
+			".fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.",
+			".fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			".fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.",
+			".fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.",
+			"..fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff..",
+			"...fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			".................................................................................",
+			".................................................................................",
+			".................................................................................",
+			"................................................................................."
+		};
+		static const char *const kBubblePug[] = {
+			"...ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"..ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff..",
+			".ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.",
+			".ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+			".ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.",
+			".ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff.",
+			"..ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff..",
+			"...ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff...",
+			"......................................................................",
+			"......................................................................",
+			"......................................................................",
+			"......................................................................"
+		};
+		static const char *const kBubbleKick[] = {
+			"...ffffffffffffffffffffffffffffffffffffffffffff...",
+			"..ffffffffffffffffffffffffffffffffffffffffffffff..",
+			".ffffffffffffffffffffffffffffffffffffffffffffffff.",
+			".ffffffffffffffffffffffffffffffffffffffffffffffff.",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffffff",
+			".ffffffffffffffffffffffffffffffffffffffffffffffff.",
+			".ffffffffffffffffffffffffffffffffffffffffffffffff.",
+			"..ffffffffffffffffffffffffffffffffffffffffffffff..",
+			"...ffffffffffffffffffffffffffffffffffffffffffff...",
+			"...fffffff........................................",
+			".ffffff...........................................",
+			"ffff..............................................",
+			"ff................................................"
+		};
+		static const char *const kBubbleFools[] = {
+			"...ffffffffffffffffffffffffffffffffffff...",
+			"..ffffffffffffffffffffffffffffffffffffff..",
+			".ffffffffffffffffffffffffffffffffffffffff.",
+			".ffffffffffffffffffffffffffffffffffffffff.",
+			"ffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffff",
+			".ffffffffffffffffffffffffffffffffffffffff.",
+			".ffffffffffffffffffffffffffffffffffffffff.",
+			"..ffffffffffffffffffffffffffffffffffffff..",
+			"...ffffffffffffffffffffffffffffffffffff...",
+			"...fffffff................................",
+			".ffffff...................................",
+			"ffff......................................",
+			"ff........................................"
+		};
+		static const char *const kBubbleComeOnL[] = {
+			"...ffffffffffffffffffffffffffffffffffffffffff...",
+			"..ffffffffffffffffffffffffffffffffffffffffffff..",
+			".ffffffffffffffffffffffffffffffffffffffffffffff.",
+			".ffffffffffffffffffffffffffffffffffffffffffffff.",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			".ffffffffffffffffffffffffffffffffffffffffffffff.",
+			".ffffffffffffffffffffffffffffffffffffffffffffff.",
+			"..ffffffffffffffffffffffffffffffffffffffffffff..",
+			"...ffffffffffffffffffffffffffffffffffffffffff...",
+			"...fffffff......................................",
+			".ffffff.........................................",
+			"ffff............................................",
+			"ff.............................................."
+		};
+		static const char *const kBubbleComeOnR[] = {
+			"...ffffffffffffffffffffffffffffffffffffffffff...",
+			"..ffffffffffffffffffffffffffffffffffffffffffff..",
+			".ffffffffffffffffffffffffffffffffffffffffffffff.",
+			".ffffffffffffffffffffffffffffffffffffffffffffff.",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffffffffffffffff",
+			".ffffffffffffffffffffffffffffffffffffffffffffff.",
+			".ffffffffffffffffffffffffffffffffffffffffffffff.",
+			"..ffffffffffffffffffffffffffffffffffffffffffff..",
+			"...ffffffffffffffffffffffffffffffffffffffffff...",
+			"......................................fffffff...",
+			".........................................ffffff.",
+			"............................................ffff",
+			"..............................................ff"
+		};
+		static const char *const kBubbleAndroid[] = {
+			"...ffffffffffffffffffffffffffffff...",
+			".ffffffffffffffffffffffffffffffffff.",
+			".ffffffffffffffffffffffffffffffffff.",
+			"ffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffff",
+			"ffffffffffffffffffffffffffffffffffff",
+			".ffffffffffffffffffffffffffffffffff.",
+			"..fffffffffffffffffffffffffffffff...",
+			"..fffffffffffffffffffffffffffffff...",
+			"..fffff.............................",
+			"..fff...............................",
+			"..fff...............................",
+			"..ff................................"
+		};
+		struct Spec { int view, loop, cel, oldW, oldH; const char *const *rows; int nRows; int dxShift; };
+		const Spec specs[] = {
+			{ 108, 6, 0, 40, 21, kBubbleAndroid, ARRAYSIZE(kBubbleAndroid), 16 },
+			{ 115, 5, 2, 92, 32, kBubbleSecurity, ARRAYSIZE(kBubbleSecurity), -21 },	// SECURITY! (grows left; tail drawn with the cel)
+			{ 115, 5, 0, 92, 32, kBubbleJanitor, ARRAYSIZE(kBubbleJanitor), 35 },	// ...DISGUISED AS A JANITOR! (grows right)
+			{ 115, 5, 1, 92, 32, kBubbleJanitor, ARRAYSIZE(kBubbleJanitor), -35 },	// the same, tail on the right (grows left)
+			{ 115, 9, 0, 85, 41, kBubblePug, ARRAYSIZE(kBubblePug), -27 },	// Elmo Pug's SECURITY! (grows left)
+			{ 117, 3, 0, 62, 31, kBubbleKick, ARRAYSIZE(kBubbleKick), 19 },	// the Two Guys' KICK HIS ROBOTIC BUTT WILCO.
+			{ 117, 2, 0, 62, 31, kBubbleComeOnL, ARRAYSIZE(kBubbleComeOnL), 17 },	// COME ON! LET'S GET OUT OF HERE. (tail left)
+			{ 117, 2, 1, 62, 31, kBubbleComeOnR, ARRAYSIZE(kBubbleComeOnR), -17 },	// the same, tail right
+			{ 102, 4, 1, 64, 31, kBubbleFools, ARRAYSIZE(kBubbleFools), 10 },	// GET THEM YOU FOOLS!
+			{ 38, 3, 1, 66, 35, kBubbleWelcome, ARRAYSIZE(kBubbleWelcome), 14 },	// Monolith Burger employee
+			{ 38, 3, 2, 66, 35, kBubbleOrder, ARRAYSIZE(kBubbleOrder), 14 },
+			{ 38, 3, 3, 66, 35, kBubbleTotal, ARRAYSIZE(kBubbleTotal), 14 },	// the price is the game's own Display
+			{ 59, 5, 0, 43, 27, kBubbleNiceDay, ARRAYSIZE(kBubbleNiceDay), -1 },	// 3 lines, x 270-321 (the right edge just off screen), clear of the grey pole
+			{ 67, 3, 0, 46, 31, kBubbleA, ARRAYSIZE(kBubbleA), 17 },
+			{ 67, 3, 1, 48, 19, kBubbleB, ARRAYSIZE(kBubbleB), 18 },
+			{ 66, 6, 0, 36, 21, kBubbleAlien, ARRAYSIZE(kBubbleAlien), -19 }
+		};
+		for (uint i = 0; i < ARRAYSIZE(specs); ++i) {
+			const Spec &sp = specs[i];
+			if (_resourceId != sp.view || sp.loop >= (int)_loop.size() || sp.cel >= (int)_loop[sp.loop].cel.size())
+				continue;
+			CelInfo &cel = _loop[sp.loop].cel[sp.cel];
+			if (cel.width != sp.oldW || cel.height != sp.oldH)
+				continue;
+			// (the outline adds a fat pixel each side; the shift keeps the tail's side 1 fat pixel further out)
+			cel.displaceX += sp.dxShift;
+			// (the employee's total keeps a see-through hole after IS, cel columns 59-88 rows 15-22, where
+			// the game draws the price in its own white box, as Sierra's bubble has one)
+			if (sp.view == 38 && sp.cel == 3)
+				agiDemakeBubbleWithOutline(cel, sp.rows, sp.nRows, 59, 88, 15, 22);
+			else
+				agiDemakeBubbleWithOutline(cel, sp.rows, sp.nRows);
+		}
+	}
+
+	// AGI demake, SQ3 Astro Chicken's GAME OVER (view 291 loop 3, 81 x 17): redrawn in fat pixels (a tall
+	// G and O, the rest small capitals, 4 fat pixels between the words), 94 wide and still centred, in
+	// each frame's own colour
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && _resourceId == 291 && _loop.size() > 3) {
+		static const char *const kGameOver[] = {
+			".eeeee.....................eeee................",
+			"e.....e...................e....e...............",
+			"e.........................e....e...............",
+			"e.........................e....e...............",
+			"e.........................e....e...............",
+			"e.........................e....e...............",
+			"e.........................e....e...............",
+			"e........ee..e...e.eee....e....e.e...e.eee.eee.",
+			"e...eee.e..e.ee.ee.e......e....e.e...e.e...e..e",
+			"e.....e.e..e.e.e.e.e......e....e.e...e.e...e..e",
+			"e.....e.e..e.e.e.e.e......e....e.e...e.e...e..e",
+			"e.....e.eeee.e...e.eee....e....e.e...e.eee.eee.",
+			"e.....e.e..e.e...e.e......e....e..e.e..e...ee..",
+			"e.....e.e..e.e...e.e......e....e..e.e..e...e.e.",
+			"e.....e.e..e.e...e.e......e....e..e.e..e...e..e",
+			"e.....e.e..e.e...e.e......e....e...e...e...e..e",
+			".eeeee..e..e.e...e.eee.....eeee....e...eee.e..e"
+		};
+		for (uint c = 0; c < _loop[3].cel.size(); ++c) {
+			CelInfo &cel = _loop[3].cel[c];
+			if (cel.width != 81 || cel.height != 17)
+				continue;
+			const SciSpan<const byte> &orig = getBitmap(3, c);
+			int ink = -1;
+			for (int i = 0; i < cel.width * cel.height && ink < 0; ++i)
+				if (orig[i] != cel.clearKey)
+					ink = orig[i];
+			if (ink < 0)
+				continue;
+			const int newW = 2 * (int)strlen(kGameOver[0]);
+			cel.width = newW;
+			cel.scriptWidth = newW;
+			cel.rawBitmap.clear();
+			SciSpan<byte> bits = cel.rawBitmap->allocate(newW * cel.height, "AGI demake SQ3 GAME OVER");
+			for (int y = 0; y < cel.height; ++y)
+				for (int x = 0; x < newW; ++x)
+					bits[y * newW + x] = (kGameOver[y][x >> 1] == 'e') ? (byte)ink : cel.clearKey;
+		}
+	}
+
+	// AGI demake, SQ3 decoder ring box (room 290): its picture (view 242 loop 0 cel 5) is made a single
+	// see-through pixel, so the box is only the code chart
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && _resourceId == 242 && _loop.size() > 0 &&
+			_loop[0].cel.size() > 5 && _loop[0].cel[5].width == 54 && _loop[0].cel[5].height == 47) {
+		CelInfo &cel = _loop[0].cel[5];
+		cel.width = cel.height = 1;
+		cel.scriptWidth = cel.scriptHeight = 1;
+		cel.rawBitmap.clear();
+		SciSpan<byte> bits = cel.rawBitmap->allocate(1, "AGI demake SQ3 decoder ring picture");
+		bits[0] = cel.clearKey;
+	}
+
+	// AGI demake, SQ3 weapons screen (room 18): SHIELD DEPLETED (view 46 loop 0) and ENGAGING (loop 4 cels
+	// 1-2) are in Sierra's 1 pixel font, which doesn't survive fat pixels. Redrawn in a compact fat pixel
+	// font as SHIELD / EMPTY and ENGAGE, the signs 54 wide (centred where Sierra's are, on even columns)
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && _resourceId == 46 && _loop.size() > 4) {
+		static const char *const kSign46_0_0[] = {
+			"000000000000000000000000000000000000000000000000000000",
+			"0000aaaaaa00aa00aa00aaaaaa00aaaaaa00aa000000aaaa000000",
+			"0000aa000000aa00aa0000aa0000aa000000aa000000aa00aa0000",
+			"0000aaaaaa00aaaaaa0000aa0000aaaa0000aa000000aa00aa0000",
+			"00000000aa00aa00aa0000aa0000aa000000aa000000aa00aa0000",
+			"0000aaaaaa00aa00aa00aaaaaa00aaaaaa00aaaaaa00aaaa000000",
+			"000000000000000000000000000000000000000000000000000000",
+			"00000000aaaaaa00aa00aa00aaaaaa00aaaaaa00aa00aa00000000",
+			"00000000aa000000aaaaaa00aa00aa0000aa0000aa00aa00000000",
+			"00000000aaaa0000aaaaaa00aaaaaa0000aa000000aa0000000000",
+			"00000000aa000000aa00aa00aa00000000aa000000aa0000000000",
+			"00000000aaaaaa00aa00aa00aa00000000aa000000aa0000000000",
+			"000000000000000000000000000000000000000000000000000000"
+		};
+		static const char *const kSign46_0_1[] = {
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"aaaa000000aa00aa00aa000000aa000000aa00aaaaaa0000aaaaaa",
+			"aaaa00aaaaaa00aa00aaaa00aaaa00aaaaaa00aaaaaa00aa00aaaa",
+			"aaaa000000aa000000aaaa00aaaa0000aaaa00aaaaaa00aa00aaaa",
+			"aaaaaaaa00aa00aa00aaaa00aaaa00aaaaaa00aaaaaa00aa00aaaa",
+			"aaaa000000aa00aa00aa000000aa000000aa000000aa0000aaaaaa",
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"aaaaaaaa000000aa00aa00aa000000aa000000aa00aa00aaaaaaaa",
+			"aaaaaaaa00aaaaaa000000aa00aa00aaaa00aaaa00aa00aaaaaaaa",
+			"aaaaaaaa0000aaaa000000aa000000aaaa00aaaaaa00aaaaaaaaaa",
+			"aaaaaaaa00aaaaaa00aa00aa00aaaaaaaa00aaaaaa00aaaaaaaaaa",
+			"aaaaaaaa000000aa00aa00aa00aaaaaaaa00aaaaaa00aaaaaaaaaa",
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		};
+		static const char *const kSign46_4_1[] = {
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"aaaa000000aa0000aaaa000000aaaa00aaaa000000aa000000aaaa",
+			"aaaa00aaaaaa00aa00aa00aaaaaa00aa00aa00aaaaaa00aaaaaaaa",
+			"aaaa0000aaaa00aa00aa00aa00aa000000aa00aa00aa0000aaaaaa",
+			"aaaa00aaaaaa00aa00aa00aa00aa00aa00aa00aa00aa00aaaaaaaa",
+			"aaaa000000aa00aa00aa000000aa00aa00aa000000aa000000aaaa",
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		};
+		static const char *const kSign46_4_2[] = {
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"aaaa000000aa0000aaaa000000aaaa00aaaa000000aa000000aaaa",
+			"aaaa00aaaaaa00aa00aa00aaaaaa00aa00aa00aaaaaa00aaaaaaaa",
+			"aaaa0000aaaa00aa00aa00aa00aa000000aa00aa00aa0000aaaaaa",
+			"aaaa00aaaaaa00aa00aa00aa00aa00aa00aa00aa00aa00aaaaaaaa",
+			"aaaa000000aa00aa00aa000000aa00aa00aa000000aa000000aaaa",
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		};
+		static const struct { int8 loop, cel; const char *const *rows; } kSigns[] = {
+			{ 0, 0, kSign46_0_0 },
+			{ 0, 1, kSign46_0_1 },
+			{ 4, 1, kSign46_4_1 },
+			{ 4, 2, kSign46_4_2 }
+		};
+		auto hexv = [](char ch) { return (byte)((ch >= 'a') ? ch - 'a' + 10 : ch - '0'); };
+		for (uint i = 0; i < ARRAYSIZE(kSigns); ++i) {
+			if ((uint)kSigns[i].cel >= _loop[kSigns[i].loop].cel.size())
+				continue;
+			CelInfo &cel = _loop[kSigns[i].loop].cel[kSigns[i].cel];
+			if (cel.height != 13 || (cel.width != 40 && cel.width != 52))
+				continue;
+			const int newW = 54;
+			cel.width = newW;
+			cel.scriptWidth = newW;
+			cel.rawBitmap.clear();
+			SciSpan<byte> bits = cel.rawBitmap->allocate(newW * cel.height, "AGI demake SQ3 weapons sign");
+			for (int y = 0; y < cel.height; ++y)
+				for (int x = 0; x < newW; ++x)
+					bits[y * newW + x] = hexv(kSigns[i].rows[y][x]);
+		}
+	}
+	// AGI demake, SQ3 weapons screen's targeting sign (view 45 loop 1): LOCKED-ON, TRACKING, WASTED and
+	// OUT OF RANGE in Sierra's thin font; the cels are emptied to the width of the AGI font words (still
+	// centred on the same spot) and the words drawn by the text override
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && _resourceId == 45 && _loop.size() > 1) {
+		static const int16 kSignW[4] = { 72, 60, 46, 86 };
+		for (uint c = 0; c < 4 && c < _loop[1].cel.size(); ++c) {
+			CelInfo &cel = _loop[1].cel[c];
+			if (cel.height != 9)
+				continue;
+			cel.width = kSignW[c];
+			cel.scriptWidth = kSignW[c];
+			cel.rawBitmap.clear();
+			SciSpan<byte> bits = cel.rawBitmap->allocate(cel.width * cel.height, "AGI demake SQ3 targeting sign");
+			for (int i = 0; i < cel.width * cel.height; ++i)
+				bits[i] = cel.clearKey;
+		}
+	}
+
+	// AGI demake, SQ3 rat mugging (room 6, view 15 loop 4): POW (cel 0) and BIFF (cel 1) are redrawn as
+	// fat pixel lettering in drawAgiDemake, 15 fat pixels wide, so both 26 pixel cels grow 2 pixels each
+	// side (they stay centred, and keep their pairing)
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && _resourceId == 15 && _loop.size() > 4) {
+		for (int c = 0; c < 2 && c < (int)_loop[4].cel.size(); ++c) {
+			CelInfo &cel = _loop[4].cel[c];
+			if (cel.width != 26 || cel.height != 13)
+				continue;
+			const int newW = 30;
+			cel.width = newW;
+			cel.scriptWidth = newW;
+			cel.rawBitmap.clear();
+			SciSpan<byte> bits = cel.rawBitmap->allocate(cel.width * cel.height, "AGI demake SQ3 POW BIFF");
+			for (int i = 0; i < cel.width * cel.height; ++i)
+				bits[i] = cel.clearKey;
+		}
+	}
+
+	// AGI demake, SQ3 shredder death (view 20 loop 1, 55 x 37 cels): the "NOT A PRETTY SIGHT" plate is
+	// repainted plain white at 48 x 29 (cel columns 3 to 50, rows 6 to 34, on fat pixel boundaries), which
+	// wipes Sierra's tiny letters. The words are drawn as AGI font text (kAgiDemakeTextOverrides)
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && _resourceId == 20 && _loop.size() > 1) {
+		for (int c = 0; c < (int)_loop[1].cel.size() && c < 4; ++c) {
+			CelInfo &cel = _loop[1].cel[c];
+			if (cel.width != 55 || cel.height != 37)
+				continue;
+			const SciSpan<const byte> &orig = getBitmap(1, c);
+			Common::Array<byte> copy(orig.getUnsafeDataAt(0, cel.width * cel.height), cel.width * cel.height);
+			for (int y = 6; y <= 34; ++y)
+				for (int x = 3; x <= 50; ++x)
+					copy[y * cel.width + x] = 15;
+			cel.rawBitmap.clear();
+			SciSpan<byte> bits = cel.rawBitmap->allocate(cel.width * cel.height, "AGI demake SQ3 shredder plate");
+			for (int i = 0; i < cel.width * cel.height; ++i)
+				bits[i] = copy[i];
+		}
+	}
+
+	// AGI demake, SQ3 Roger waking (room 155, view 9 loop 0 cel 3): the speech bubble is redrawn 76 x 32
+	// (was 45 x 22) so "W-WHERE AM I?" fits in the AGI font. Sierra's cloud shape scaled up, one
+	// character per fat pixel. Its bottom left stays where it was, so it still meets the small bubbles
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && _resourceId == 9 && _loop.size() > 0 &&
+			_loop[0].cel.size() > 3 && _loop[0].cel[3].width == 45 && _loop[0].cel[3].height == 22) {
+		static const char *const kBubble[] = {
+			"........##......###......#####........",
+			".....#####...########..#########......",
+			".....#####...########..#########......",
+			"...################################...",
+			"..###################################.",
+			"..###################################.",
+			".#####################################",
+			".#####################################",
+			".#####################################",
+			"..####################################",
+			"######################################",
+			"######################################",
+			"######################################",
+			"#####################################.",
+			"#####################################.",
+			"#####################################.",
+			"######################################",
+			"######################################",
+			"######################################",
+			"######################################",
+			".#####################################",
+			".#####################################",
+			".#####################################",
+			"..##################################..",
+			"..##################################..",
+			"...###############################....",
+			".......###########################....",
+			".......###########################....",
+			".......#########################......",
+			".......###########...#########........",
+			".......###########...#########........",
+			"........#######......................."
+		};
+		CelInfo &cel = _loop[0].cel[3];
+		// 80 wide with its black outline; left edge 3 pixels left of Sierra's, on a fat pixel
+		cel.displaceX += (80 >> 1) - (cel.width >> 1) - 3;
+		agiDemakeBubbleWithOutline(cel, kBubble, ARRAYSIZE(kBubble));
 	}
 
 	// AGI demake, QfG1 dining hall sign (view 95 loop 0 cel 0): "BRIGANDS UBER ALLES!" doesn't fit on it in
@@ -1152,6 +2256,7 @@ struct AgiDemakeTextItem {
 	const char *word;
 	int16 x, y;			// cel coordinates of the word's top left, or top right when alignRight
 	bool alignRight;
+	byte colour1;		// this word's colour + 1 (0: the override's textColor)
 };
 struct AgiDemakePaint {
 	int16 y, x0, x1;		// horizontal run of pixels to add, inclusive, cel coordinates (x0 > x1 ends the list)
@@ -1164,8 +2269,164 @@ struct AgiDemakeTextOverride {
 	AgiDemakeTextArea areas[4];
 	AgiDemakeTextItem items[6];
 	AgiDemakePaint paint[8];	// extra pixels painted in before the fat pixel collapse
+	bool fixedPitch;		// true: letters 8 pixels apart, as the AGI font prints (default: tight)
 };
 static const AgiDemakeTextOverride kAgiDemakeTextOverrides[] = {
+	// SQ3 outside Fester's (room 43) speech bubbles, redrawn bigger in initData: the words in the AGI
+	// font, black, tight spacing, centred in the bubble's body
+	{ GID_SQ3, 67, 3, 0, 0xFF, 15, 0, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "Y'ALL COME", 7, 5, false, 0 }, { "BACK NOW", 13, 13, false, 0 }, { "YA HEAR!", 16, 21, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	{ GID_SQ3, 67, 3, 1, 0xFF, 15, 0, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "ALIEN SCUM!", 7, 6, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	{ GID_SQ3, 108, 6, 0, 0xFF, 15, 0, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "I SEE YOU", 9, 5, false, 0 }, { "WILCO!", 17, 13, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	// SQ3 death dialog picture, snake (view 901 loop 0 cel 13): SNAKE / CHOW in the AGI font like POD
+	// CHOW. SNAKE is 2 pixels wider than the label, so its N and K are drawn 1 pixel narrower
+	{ GID_SQ3, 901, 0, 13, 0, 15, 0, 0xFF,
+		{ { 11, 27, 12, 46 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "SNAKE", 12, 12, false, 0 }, { "CHOW", 14, 20, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	// SQ3 Monolith Burger employee's bubbles (view 38 loop 3 cels 1-2), redrawn 95 x 40 in initData
+	{ GID_SQ3, 38, 3, 1, 0xFF, 15, 0, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "WELCOME TO", 18, 6, false, 0 }, { "MONOLITH", 26, 15, false, 0 }, { "BURGER!", 29, 24, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	{ GID_SQ3, 38, 3, 2, 0xFF, 15, 0, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "MAY I", 40, 6, false, 0 }, { "TAKE YOUR", 23, 15, false, 0 }, { "ORDER?", 32, 24, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	// SQ3 Monolith Burger: the employee's YOUR TOTAL IS _ BUCKAZOIDS. (the price drawn by the game, moved
+	// after IS in paint16) and HAVE A NICE DAY! bubbles, redrawn with outlines in initData
+	{ GID_SQ3, 38, 3, 3, 0xFF, 15, 0, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "YOUR TOTAL", 20, 6, false, 0 }, { "IS", 44, 15, false, 0 }, { "BUCKAZOIDS.", 17, 24, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	{ GID_SQ3, 59, 5, 0, 0xFF, 15, 0, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "HAVE A", 6, 5, false, 0 }, { "NICE", 12, 14, false, 0 }, { "DAY!", 13, 23, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	// SQ3 ScumSoft's "...DISGUISED AS A JANITOR!" bubble (view 115 loop 5 cel 0), 3 lines
+	{ GID_SQ3, 115, 5, 0, 0xFF, 15, 0, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "SECURITY! WE HAVE AN", 16, 5, false, 0 }, { "INTRUDER IN ACCOUNTING", 6, 14, false, 0 }, { "DISGUISED AS A JANITOR!", 7, 23, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	// SQ3 ScumSoft's "...DISGUISED AS A JANITOR!" bubble with its tail on the right (view 115 loop 5 cel 1)
+	{ GID_SQ3, 115, 5, 1, 0xFF, 15, 0, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "SECURITY! WE HAVE AN", 16, 5, false, 0 }, { "INTRUDER IN ACCOUNTING", 6, 14, false, 0 }, { "DISGUISED AS A JANITOR!", 7, 23, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	// SQ3 Elmo Pug's "SECURITY! I'VE GOT SOME BUTTHEAD IN MY OFFICE POSING AS A JANITOR!" (view 115 loop 9 cel 0)
+	{ GID_SQ3, 115, 9, 0, 0xFF, 15, 0, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "SECURITY! I'VE GOT", 14, 5, false, 0 }, { "SOME BUTTHEAD IN MY", 7, 14, false, 0 }, { "OFFICE POSING AS A", 11, 23, false, 0 }, { "JANITOR!", 44, 32, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	// SQ3 the Two Guys' "KICK HIS ROBOTIC BUTT WILCO." bubble (view 117 loop 3 cel 0)
+	{ GID_SQ3, 117, 3, 0, 0xFF, 15, 0, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "KICK HIS", 26, 5, false, 0 }, { "ROBOTIC BUTT", 10, 14, false, 0 }, { "WILCO.", 32, 23, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	// SQ3 the Two Guys' COME ON! LET'S GET OUT OF HERE. (view 117 loop 2, both cels)
+	{ GID_SQ3, 117, 2, 0, 0xFF, 15, 0, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "COME ON!", 22, 5, false, 0 }, { "LET'S GET OUT", 7, 14, false, 0 }, { "OF HERE.", 23, 23, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	// (tail on the right)
+	{ GID_SQ3, 117, 2, 1, 0xFF, 15, 0, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "COME ON!", 22, 5, false, 0 }, { "LET'S GET OUT", 7, 14, false, 0 }, { "OF HERE.", 23, 23, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	// SQ3 GET THEM YOU FOOLS! (view 102 loop 4 cel 1, room 94)
+	{ GID_SQ3, 102, 4, 1, 0xFF, 15, 0, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "GET THEM", 16, 5, false, 0 }, { "YOU FOOLS!", 9, 14, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	// SQ3 weapons screen's targeting sign (view 45 loop 1), light green, AGI font
+	{ GID_SQ3, 45, 1, 0, 0xFF, 0, 10, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "LOCKED-ON", 1, 1, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	{ GID_SQ3, 45, 1, 1, 0xFF, 0, 10, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "TRACKING", 1, 1, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	{ GID_SQ3, 45, 1, 2, 0xFF, 0, 10, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "WASTED", 1, 1, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	{ GID_SQ3, 45, 1, 3, 0xFF, 0, 10, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "OUT OF RANGE", 1, 1, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	// SQ3 ScumSoft's "SECURITY! WE HAVE AN INTRUDER IN ACCOUNTING!" bubble (view 115 loop 5 cel 2)
+	{ GID_SQ3, 115, 5, 2, 0xFF, 15, 0, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "SECURITY! WE HAVE", 8, 6, false, 0 }, { "AN INTRUDER IN", 18, 15, false, 0 }, { "ACCOUNTING!", 26, 24, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	// SQ3 death dialog picture (view 901 loop 1 cel 0): the packet's "POD CHOW" label in Sierra's
+	// lettering can't be read as fat pixels. The black letters on the white label (rows 11-27, columns
+	// 12-46) are wiped and POD / CHOW drawn in the AGI font, tight spacing, centred on the label
+	{ GID_SQ3, 901, 1, 0, 0, 15, 0, 0xFF,
+		{ { 11, 27, 12, 46 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "POD", 18, 12, false, 0 }, { "CHOW", 14, 20, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 }, { nullptr, 0, 0, false, 0 } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	// SQ3 shredder death (room 10, view 20 loop 1, all 4 sparkle frames): "NOT A PRETTY SIGHT" painted in
+	// tiny letters. The white plate is enlarged to 48 x 29 in initData (letters wiped) and the words are
+	// AGI font text, tight spacing, centred on it
+	{ GID_SQ3, 20, 1, 0, 0, 15, 0, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "NOT A", 10, 8, false }, { "PRETTY", 5, 17, false }, { "SIGHT", 10, 26, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	{ GID_SQ3, 20, 1, 1, 0, 15, 0, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "NOT A", 10, 8, false }, { "PRETTY", 5, 17, false }, { "SIGHT", 10, 26, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	{ GID_SQ3, 20, 1, 2, 0, 15, 0, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "NOT A", 10, 8, false }, { "PRETTY", 5, 17, false }, { "SIGHT", 10, 26, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	{ GID_SQ3, 20, 1, 3, 0, 15, 0, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "NOT A", 10, 8, false }, { "PRETTY", 5, 17, false }, { "SIGHT", 10, 26, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		false },
+	// SQ3 Roger waking (room 155, view 9 cel 3): "W-WHERE AM I?" painted in 3 pixel letters, which
+	// can't be read as fat pixels. The bubble is redrawn bigger in initData and the words are AGI font
+	// text, 8 pixels apart, centred in the bubble
+	{ GID_SQ3, 9, 0, 3, 0, 15, 0, 0xFF,
+		{ { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 }, { 0, -1, 0, -1 } },
+		{ { "W-WHERE", 12, 9, false }, { "AM I?", 20, 18, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false }, { nullptr, 0, 0, false } },
+		{ { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 }, { 0, 1, 0, 0 } },
+		true },
 	// PQ2 scuba tank 1 (dive shop tank selection): the 1 painted on the tank loses the right half
 	// of its base in the collapse. One extra base pixel brings it back, like tanks 2 3 and 4
 	{ GID_PQ2, 96, 2, 1, 0, 0, 0, 0xFF,
@@ -1346,6 +2607,146 @@ static const AgiDemakeTextOverride *agiDemakeMugshotPlacard(const SciSpan<const 
 		return nullptr;
 	placard.items[0] = AgiDemakeTextItem{ number, (int16)(barL + (barR - barL + 1 - textW) / 2), (int16)barTop, false };
 	return &placard;
+}
+
+// SQ3 ship's computer buttons (room 17, view 41): Sierra's labels are two lines of 5 pixel letters
+// that can't be read as fat pixels. initData wipes the key box and the label area of every frame to
+// its background (remembering the colours) and these one-line AGI font labels are drawn instead.
+// Loop 9 is the blinking STAND BY over button 1, which uses the whole button
+// (tables near the top of the file)
+
+static int agiDemakeWordWidth(const char *word);
+
+static const AgiDemakeTextOverride *agiDemakeSq3ButtonText(int16 loop, int16 cel, int w, bool oddColumn) {
+	if (loop < 0 || loop > 9 || cel < 0 || cel > 3 || !g_agiDemakeSq3Buttons[loop][cel].valid || !kAgiDemakeSq3ButtonLabel[loop])
+		return nullptr;
+	const AgiDemakeSq3Button &b = g_agiDemakeSq3Buttons[loop][cel];
+	static AgiDemakeTextOverride t;
+	t.game = GID_SQ3;
+	t.view = 41;
+	t.loop = loop;
+	t.cel = cel;
+	t.letterColor = 0xFF;
+	t.background = 0;
+	t.textColor = b.labelInk;
+	t.backing = 0xFF;
+	t.fixedPitch = false;
+	for (int i = 0; i < 4; ++i)
+		t.areas[i] = AgiDemakeTextArea{ 0, -1, 0, -1 };
+	for (int i = 0; i < 6; ++i)
+		t.items[i] = AgiDemakeTextItem{ nullptr, 0, 0, false, 0 };
+	t.paint[0] = AgiDemakePaint{ 0, 1, 0, 0 };
+	int n = 0;
+	const char *label = kAgiDemakeSq3ButtonLabel[loop];
+	if (loop == 9) {
+		// whole button inside its frame: columns 1 to w-2
+		t.items[n++] = AgiDemakeTextItem{ label, (int16)(1 + ((w - 2) - agiDemakeWordWidth(label)) / 2), 4, false, (byte)(b.labelInk + 1) };
+	} else {
+		const char *key = kAgiDemakeSq3ButtonKey[loop];
+		// key box: columns 1 to 8, the number 1 pixel clear of the left frame's fat pixel (columns
+		// -1 and 0 at an odd screen column, 0 and 1 at an even one). Label area: columns 10 to w-2
+		t.items[n++] = AgiDemakeTextItem{ key, (int16)(oddColumn ? 2 : 3), 4, false, (byte)(b.keyInk + 1) };
+		t.items[n++] = AgiDemakeTextItem{ label, (int16)(10 + ((w - 11) - agiDemakeWordWidth(label)) / 2), 4, false, (byte)(b.labelInk + 1) };
+	}
+	return &t;
+}
+
+// SQ3 weapons screen buttons (view 46): Sierra's 5 pixel words are wiped in initData and the word is
+// drawn in the AGI font, centred in the button (FIRE inside its frame)
+static void agiDemakeSq3WeapArea(int16 loop, int w, int h, int &x0, int &x1, int &y0, int &y1) {
+	if (loop == 8) {
+		x0 = 2; x1 = w - 2; y0 = 1; y1 = h - 2;
+	} else {
+		x0 = 0; x1 = w - 1; y0 = 0; y1 = h - 1;
+	}
+}
+
+static const AgiDemakeTextOverride *agiDemakeSq3WeapText(int16 loop, int16 cel, int w, int h) {
+	if (loop < 0 || loop > 9 || cel < 0 || cel > 3 || !g_agiDemakeSq3Weap[loop][cel].valid || !kAgiDemakeSq3WeapLabel[loop])
+		return nullptr;
+	static AgiDemakeTextOverride t;
+	t.game = GID_SQ3;
+	t.view = 46;
+	t.loop = loop;
+	t.cel = cel;
+	t.letterColor = 0xFF;
+	t.background = 0;
+	t.textColor = g_agiDemakeSq3Weap[loop][cel].ink;
+	t.backing = 0xFF;
+	t.fixedPitch = false;
+	for (int i = 0; i < 4; ++i)
+		t.areas[i] = AgiDemakeTextArea{ 0, -1, 0, -1 };
+	for (int i = 0; i < 6; ++i)
+		t.items[i] = AgiDemakeTextItem{ nullptr, 0, 0, false, 0 };
+	t.paint[0] = AgiDemakePaint{ 0, 1, 0, 0 };
+	int x0, x1, y0, y1;
+	agiDemakeSq3WeapArea(loop, w, h, x0, x1, y0, y1);
+	const char *label = kAgiDemakeSq3WeapLabel[loop];
+	t.items[0] = AgiDemakeTextItem{ label, (int16)(x0 + ((x1 - x0 + 1) - agiDemakeWordWidth(label)) / 2),
+		(int16)(y0 + ((y1 - y0 + 1) - 7) / 2), false, 0 };
+	return &t;
+}
+
+// SQ3 navigation screen buttons (view 49) and the YOU ARE HERE marker (view 50 loop 4)
+static const AgiDemakeTextOverride *agiDemakeSq3NavText(GuiResourceId view, int16 loop, int16 cel, int w, bool oddColumn) {
+	static AgiDemakeTextOverride t;
+	t.game = GID_SQ3;
+	t.view = view;
+	t.loop = loop;
+	t.cel = cel;
+	t.letterColor = 0xFF;
+	t.background = 0;
+	t.backing = 0xFF;
+	t.fixedPitch = false;
+	for (int i = 0; i < 4; ++i)
+		t.areas[i] = AgiDemakeTextArea{ 0, -1, 0, -1 };
+	for (int i = 0; i < 6; ++i)
+		t.items[i] = AgiDemakeTextItem{ nullptr, 0, 0, false, 0 };
+	t.paint[0] = AgiDemakePaint{ 0, 1, 0, 0 };
+	if (view == 50) {
+		if (loop != 4 || cel != 0 || w != 47)
+			return nullptr;
+		t.textColor = 15;
+		t.items[0] = AgiDemakeTextItem{ "YOU", 16, 1, false, 0 };
+		t.items[1] = AgiDemakeTextItem{ "ARE", 16, 9, false, 0 };
+		t.items[2] = AgiDemakeTextItem{ "HERE", 16, 17, false, 0 };
+		return &t;
+	}
+	if (loop < 0 || loop > 9 || cel < 0 || cel > 3 || !g_agiDemakeSq3Nav[loop][cel].valid || !kAgiDemakeSq3NavLabel[loop])
+		return nullptr;
+	const AgiDemakeSq3Button &b = g_agiDemakeSq3Nav[loop][cel];
+	t.textColor = b.labelInk;
+	const char *label = kAgiDemakeSq3NavLabel[loop];
+	t.items[0] = AgiDemakeTextItem{ kAgiDemakeSq3NavKey[loop], (int16)(oddColumn ? 2 : 3), 4, false, (byte)(b.keyInk + 1) };
+	t.items[1] = AgiDemakeTextItem{ label, (int16)(13 + ((w - 14) - agiDemakeWordWidth(label)) / 2), 4, false, (byte)(b.labelInk + 1) };
+	return &t;
+}
+
+// SQ3 TERMINATE (view 58): "ETANIMRET" (mirrored like the rest of the visor's text, so backwards) in
+// the AGI font, right-aligned, appearing letter by letter from the right as Sierra's did (loop 1 frame
+// n shows n+1 letters, loop 2 all of them, flashing)
+static const AgiDemakeTextOverride *agiDemakeSq3TermText(int16 loop, int16 cel, int w) {
+	if (loop < 1 || loop > 2 || cel < 0 || cel > 9 || !g_agiDemakeSq3Term[loop][cel] || w != 66)
+		return nullptr;
+	static const char *const kWord = "ETANIMRET";
+	const int n = (loop == 2) ? 9 : MIN<int>(cel + 1, 9);
+	static AgiDemakeTextOverride t;
+	t.game = GID_SQ3;
+	t.view = 58;
+	t.loop = loop;
+	t.cel = cel;
+	t.letterColor = 0xFF;
+	t.background = 0;
+	t.textColor = g_agiDemakeSq3Term[loop][cel] - 1;
+	t.backing = 0xFF;
+	t.fixedPitch = false;
+	for (int i = 0; i < 4; ++i)
+		t.areas[i] = AgiDemakeTextArea{ 0, -1, 0, -1 };
+	for (int i = 0; i < 6; ++i)
+		t.items[i] = AgiDemakeTextItem{ nullptr, 0, 0, false, 0 };
+	t.paint[0] = AgiDemakePaint{ 0, 1, 0, 0 };
+	t.items[0] = AgiDemakeTextItem{ kWord + 9 - n, (int16)w, 0, true, 0 };	// right-aligned: last letter ends on the last column
+	return &t;
 }
 
 static const AgiDemakeTextOverride *agiDemakeFindTextOverride(GuiResourceId view, int16 loop, int16 cel) {
@@ -2465,6 +3866,59 @@ static void agiDemakeYorickHair(int view, int loop, int h, byte clearKey, byte *
 	for (int y = 0; y < rows; ++y)
 		if (fat[y * fatW + pad + last] == 14)
 			fat[y * fatW + pad + last] = clearKey;
+}
+
+// SQ3 Roger in the escape pod (view 11): his eyes are single black pixels 2 or 3 apart, and in some
+// frames the collapse puts them side by side as one black block. On the first head row with black,
+// if the only two black fat pixels touch, one eye moves one fat pixel out so face shows between
+// them: the right eye, unless that puts it on the edge of his face, then the left one
+// Also Roger in the bucket and jumping off the conveyor (view 24). The row must be two lone black
+// pixels 2 or 3 apart in Sierra's cel too, so a black mouth or shading is never taken for eyes
+static void agiDemakeSq3PodEyes(const SciSpan<const byte> &bitmap, int w, byte *fat, int fatW, int pad, int numPairs, int h, byte clearKey) {
+	for (int y = 0; y < h / 2; ++y) {
+		byte *f = fat + y * fatW + pad;
+		int first = -1, count = 0;
+		for (int p = 0; p < numPairs; ++p) {
+			if (f[p] == 0) {
+				if (first < 0)
+					first = p;
+				++count;
+			}
+		}
+		if (count == 0)
+			continue;
+		if (count != 2 || first + 1 >= numPairs || f[first + 1] != 0)
+			return;
+		const byte *row = bitmap.getUnsafeDataAt(y * w, w);
+		int zs[3], nz = 0;
+		for (int x = 0; x < w && nz < 3; ++x)
+			if (row[x] == 0)
+				zs[nz++] = x;
+		if (nz != 2 || zs[1] - zs[0] < 2 || zs[1] - zs[0] > 3 || zs[0] == 0 || zs[1] == w - 1)
+			return;
+		for (int i = 0; i < 2; ++i) {
+			const byte l = row[zs[i] - 1], r = row[zs[i] + 1];
+			if (l == 0 || l == clearKey || r == 0 || r == clearKey)
+				return;
+		}
+		const int a = first, b = first + 1;
+		auto face = [&](int p) { return p >= 0 && p < numPairs && f[p] != clearKey && f[p] != 0; };
+		int from = -1, to = -1;
+		if (face(b + 1) && face(b + 2)) {
+			from = b; to = b + 1;
+		} else if (face(a - 1) && face(a - 2)) {
+			from = a; to = a - 1;
+		} else if (face(b + 1)) {
+			from = b; to = b + 1;
+		} else if (face(a - 1)) {
+			from = a; to = a - 1;
+		}
+		if (from >= 0) {
+			f[from] = f[to];
+			f[to] = 0;
+		}
+		return;
+	}
 }
 
 // QfG1 hero facing you: his eyes (black, the left one black and cyan) sit 2 to 3 pixels apart with
@@ -3966,13 +5420,33 @@ static bool agiDemakeUnderWindow(const Common::Array<Common::Rect> &rects, int x
 	return false;
 }
 
-void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRect, const Common::Rect &clipRectTranslated,
+void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRect, const Common::Rect &clipRectTranslatedIn,
 			int16 loopNo, int16 celNo, byte priority, uint16 scaleSignal, const Palette *palette) {
+	// SQ3 navigation screen, button 3 (view 49 loop 4, at an odd column right after button 2): drawn
+	// one pixel right, paired from its own left edge, so its frame stays whole with a 1 pixel gap after
+	// button 2 (drawing its first fat pixel whole one column left made the two frames touch)
+	// SQ3 Fester's balloon tail (room 470, view 81 loop 0 cel 1): his talk now sits in a box on the
+	// left, so the tail pointing up to where Sierra's box was isn't drawn
+	if (g_sci->getGameId() == GID_SQ3 && _resourceId == 81 && loopNo == 0 && celNo == 1 &&
+			g_sci->getEngineState() && g_sci->getEngineState()->currentRoomNumber() == 470)
+		return;
+	// SQ3 HAVE A NICE DAY! (view 59 loop 5 cel 0): drawn over the shop's sign and black areas whatever
+	// their depth, so all its words show; only the grey poles (colours 7 and 8) keep their depth
+	const bool sq3OverBlack = g_sci->getGameId() == GID_SQ3 && _resourceId == 59 && loopNo == 5 && celNo == 0;
+	const bool sq3NavShift = g_sci->getGameId() == GID_SQ3 && _resourceId == 49 && loopNo == 4 && ((rect.left + clipRectTranslatedIn.left - clipRect.left) & 1);
+	Common::Rect clipRectTranslated = clipRectTranslatedIn;
+	const int agiShiftX = sq3NavShift ? 1 : 0;
 	// QfG1: a sprite in the room (drawn in the picture's port) doesn't draw over a window that is open
 	// above it, as when Erasmus' head kept moving under a message box. The AGI frame makes those
 	// boxes bigger than Sierra's, so they now reach over sprites that used to be clear of them
 	Common::Array<Common::Rect> windowRects;
+	// (also SQ3 Fester's store, room 470: his animated sprites stay under his talk box)
 	if (g_sci->getGameId() == GID_QFG1 && g_sci->_gfxPorts && g_sci->_gfxPorts->getPort() == g_sci->_gfxPorts->_picWind)
+		g_sci->_gfxPorts->agiDemakeOpenWindowRects(windowRects);
+	// (SQ3 Fester's store: any moving sprite, whichever window is current while it's drawn; dialog
+	// pictures are drawn inside their own window and are left out)
+	else if (g_sci->getGameId() == GID_SQ3 && g_sci->_gfxPorts && !_screen->agiDemakeStill() &&
+			g_sci->getEngineState() && g_sci->getEngineState()->currentRoomNumber() == 470)
 		g_sci->_gfxPorts->agiDemakeOpenWindowRects(windowRects);
 
 	// Some calls (inventory item windows) pass loop and cel numbers past the end. The cel drawn is the
@@ -3990,6 +5464,14 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 
 	// Painted lettering that is replaced by AGI font text: remove it from a copy of the cel
 	const AgiDemakeTextOverride *textOverride = agiDemakeFindTextOverride(_resourceId, loopNo, celNo);
+	if (!textOverride && g_sci->getGameId() == GID_SQ3 && _resourceId == 41)
+		textOverride = agiDemakeSq3ButtonText(loopNo, celNo, celWidth, ((rect.left + offsetX) & 1) != 0);
+	if (!textOverride && g_sci->getGameId() == GID_SQ3 && (_resourceId == 49 || _resourceId == 50))
+		textOverride = agiDemakeSq3NavText(_resourceId, loopNo, celNo, celWidth, ((rect.left + offsetX) & 1) != 0 && !sq3NavShift);
+	if (!textOverride && g_sci->getGameId() == GID_SQ3 && _resourceId == 58)
+		textOverride = agiDemakeSq3TermText(loopNo, celNo, celWidth);
+	if (!textOverride && g_sci->getGameId() == GID_SQ3 && _resourceId == 46)
+		textOverride = agiDemakeSq3WeapText(loopNo, celNo, celWidth, celHeight);
 	if (!textOverride && g_sci->getGameId() == GID_PQ2 && (_resourceId == 204 || _resourceId == 205))	// Homicide, Narcotics files
 		textOverride = agiDemakeMugshotPlacard(origBitmap, celWidth, celHeight);
 	else if (!textOverride && g_sci->getGameId() == GID_PQ2 && (_resourceId == 112 || _resourceId == 123))
@@ -4044,6 +5526,8 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	const bool away = fourLoops && loopNo == 3 && !notWalker;
 	const bool mirrored = _loop[CLIP<int16>(loopNo, 0, _loop.size() - 1)].mirrorFlag;
 	const bool still = _screen->agiDemakeStill();
+	const bool sq3RogerAway = away && !still && !mirrored && g_sci->getGameId() == GID_SQ3 &&
+		(_resourceId == 0 || _resourceId == 113 || _resourceId == 114);	// 113: the janitor suit, 114: being vaporized
 	// Wide side-view sprites (cars and similar): lighter pixel wins, which keeps wheels round
 	// QfG1 brigands in the dining hall (view 295 loop 1): wide, but characters, so darker wins as for
 	// other characters and their eyes stay
@@ -4051,12 +5535,43 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	const bool wide = !still && !towards && !away && celWidth >= 40 && !brigands;
 	int startX;
 	int pairStart;	// screen column of the first pair, always even
-	if (still) {
+	if (still && g_sci->getGameId() == GID_SQ3) {
+		// SQ3 inventory pictures (framed boxes in dialogs): paired from the screen's own even columns,
+		// so a box on an even column keeps both frame edges. The eye-score pairing moved it one pixel
+		// right and the right frame fell outside the cel, where it was clipped away
+		startX = ((rect.left + offsetX) & 1) ? -1 : 0;
+		pairStart = rect.left + offsetX + startX;
+		if (sq3NavShift) {	// navigation button 3: one pixel right (see sq3NavShift)
+			startX = 0;
+			pairStart = rect.left + offsetX + 1;
+		}
+	} else if (still) {
 		const byte white = _screen->getColorWhite();
 		startX = (agiDemakeEyeScore(bitmap, celWidth, celHeight, clearKey, 0, white) >
 			agiDemakeEyeScore(bitmap, celWidth, celHeight, clearKey, -1, white)) ? 0 : -1;
 		const int pairScreenX = rect.left + offsetX + startX;
 		pairStart = pairScreenX + (pairScreenX & 1);
+	} else if (g_sci->getGameId() == GID_SQ3 && (_resourceId == 12 || _resourceId == 41 || _resourceId == 49 || _resourceId == 50 ||
+			(_resourceId == 66 && loopNo == 6) || (_resourceId == 67 && loopNo == 3) || (_resourceId == 108 && loopNo == 6) ||
+			(_resourceId == 291 && loopNo == 3) || (_resourceId == 38 && loopNo == 3 && celNo >= 1) ||
+			(_resourceId == 59 && loopNo == 5) || (_resourceId == 115 && loopNo >= 5) || (_resourceId == 116 && loopNo == 2) || (_resourceId == 117 && (loopNo == 2 || loopNo == 3)) || (_resourceId == 102 && loopNo == 4 && celNo == 1) || (_resourceId == 46 && (loopNo == 0 || (loopNo == 4 && celNo >= 1))) || _resourceId == 85)) {	// 85: Roger at the Monolith table, every frame on the same columns
+		// SQ3 escape pod door (room 2, view 12) and ship's computer buttons (room 17, view 41): paired
+		// from the screen's own even columns, the same columns as the room picture under them, so their
+		// edges line up with it (the door was drawn a pixel left and showed slivers of the pod's cyan
+		// window along its right edge)
+		startX = ((rect.left + offsetX) & 1) ? -1 : 0;
+		pairStart = rect.left + offsetX + startX;
+		if (sq3NavShift) {
+			startX = 0;
+			pairStart = rect.left + offsetX + 1;
+		}
+	} else if (sq3RogerAway) {
+		// SQ3 Roger walking away (view 0 loop 3): Sierra drew these frames one pixel over from the
+		// walking-towards ones, so from the cel's left edge the legs and body straddle the pairs (fat
+		// legs, a 4 wide body, a block head). Paired one pixel further left they line up like the
+		// towards frames: 3 wide body, 1 fat pixel legs with a 1 pixel gap, a rounded head
+		startX = -1;
+		pairStart = (rect.left + offsetX - 1) & ~1;
 	} else if (towards || away) {
 		startX = (mirrored && (celWidth & 1)) ? -1 : 0;
 		pairStart = (rect.left + offsetX + 1) & ~1;
@@ -4151,8 +5666,10 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	// Away: v4 body, only the head is rebuilt
 	// still images: plain collapse, no outline repairs
 	if (still) {
-	} else if (away)
+	} else if (away && !sq3RogerAway)	// SQ3 Roger: the head rebuild made a block of it
 		agiDemakeAwayHead(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX, pad);
+	else if (away) {
+	}
 	else if (!towards && !wide && !brigands)
 		agiDemakeRepairBumps(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, startX);
 	if (towards && !rangeTarget)
@@ -4165,6 +5682,233 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 	// QfG1 award ceremony, the hero smiling (view 139 loop 4 cel 4): Sierra drew his eyes shut, which
 	// as fat pixels leaves him with none. He gets the same eyes as his open-eyed frames (cels 1 to 3):
 	// row 5, black at the 2nd and 4th of four face-coloured fat pixels
+	if (g_sci->getGameId() == GID_SQ3 && (_resourceId == 11 || _resourceId == 24))
+		agiDemakeSq3PodEyes(bitmap, celWidth, fat.data(), fatW, pad, numPairs, celHeight, clearKey);
+	// SQ3 Roger lit by the light (view 32 loop 2, walking towards you): each eye is 2 black pixels with
+	// one face pixel between them, which collapses to a 3 fat pixel black bar. The middle fat pixel gets
+	// the face colour between the eyes back
+	if (g_sci->getGameId() == GID_SQ3 && _resourceId == 32 && loopNo == 2) {
+		for (int y = 0; y < celHeight / 2; ++y) {
+			byte *f = fat.data() + y * fatW + pad;
+			int first = -1, count = 0;
+			for (int p = 0; p < numPairs; ++p)
+				if (f[p] == 0) {
+					if (first < 0)
+						first = p;
+					++count;
+				}
+			if (count == 0)
+				continue;
+			if (count == 3 && first + 2 < numPairs && f[first + 1] == 0 && f[first + 2] == 0) {
+				// Sierra's row: 00x00, x the colour between the eyes
+				const byte *row = bitmap.getUnsafeDataAt(y * celWidth, celWidth);
+				for (int x = 0; x + 4 < celWidth; ++x)
+					if (row[x] == 0 && row[x + 1] == 0 && row[x + 2] != 0 && row[x + 2] != clearKey && row[x + 3] == 0 && row[x + 4] == 0) {
+						f[first + 1] = row[x + 2];
+						break;
+					}
+			}
+			break;
+		}
+	}
+
+	// SQ3 ship's computer buttons (view 41): Sierra's 1 pixel side frames share a fat pixel with the
+	// black inside and lost it. The fat pixels holding the first and last columns take the frame colour
+	if (g_sci->getGameId() == GID_SQ3 && (_resourceId == 41 || _resourceId == 49 || (_resourceId == 50 && loopNo != 4))) {
+		// (also the scan box and its zoom frames, view 50 loops 0-3)
+		if (sq3NavShift) {
+			// navigation button 3, drawn a pixel right: its right frame goes one fat pixel in, inside the
+			// button's area (the last column, now outside it, is left clear)
+			const int jIn = pad + ((celWidth - 2 - startX) >> 1), jOut = pad + ((celWidth - 1 - startX) >> 1);
+			for (int y = 0; y < celHeight; ++y) {
+				const byte v = bitmap[y * celWidth + celWidth - 1];
+				if (jIn >= 0 && jIn < fatW && v != clearKey)
+					fat[y * fatW + jIn] = v;
+				if (jOut != jIn && jOut >= 0 && jOut < fatW)
+					fat[y * fatW + jOut] = clearKey;
+			}
+		}
+		const int edges[2] = { 0, sq3NavShift ? 0 : celWidth - 1 };
+		for (int e = 0; e < 2; ++e) {
+			const int j = pad + ((edges[e] - startX) >> 1);
+			if (j < 0 || j >= fatW)
+				continue;
+			for (int y = 0; y < celHeight; ++y) {
+				const byte v = bitmap[y * celWidth + edges[e]];
+				if (v != clearKey)
+					fat[y * fatW + j] = v;
+			}
+		}
+	}
+
+	// SQ3 Roger walking towards you and away (view 0 loops 2 and 3): his sleeves (purple, pink) puff
+	// out to 2 fat pixels. A side column where the sleeve is 2 wide on 2 or more rows is stripped of
+	// sleeve colours, on every row, so the arm is 1 fat pixel wide (one-off rows are left alone)
+	if (g_sci->getGameId() == GID_SQ3 && _resourceId == 0 && (loopNo == 2 || loopNo == 3) && !still) {
+		auto sleeve = [](byte v) { return v == 5 || v == 13; };
+		Common::Array<int> hits(fatW, 0);
+		for (int y = 0; y < celHeight; ++y) {
+			const byte *f = fat.data() + y * fatW;
+			int a = -1, b = -1;
+			for (int x = 0; x < fatW; ++x)
+				if (f[x] != clearKey) {
+					if (a < 0)
+						a = x;
+					b = x;
+				}
+			if (a < 0)
+				continue;
+			if (a + 1 <= b && sleeve(f[a]) && sleeve(f[a + 1]))
+				++hits[a];
+			if (b - 1 >= a && sleeve(f[b]) && sleeve(f[b - 1]))
+				++hits[b];
+		}
+		for (int x = 0; x < fatW; ++x)
+			if (hits[x] >= 2)
+				for (int y = 0; y < celHeight; ++y)
+					if (sleeve(fat[y * fatW + x]))
+						fat[y * fatW + x] = clearKey;
+	}
+
+	// SQ3 navigation screen, Monolith Burger's zoom box (view 50 loop 3 cel 3): the collapse made a blur
+	// of the drink cup and lost the antenna. Hand-tidied in fat pixels (cup, antenna, burger station),
+	// and stars beside black keep their fat pixel instead of losing it to the black
+	if (g_sci->getGameId() == GID_SQ3 && _resourceId == 50 && loopNo == 3 && celNo == 3 && celWidth == 76 && celHeight == 55) {
+		static const struct { int8 y; const char *row; } kMono[] = {
+			{ 8, "...9999999..." },
+			{ 9, "...9e111e9..." },
+			{ 10, "...9ee1ee9..." },
+			{ 11, "...9e4e4e9..." },
+			{ 12, "...9e4e4e9..." },
+			{ 13, "...9e4e4e9..." },
+			{ 14, "...e41e41e..." },
+			{ 15, "...e41e41e..." },
+			{ 16, "...e41e41e..." },
+			{ 17, "...e41e41e..." },
+			{ 18, "...e41e41e..." },
+			{ 19, "....91119...." },
+			{ 20, "....91119...." },
+			{ 21, "....99999...." },
+			{ 22, "....99999...." },
+			{ 23, "......9......" },
+			{ 24, "......9......" },
+			{ 25, "......9......" },
+			{ 26, "......9......" },
+			{ 27, "......9......" },
+			{ 28, "......9......" },
+			{ 29, "......9......" },
+			{ 30, "......9......" },
+			{ 31, "......9......" },
+			{ 32, "......9......" },
+			{ 33, "......9......" },
+			{ 34, "......9......" },
+			{ 35, "......9......" },
+			{ 36, "....66666...." },
+			{ 37, "..666666666.." },
+			{ 38, "..666666666.." },
+			{ 39, ".66666666666." },
+			{ 40, "c8f8f8f8f8f8c" },
+			{ 41, ".44444444444." },
+			{ 42, "..444444444.." },
+			{ 43, "...4444444..." },
+			{ 44, "......c......" }
+		};
+		auto hexv = [](char ch) { return (byte)((ch >= 'a') ? ch - 'a' + 10 : ch - '0'); };
+		auto isStar = [](byte v) { return v == 1 || v == 3 || v == 9 || v == 11; };
+		for (int y = 1; y < celHeight - 1; ++y)
+			for (int j = pad + 1; j < pad + numPairs - 1; ++j) {
+				const int a = startX + 2 * (j - pad);
+				if (a < 1 || a + 1 >= celWidth - 1)
+					continue;
+				const byte l = bitmap[y * celWidth + a], r = bitmap[y * celWidth + a + 1];
+				if (isStar(l) && r == 0)
+					fat[y * fatW + j] = l;
+				else if (isStar(r) && l == 0)
+					fat[y * fatW + j] = r;
+			}
+		for (uint k = 0; k < ARRAYSIZE(kMono); ++k) {
+			const int y = kMono[k].y;
+			const bool solid = (y >= 8 && y <= 22) || (y >= 36 && y <= 44);
+			for (int i = 0; i < 13; ++i) {
+				const int j = pad + ((25 + 2 * i - startX) >> 1);
+				const char ch = kMono[k].row[i];
+				if (ch != '.')
+					fat[y * fatW + j] = hexv(ch);
+				else if (solid)
+					fat[y * fatW + j] = 0;
+			}
+		}
+		// the rest of the cup and station rows (no design entry): cleared to black inside the window
+		for (int y = 8; y <= 44; ++y) {
+			if ((y > 22 && y < 36))
+				continue;
+			bool listed = false;
+			for (uint k = 0; k < ARRAYSIZE(kMono); ++k)
+				listed = listed || kMono[k].y == y;
+			if (!listed)
+				for (int i = 0; i < 13; ++i)
+					fat[y * fatW + pad + ((25 + 2 * i - startX) >> 1)] = 0;
+		}
+	}
+
+	// SQ3 rat mugging (room 6, view 15 loop 4): POW and BIFF, hand-drawn in fat pixels (yellow and light
+	// red letters, black outline, rising left to right like Sierra's). The cels were widened in initData
+	if (g_sci->getGameId() == GID_SQ3 && _resourceId == 15 && loopNo == 4 && (celNo == 0 || celNo == 1) &&
+			celWidth == 30 && celHeight == 13) {
+		static const char *const kPow[13] = {
+			"........000.000",
+			"........0e0.0e0",
+			"....00000e0.0e0",
+			"....0eee0e000e0",
+			"00000e0e0e0e0e0",
+			"0eee0e0e0e0e0e0",
+			"0e0e0e0e0ee0ee0",
+			"0e0e0e0e0e000e0",
+			"0eee0e0e000.000",
+			"0e000eee0......",
+			"0e0.00000......",
+			"0e0............",
+			"000............"
+		};
+		static const char *const kBiff[13] = {
+			"...............",
+			"......00000....",
+			"......0ccc00000",
+			"....000c000ccc0",
+			"00000c0c000c000",
+			"0cc00c0cc00c00.",
+			"0c0c0c0c000cc0.",
+			"0c0c0c0c0.0c00.",
+			"0cc00c0c0.0c0..",
+			"0c0c0c000.0c0..",
+			"0c0c0c0...000..",
+			"0cc0000........",
+			"0000..........."
+		};
+		const char *const *g = (celNo == 0) ? kPow : kBiff;
+		// the drawing starts on the cel's left edge: when the pairs start a pixel before it, that first
+		// fat pixel is clipped, so the drawing moves one fat pixel right
+		const int first = (startX < 0) ? 1 : 0;
+		for (int y = 0; y < 13; ++y)
+			for (int p = 0; p < numPairs; ++p) {
+				const int gx = p - first;
+				const char ch = (gx >= 0 && gx < 15) ? g[y][gx] : '.';
+				fat[y * fatW + pad + p] = (ch == '0') ? 0 : (ch == 'e') ? 14 : (ch == 'c') ? 12 : clearKey;
+			}
+	}
+
+	// SQ3 death dialog USDA box (view 901 loop 0 cel 3): the U and D collapse to solid black blocks.
+	// Their middles go back to the box's red, so they read as U and D (fat columns counted with the
+	// padding, at the pairing the dialog draws them with)
+	if (g_sci->getGameId() == GID_SQ3 && _resourceId == 901 && loopNo == 0 && celNo == 3 && celWidth == 61 && startX == 0) {
+		static const struct { int8 col, top, bottom; } kHollow[] = { { 25, 15, 18 }, { 26, 14, 18 }, { 34, 15, 18 }, { 35, 15, 18 } };
+		for (uint i = 0; i < ARRAYSIZE(kHollow); ++i)
+			for (int y = kHollow[i].top; y <= kHollow[i].bottom && y < celHeight; ++y) {
+				byte &f = fat[y * fatW + kHollow[i].col];
+				if (f == 0)
+					f = 4;
+			}
+	}
 	if (g_sci->getGameId() == GID_QFG1 && _resourceId == 139 && loopNo == 4 && celNo == 4 && celHeight > 5 && numPairs > 6) {
 		byte *f = fat.data() + 5 * fatW + pad;
 		for (int x = 3; x <= 6; ++x)
@@ -4217,6 +5961,877 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		}
 		agiDemakeInventoryFrame(bitmap, celWidth, celHeight, clearKey, fat.data(), fatW, pad, numPairs, pairStart, frameLeft);
 	}
+	// SQ3 ship's computer buttons at an odd screen column: the fat pixel holding the left frame is
+	// drawn whole (one column outside the button), so its corners stay square
+	if (g_sci->getGameId() == GID_SQ3 && (_resourceId == 41 || _resourceId == 49) && !sq3NavShift &&
+			(frameLeft & 1) && clipLeft == frameLeft)
+		clipLeft = frameLeft - 1;
+	// SQ3 close-up Roger (view 63: rooms 49, 62, 80), walking towards you and away (loops 2, 3).
+	// 1) Legs: each leg is 2 pixels with a 3 pixel gap, so one always straddles two fat pixels; it
+	//    keeps only its inner half, giving 1 fat pixel legs with a 1 fat pixel gap.
+	// 2) Torso: from the shoulders to where the legs split, a column outside the legs' width is taken
+	//    out and the arm on that side moves in, so the torso is as wide as the legs.
+	// 3) Sleeves: where an arm is 2 fat pixels wide, the outer one goes.
+	// 4) Hand-placed fixes, from Tom's review (columns counted from 2 fat pixels left of the cel).
+	if (g_sci->getGameId() == GID_SQ3 && _resourceId == 63 && (loopNo == 2 || loopNo == 3) && !still && celWidth == 18) {
+		const int h = celHeight;
+		auto F = [&](int y, int j) -> byte & { return fat[y * fatW + j]; };
+		const float mid = (celWidth - 1) / 2.0f;
+		for (int y = (int)(h * 0.6f); y < h; ++y) {
+			int ra[3], re[3], nr = 0;
+			bool ok = true;
+			for (int x = 0; x < celWidth && ok; ) {
+				if (bitmap[y * celWidth + x] != clearKey) {
+					int e = x;
+					while (e + 1 < celWidth && bitmap[y * celWidth + e + 1] != clearKey)
+						++e;
+					if (nr >= 2 || e - x != 1)
+						ok = false;
+					else {
+						ra[nr] = x;
+						re[nr] = e;
+						++nr;
+					}
+					x = e + 1;
+				} else
+					++x;
+			}
+			if (!ok || nr == 0)
+				continue;
+			for (int r = 0; r < nr; ++r) {
+				const int a = ra[r];
+				if (((a - startX) & 1) == 1) {
+					const int j0 = pad + ((a - startX) >> 1), j1 = j0 + 1;
+					const int drop = ((a + 0.5f) < mid) ? j0 : j1;
+					if (drop >= 0 && drop < fatW)
+						F(y, drop) = clearKey;
+				}
+				(void)re;
+			}
+		}
+		auto runs = [&](int y) {
+			int n = 0;
+			for (int j = 0; j < fatW; ) {
+				if (F(y, j) != clearKey) {
+					++n;
+					while (j < fatW && F(y, j) != clearKey)
+						++j;
+				} else
+					++j;
+			}
+			return n;
+		};
+		int ls = -1;
+		for (int y = h / 2; y < h && ls < 0; ++y)
+			if (runs(y) >= 2)
+				ls = y;
+		int top = -1;
+		for (int y = 0; y < h && top < 0; ++y)
+			for (int j = 0; j < fatW; ++j)
+				if (F(y, j) == 7) {
+					top = y;
+					break;
+				}
+		if (ls > 0 && top >= 0) {
+			int lmin = fatW, lmax = -1;
+			for (int y = ls; y < h; ++y)
+				for (int j = 0; j < fatW; ++j)
+					if (F(y, j) != clearKey) {
+						lmin = MIN(lmin, j);
+						lmax = MAX(lmax, j);
+					}
+			auto grey = [](byte v) { return v == 7 || v == 8; };
+			auto sleeve = [](byte v) { return v == 5 || v == 13; };
+			for (int y = top; y < ls && lmax >= 0; ++y) {
+				const int R = lmax + 1;
+				if (R < fatW) {
+					bool outer = false;
+					for (int j = R + 1; j < fatW; ++j)
+						outer = outer || F(y, j) != clearKey;
+					if (grey(F(y, R)) || outer) {
+						for (int j = R; j + 1 < fatW; ++j)
+							F(y, j) = F(y, j + 1);
+						F(y, fatW - 1) = clearKey;
+					}
+				}
+				const int L = lmin - 1;
+				if (L >= 0) {
+					bool outer = false;
+					for (int j = 0; j < L; ++j)
+						outer = outer || F(y, j) != clearKey;
+					if (grey(F(y, L)) || outer) {
+						for (int j = L; j > 0; --j)
+							F(y, j) = F(y, j - 1);
+						F(y, 0) = clearKey;
+					}
+				}
+			}
+			for (int y = top; y < ls; ++y) {
+				int a = -1, b = -1;
+				for (int j = 0; j < fatW; ++j)
+					if (F(y, j) != clearKey) {
+						if (a < 0)
+							a = j;
+						b = j;
+					}
+				if (a < 0)
+					continue;
+				if (a + 1 <= b && sleeve(F(y, a)) && sleeve(F(y, a + 1)))
+					F(y, a) = clearKey;
+				if (b - 1 >= a && sleeve(F(y, b)) && sleeve(F(y, b - 1)))
+					F(y, b) = clearKey;
+			}
+		}
+		// hand-placed fixes: { loop, cel (-1 all), row, column, colour (0xFF clear) }
+		static const struct { int8 loop, cel, y, x; byte c; } kFix[] = {
+			{ 2, -1, 10, 4, 0xFF }, { 2, -1, 0, 4, 0xFF },	// neck pixel above his left arm; hair's top left
+			{ 3, -1, 0, 8, 0xFF },							// hair's top right
+			{ 2, 2, 19, 8, 5 }, { 2, 1, 20, 8, 5 },			// gaps in his right arm
+			{ 2, 3, 21, 3, 0xFF },							// belt sticking out on the left
+			{ 3, 4, 21, 8, 0xFF }, { 3, 5, 21, 8, 0xFF }	// belt sticking out on the right
+		};
+		for (uint i = 0; i < ARRAYSIZE(kFix); ++i) {
+			if (kFix[i].loop != loopNo || (kFix[i].cel >= 0 && kFix[i].cel != celNo))
+				continue;
+			const int j = pad - 2 + kFix[i].x;
+			if (kFix[i].y < h && j >= 0 && j < fatW)
+				F(kFix[i].y, j) = (kFix[i].c == 0xFF) ? clearKey : kFix[i].c;
+		}
+	}
+
+	// SQ3 close-up Roger (view 63) side-on walks, right (loop 0) and left (loop 1), from Tom's review.
+	// Columns count from 2 fat pixels left of the cel; the right loop is the left loop mirrored
+	// (column 12 - x). Belt's bottom row to pants grey (legs looked short), the dark red pixel under his
+	// chin and the lowest pixel of the back hair column removed, C1's back arm and C6's front arm lose
+	// their backmost column, C0 gets its back and bum (as C4), and C1/C3's dark grey line behind the
+	// purple arm turns light grey (as C4)
+	if (g_sci->getGameId() == GID_SQ3 && _resourceId == 63 && (loopNo == 0 || loopNo == 1) && !still && celWidth == 18) {
+		const bool right = (loopNo == 0);
+		auto J = [&](int x) { return pad - 2 + (right ? 12 - x : x); };
+		auto P = [&](int y, int x) -> byte * {
+			const int j = J(x);
+			return (y >= 0 && y < celHeight && j >= 0 && j < fatW) ? &fat[y * fatW + j] : nullptr;
+		};
+		for (int x = 0; x <= 12; ++x)
+			if (byte *v = P(23, x))
+				if (*v == 8 || *v == 0)
+					*v = 7;
+		if (byte *v = P(10, 7 - 2)) *v = clearKey;	// left loop: column 5 (right loop: 7)
+		if (byte *v = P(8, 8)) *v = clearKey;		// left loop: column 8 (right loop: 4)
+		if (celNo == 1)
+			for (int y = 12; y <= 25; ++y)
+				if (byte *v = P(y, 10))
+					if (*v == 7 || *v == 8)
+						*v = clearKey;
+		if (celNo == 6)
+			for (int y = 12; y <= 25; ++y)
+				if (byte *v = P(y, 11))
+					if (*v == 5 || *v == 13)
+						*v = clearKey;
+		if (celNo == 0) {
+			static const byte kBack[7] = { 7, 7, 7, 7, 7, 8, 7 };	// rows 17-23
+			for (int i = 0; i < 7; ++i)
+				if (byte *v = P(17 + i, 8))
+					if (*v == clearKey)
+						*v = kBack[i];
+		}
+		if (celNo == 1 || celNo == 3)
+			for (int y = (celNo == 1) ? 14 : 15; y <= 20; ++y)
+				if (byte *v = P(y, 8))
+					if (*v == 8)
+						*v = 7;
+	}
+
+	// SQ3 close-up Roger (view 63) side-on (loops 0 right, 1 left), from Tom's review. Columns are
+	// counted from 2 fat pixels left of the cel; the right loop is the left mirrored (column 12 - x).
+	if (g_sci->getGameId() == GID_SQ3 && _resourceId == 63 && (loopNo == 0 || loopNo == 1) && !still && celWidth == 18) {
+		const int h = celHeight;
+		auto F = [&](int y, int x) -> byte & { return fat[y * fatW + pad - 2 + x]; };
+		auto ok = [&](int y, int x) { return y >= 0 && y < h && pad - 2 + x >= 0 && pad - 2 + x < fatW; };
+		auto m = [&](int x) { return (loopNo == 0) ? 12 - x : x; };
+		// belt: its bottom row (row 23) in pants grey, his hands left as they are
+		for (int x = 0; x < 13; ++x)
+			if (ok(23, x) && (F(23, x) == 8 || F(23, x) == 0))
+				F(23, x) = 7;
+		if (ok(10, m(5)))
+			F(10, m(5)) = clearKey;		// dark red under his chin
+		if (ok(8, m(8)))
+			F(8, m(8)) = clearKey;		// the lowest pixel of the back hair column
+		if (celNo == 1)					// the back (grey) arm's backmost column
+			for (int y = 12; y <= 25; ++y)
+				if (ok(y, m(10)) && (F(y, m(10)) == 7 || F(y, m(10)) == 8))
+					F(y, m(10)) = clearKey;
+		if (celNo == 6)					// the front (purple) arm's backmost column
+			for (int y = 12; y <= 25; ++y)
+				if (ok(y, m(11)) && (F(y, m(11)) == 5 || F(y, m(11)) == 13))
+					F(y, m(11)) = clearKey;
+		if (celNo == 0) {				// his back and bum, as in cel 4
+			static const byte kBack[7] = { 7, 7, 7, 7, 7, 8, 7 };
+			for (int i = 0; i < 7; ++i)
+				if (ok(17 + i, m(8)) && F(17 + i, m(8)) == clearKey)
+					F(17 + i, m(8)) = kBack[i];
+		}
+		if (celNo == 1 || celNo == 3)	// dark grey behind the purple arm, light grey as in cel 4
+			for (int y = (celNo == 1) ? 14 : 15; y <= 20; ++y)
+				if (ok(y, m(8)) && F(y, m(8)) == 8)
+					F(y, m(8)) = 7;
+		if (celNo == 2)					// the far hand over his back: his body covers it
+			for (int y = 20; y <= 21; ++y)
+				if (ok(y, m(8)) && F(y, m(8)) == 12)
+					F(y, m(8)) = 7;
+	}
+
+	// SQ3 postcard fronts (view 73, 137 x 71, dialog pictures): Sierra's 1 pixel frame (black edge, white
+	// border, black shadow) is swallowed by the fat pixels. Redrawn the same on every card: a black edge
+	// a fat pixel wide, a white border a fat pixel wide each side (2 rows top and bottom), then a 2 fat
+	// pixel black shadow right and below. Columns f count fat pixels from the cel's left edge
+	if (g_sci->getGameId() == GID_SQ3 && _resourceId == 73 && celWidth == 137 && celHeight == 71 && startX == 0) {
+		auto setf = [&](int y, int f, int v) {
+			if (y >= 0 && y < celHeight && pad + f >= 0 && pad + f < fatW)
+				fat[y * fatW + pad + f] = (v < 0) ? clearKey : (byte)v;
+		};
+		for (int y = 0; y < 69; ++y) { setf(y, 0, 0); setf(y, 66, 0); }
+		for (int y = 1; y < 68; ++y) { setf(y, 1, 15); setf(y, 65, 15); }
+		for (int f = 0; f < 67; ++f) { setf(0, f, 0); setf(68, f, 0); }
+		for (int f = 1; f < 66; ++f) { setf(1, f, 15); setf(2, f, 15); setf(66, f, 15); setf(67, f, 15); }
+		for (int y = 2; y < 71; ++y)
+			setf(y, 67, 0);
+		for (int y = 0; y < 71; ++y)	// nothing beyond the shadow (RobertaLand's art reaches out there)
+			setf(y, 68, -1);
+		for (int f = 2; f < 68; ++f) { setf(69, f, 0); setf(70, f, 0); }
+		setf(0, 67, -1); setf(1, 67, -1);
+		setf(69, 0, -1); setf(69, 1, -1); setf(70, 0, -1); setf(70, 1, -1);
+		// Achoron (loop 0 cel 1): "WISH YOU WERE / HERE!" in fat pixel block capitals, green with a
+		// black drop shadow, in place of Sierra's cursive (rows 4-32 from column 2; the creature kept)
+		if (loopNo == 0 && celNo == 1) {
+			static const char *const kWish[] = {
+			"5a555a5a5aaa5a5a55a5a5aaa5a5a55a555a5aaa5aaa5aaa55555555555",
+			"5a055a0a0a000a0a05a0a0a0a0a0a05a055a0a000a0a0a0005555555555",
+			"5a055a0a0a055a0a05a0a0a0a0a0a05a055a0a055a0a0a0555555555555",
+			"5a0a5a0a0aaa5aaa05aaa0a0a0a0a05a0a5a0aa55aa50aa555555555555",
+			"5a0a0a0a050a0a0a055a00a0a0a0a05a0a0a0a005a0a5a0055555555555",
+			"5aa5aa0a055a0a0a055a05a0a0a0a05aa5aa0a055a0a0a0555555555555",
+			"5a005a0a0aaa0a0a055a05aaa0aaa05a005a0aaa5a0a0aaa55555555555",
+			"55055505050005050555055000500055055505000505050005555555555",
+			"55555555555555555555555555555555555555555555555555555555555",
+			"55555555555555555555555555555555555555555555555555555555555",
+			"55555555555555555555555555555555555555555555555555005555555",
+			"55555555555555555555555555555555555555555555555550000055555",
+			"55555555555555555555555555555555555555555555555555555555555",
+			"55555555555555555555555555555555555555555555555555555555555",
+			"55555555555555555555555555555555555555555555555550000055555",
+			"55555555555555555555555555555555555555555555550000000055555",
+			"55555a5a5aaa5aaa5aaa5a5555555555555555555555550000000005555",
+			"55555a0a0a000a0a0a000a055555555b5b5555b55550000000000005555",
+			"55555a0a0a055a0a0a055a0555555b555555555555000c0ccc000005555",
+			"55555aaa0aa55aa50aa55a0555555b5b5555b5555500000ccccc0000555",
+			"55555a0a0a005a0a5a005a0555555b55555555555f00c0cccccc0000555",
+			"55555a0a0a055a0a0a0555055555555b555555b558000cccccccccc0555",
+			"55555a0a0aaa5a0a0aaa5a5555555555555555555f0cccccccccccc0f55",
+			"555555050500050505000505555555b5555555555fccccccccc7ccc0f55",
+			"5555555555555555555555555555555555b555555fccccfccc4fccc0f55",
+			"5555555555555555555555555555555555b555555fccccffc44fccc0755",
+			"5555555555555555555555555555555555b55555507cccffc44fcccf555",
+			"555555555555555555555555555555b55555555550fcccf0c4f0fcf7555",
+			"555555555555555555555555555555555555555550f7ccf0c400fcf7555"
+			};
+			auto hexv = [](char ch) { return (byte)((ch >= 'a') ? ch - 'a' + 10 : ch - '0'); };
+			for (int i = 0; i < (int)ARRAYSIZE(kWish); ++i) {
+				const int y = 4 + i, lastF = (y < 17) ? 60 : 29;
+				for (int f = 2; f <= lastF; ++f)
+					setf(y, f, hexv(kWish[i][f - 2]));
+			}
+		}
+	}
+
+	// SQ3 Roger on the lift platform (view 83 loop 1 cel 2, 33 x 49) and in the cage (loop 2 cel 2,
+	// 44 x 48): f counts fat pixels from the cel's left edge (startX 0 for both).
+	// Platform: skin between the eyes, and the outer of his 2 fat pixel wide arms goes (as loop 0).
+	// Cage: his head is the platform frame's (rows 12-18, 3 fat pixels further right), and his torso
+	// and legs lose their leftmost column, the arm and hand left of it moving in against the body
+	if (g_sci->getGameId() == GID_SQ3 && _resourceId == 83 && !still && startX == 0 &&
+			((loopNo == 1 && celNo == 2 && celWidth == 33) || (loopNo == 2 && celNo == 2 && celWidth == 44))) {
+		auto F = [&](int y, int f) -> byte * {
+			return (y >= 0 && y < celHeight && pad + f >= 0 && pad + f < fatW) ? &fat[y * fatW + pad + f] : nullptr;
+		};
+		if (loopNo == 1) {
+			if (byte *q = F(13, 8))
+				*q = 12;
+			for (int y = 20; y <= 27; ++y)
+				for (int f : { 5, 11 })
+					if (byte *q = F(y, f))
+						if (*q == 5 || *q == 13)
+							*q = clearKey;
+		} else {
+			static const char *const kHead[7] = { ".64446.", ".60c06.", ".6c4c6.", "..ccc..", "..ccc..", "..4c4..", "..848.." };
+			auto hexv = [](char ch) { return (byte)((ch >= 'a') ? ch - 'a' + 10 : ch - '0'); };
+			for (int i = 0; i < 7; ++i) {
+				const int y = 12 + i;
+				for (int f = 7; f <= 14; ++f)
+					if (byte *q = F(y, f))
+						*q = clearKey;
+				for (int x = 0; x < 7; ++x)
+					if (kHead[i][x] != '.')
+						if (byte *q = F(y, 8 + x))	// platform columns 5-11, 3 further right
+							*q = hexv(kHead[i][x]);
+			}
+			for (int y = 19; y <= 35; ++y) {	// shoulders to the cage floor (legs included)
+				byte *a = F(y, 8), *b = F(y, 9);
+				if (!a || !b || (*a == clearKey && *b == clearKey))
+					continue;
+				*b = *a;
+				*a = clearKey;
+			}
+			for (int y = 31; y <= 35; ++y)	// two legs, a fat pixel gap between them
+				if (byte *q = F(y, 11))
+					*q = clearKey;
+		}
+	}
+
+	// SQ3 Roger in the elevator (view 83 loop 0, 12 x 33): the fat pixel between his eyes came out dark
+	// red, so his eyes read as one dark band; it becomes skin. Facing you (cels 0, 2) his arms are 2 fat
+	// pixels wide; the outer one goes. Columns count from 1 fat pixel left of the cel
+	if (g_sci->getGameId() == GID_SQ3 && _resourceId == 83 && loopNo == 0 && celWidth == 12 && !still) {
+		auto at = [&](int y, int x) -> byte * {
+			const int j = pad - 1 + x;
+			return (y >= 0 && y < celHeight && j >= 0 && j < fatW) ? &fat[y * fatW + j] : nullptr;
+		};
+		if (celNo == 1) {
+			if (byte *p = at(6, 4))
+				*p = 12;
+		} else {
+			if (byte *p = at(3, 4))
+				*p = 12;
+			for (int y = 10; y <= 17; ++y)
+				for (int x : { 1, 7 })
+					if (byte *p = at(y, x))
+						if (*p == 5 || *p == 13)
+							*p = clearKey;
+		}
+	}
+
+	// SQ3 the snake's "BURP!" bubble (view 77 loop 4 cel 0, 50 x 17): the letters redrawn in fat pixels
+	// (rows 4-12, fat pixels 3-24 from the cel's left edge), black on the bubble's white
+	if (g_sci->getGameId() == GID_SQ3 && _resourceId == 77 && loopNo == 4 && celNo == 0 && celWidth == 50 && startX == 0) {
+		static const char *const kBurp[] = {
+			"ffffffffffffffffffffff",
+			"f000ff0f0f000ff000ff0f",
+			"f0ff0f0f0f0ff0f0ff0f0f",
+			"f0ff0f0f0f0ff0f0ff0f0f",
+			"f000ff0f0f000ff000ff0f",
+			"f0ff0f0f0f0f0ff0ffff0f",
+			"f0ff0f0f0f0ff0f0ffffff",
+			"f000ff000f0ff0f0ffff0f",
+			"ffffffffffffffffffffff"
+		};
+		auto hexv = [](char ch) { return (byte)((ch >= 'a') ? ch - 'a' + 10 : ch - '0'); };
+		for (int i = 0; i < (int)ARRAYSIZE(kBurp); ++i)
+			for (int f = 0; kBurp[i][f]; ++f)
+				if (kBurp[i][f] != '.' && pad + 3 + f < fatW)
+					fat[(4 + i) * fatW + pad + 3 + f] = hexv(kBurp[i][f]);
+	}
+	// SQ3 the Terminator in his tube (view 61): his light red outline is 1 pixel wide with black or blue
+	// just inside it, which won the fat pixel and broke the outline (his arm, the side of his head).
+	// The outline wins over black, dark blue, blue and see-through; white and cyan detail is kept
+	if (g_sci->getGameId() == GID_SQ3 && _resourceId == 61) {
+		for (int y = 0; y < celHeight; ++y)
+			for (int j = pad; j < pad + numPairs && j < fatW; ++j) {
+				const int a = startX + 2 * (j - pad);
+				const byte l = (a >= 0 && a < celWidth) ? bitmap[y * celWidth + a] : clearKey;
+				const byte r = (a + 1 >= 0 && a + 1 < celWidth) ? bitmap[y * celWidth + a + 1] : clearKey;
+				if (l != 12 && r != 12)
+					continue;
+				const byte o = (l == 12) ? r : l;
+				if (o == 0 || o == 1 || o == 9 || o == clearKey)
+					fat[y * fatW + j] = 12;
+			}
+	}
+
+	// SQ3 Astro Chicken's BACOCK! (view 291 loop 2): thin yellow letters inside light red and dark red
+	// outlines. Yellow wins a fat pixel it shares, then light red, then dark red, then black
+	if (g_sci->getGameId() == GID_SQ3 && _resourceId == 291 && loopNo == 2 && !still) {
+		static const byte kOrder[4] = { 14, 12, 4, 0 };
+		for (int y = 0; y < celHeight; ++y)
+			for (int j = pad; j < pad + numPairs && j < fatW; ++j) {
+				const int a = startX + 2 * (j - pad);
+				const byte l = (a >= 0 && a < celWidth) ? bitmap[y * celWidth + a] : clearKey;
+				const byte r = (a + 1 >= 0 && a + 1 < celWidth) ? bitmap[y * celWidth + a + 1] : clearKey;
+				for (int o = 0; o < 4; ++o)
+					if ((l == kOrder[o] && l != clearKey) || (r == kOrder[o] && r != clearKey)) {
+						fat[y * fatW + j] = kOrder[o];
+						break;
+					}
+			}
+	}
+
+	// SQ3 invisible Roger (view 123): Sierra's 1 pixel checkerboard fills in as fat pixels, so only bits
+	// of him looked see-through. A fat pixel checkerboard goes over the whole frame instead, its phase
+	// picked per frame to keep more of his legs. Walking away (loop 3), his zigzag legs are redrawn as
+	// two straight legs a fat pixel apart (as walking towards), each row in Sierra's colour for it
+	if (g_sci->getGameId() == GID_SQ3 && _resourceId == 123 && !still) {
+		const int h = celHeight;
+		auto F = [&](int y, int j) -> byte & { return fat[y * fatW + j]; };
+		auto kept = [&](int p) {
+			int n = 0;
+			for (int y = (int)(h * 0.6f); y < h; ++y)
+				for (int j = 0; j < fatW; ++j)
+					if (F(y, j) != clearKey && ((j + y) & 1) == p)
+						++n;
+			return n;
+		};
+		const int p = (kept(0) >= kept(1)) ? 0 : 1;
+		if (loopNo == 3) {
+			auto runs = [&](int y) {
+				int n = 0;
+				for (int j = 0; j < fatW; ) {
+					if (F(y, j) != clearKey) {
+						++n;
+						while (j < fatW && F(y, j) != clearKey)
+							++j;
+					} else
+						++j;
+				}
+				return n;
+			};
+			int ls = -1;
+			for (int y = (int)(h * 0.55f); y < h && ls < 0; ++y)
+				if (runs(y) >= 2)
+					ls = y;
+			if (ls >= 0) {
+				int L = fatW;
+				for (int y = ls; y < h; ++y)
+					for (int j = 0; j < fatW; ++j)
+						if (F(y, j) != clearKey)
+							L = MIN(L, j);
+				const int R = L + 2;
+				for (int y = ls; y < h && R < fatW; ++y) {
+					int first = -1, last = -1;
+					for (int j = 0; j < fatW; ++j)
+						if (F(y, j) != clearKey) {
+							if (first < 0)
+								first = j;
+							last = j;
+						}
+					if (first < 0)
+						continue;
+					const byte lc = F(y, first), rc = F(y, last);
+					for (int j = 0; j < fatW; ++j)
+						F(y, j) = clearKey;
+					F(y, L) = lc;
+					F(y, R) = rc;
+				}
+			}
+		}
+		for (int y = 0; y < h; ++y)
+			for (int j = 0; j < fatW; ++j)
+				if (F(y, j) != clearKey && ((j + y) & 1) != p)
+					F(y, j) = clearKey;
+	}
+	// SQ3 Roger turning visible again (view 134): where an arm is 2 fat pixels wide, the outer one goes
+	if (g_sci->getGameId() == GID_SQ3 && _resourceId == 134 && !still) {
+		auto sleeve = [](byte v) { return v == 5 || v == 13; };
+		for (int y = 9; y < MIN<int>(19, celHeight); ++y) {
+			int a = -1, b = -1;
+			for (int j = 0; j < fatW; ++j)
+				if (fat[y * fatW + j] != clearKey) {
+					if (a < 0)
+						a = j;
+					b = j;
+				}
+			if (a < 0 || a == b)
+				continue;
+			if (sleeve(fat[y * fatW + a]) && sleeve(fat[y * fatW + a + 1]))
+				fat[y * fatW + a] = clearKey;
+			if (sleeve(fat[y * fatW + b]) && sleeve(fat[y * fatW + b - 1]))
+				fat[y * fatW + b] = clearKey;
+		}
+	}
+
+	// SQ3 ScumSoft's alarm bubbles (view 115 loop 5 cels 0 and 2): the tail is drawn here, below the body,
+	// its tip moved by however far the bubble was pushed to stay on screen (see agiDemakeSq3PlaceBubble),
+	// so it still points at the speaker. Cel 0 points down-left, cels 1 and 2 down-right, outlined black
+	if (g_sci->getGameId() == GID_SQ3 && _resourceId == 115 && !still && startX == 0 &&
+			((loopNo == 5 && celNo <= 1 && celWidth == 166 && celHeight == 38) || (loopNo == 5 && celNo == 2 && celWidth == 136 && celHeight == 39) ||
+			 (loopNo == 9 && celNo == 0 && celWidth == 144 && celHeight == 47))) {
+		const int bh = (loopNo == 9) ? 41 : (celNo <= 1) ? 32 : 33;		// body rows (before the outline)
+		const int shift = g_agiDemakeSq3BubbleShift[(loopNo == 9) ? 3 : celNo] / 2;	// fat pixels the bubble moved (+ right)
+		const int wf = celWidth / 2;
+		static const int8 kLeft[4][2] = { { 3, 9 }, { 1, 6 }, { 0, 3 }, { 0, 1 } };	// from the tip, down-left
+		static const int8 kRight[4][2] = { { -11, -5 }, { -8, -3 }, { -5, -1 }, { -3, 0 } };	// down-right
+		const bool tailLeft = (loopNo == 5 && celNo == 0);
+		const int tip = tailLeft ? 1 - shift : wf - 2 - shift;
+		Common::Array<byte> tail(fatW * celHeight, 0);
+		for (int r = 0; r < 4; ++r) {
+			const int y = bh + 1 + r;
+			const int a = tip + (tailLeft ? kLeft[r][0] : kRight[r][0]);
+			const int b = tip + (tailLeft ? kLeft[r][1] : kRight[r][1]);
+			for (int x = MAX(a, 0); x <= MIN(b, wf - 1); ++x)
+				if (y < celHeight) {
+					fat[y * fatW + pad + x] = 15;
+					tail[y * fatW + pad + x] = 1;
+				}
+		}
+		for (int y = 0; y < celHeight; ++y)
+			for (int x = 0; x < wf; ++x) {
+				byte &f = fat[y * fatW + pad + x];
+				if (f != clearKey)
+					continue;
+				for (int dy = -1; dy <= 1 && f == clearKey; ++dy)
+					for (int dx = -1; dx <= 1; ++dx) {
+						const int yy = y + dy, xx = x + dx;
+						if (yy >= 0 && yy < celHeight && xx >= 0 && xx < wf && tail[yy * fatW + pad + xx]) {
+							f = 0;
+							break;
+						}
+					}
+			}
+	}
+	// SQ3 Elmo Pug at his desk (view 115 loop 8): his eyes are single white pixels between black, so in
+	// his head (the top 8 rows) a white pixel wins its fat pixel; each eye then gets black on both sides
+	// and skin (12) under it
+	if (g_sci->getGameId() == GID_SQ3 && ((_resourceId == 115 && loopNo == 8) || (_resourceId == 116 && loopNo == 2)) && !still) {	// (116 loop 2: in the robot arena booth)
+		for (int y = 0; y < MIN<int>(8, celHeight); ++y) {
+			Common::Array<int> eyes;
+			for (int j = pad; j < pad + numPairs && j < fatW; ++j) {
+				const int a = startX + 2 * (j - pad);
+				const bool w = (a >= 0 && a < celWidth && bitmap[y * celWidth + a] == 15) ||
+					(a + 1 >= 0 && a + 1 < celWidth && bitmap[y * celWidth + a + 1] == 15);
+				if (w) {
+					fat[y * fatW + j] = 15;
+					eyes.push_back(j);
+				}
+			}
+			for (uint e = 0; e < eyes.size(); ++e) {
+				const int j = eyes[e];
+				if (j - 1 >= 0 && fat[y * fatW + j - 1] != 15)
+					fat[y * fatW + j - 1] = 0;
+				if (j + 1 < fatW && fat[y * fatW + j + 1] != 15)
+					fat[y * fatW + j + 1] = 0;
+				if (y + 1 < celHeight)
+					fat[(y + 1) * fatW + j] = 12;
+			}
+		}
+	}
+	// SQ3 Pug talking in the robot cockpit (view 130: head loop 0, mouth loop 2): fixed by hand in fat
+	// pixels, column by column (his face widened on our left to match the right, nostrils). Each cel's
+	// rows start at fat pixel pad - off
+	if (g_sci->getGameId() == GID_SQ3 && _resourceId == 130 && (loopNo == 0 || loopNo == 2) && !still) {
+		static const char *const kPug130_0_0[] = {
+			"..........111...........",
+			".........19101..........",
+			"........1911001.........",
+			".......1911010011.......",
+			"......10100100000.......",
+			"......10cc4111000.......",
+			"......0000c400000.......",
+			".......0bffc4bff0.......",
+			"......9bbff0bbff9.......",
+			"......cbffb0bffbc.......",
+			"......4bffb4bffb4.......",
+			"......c4fbbccfbbc.......",
+			".......c00ccc004c.......",
+			".......c440c0444c.......",
+			".....55cccccccc40.......",
+			"...2255cccc4ccc4022.....",
+			"...2222ccccffcc40225....",
+			"..05522cccccccc4025525..",
+			".225555cccccccc40552205.",
+			"55225555cccc4cc00522522.",
+			"55222222cccccc402225222.",
+			"25522222cccccc402255225.",
+			"2255205555ccc4055552255.",
+			"52255005555440555502552.",
+			"52255022222222222002522.",
+			"5522ccc222222222ccc5525.",
+			"552cccc455555555ccc4055.",
+			"552c444405555555c444055."
+		};
+		static const char *const kPug130_0_1[] = {
+			"..........111...........",
+			".........19101..........",
+			"........1911001.........",
+			".......1911010011.......",
+			"......10100100000.......",
+			"......10cc4111000.......",
+			"......0000c400000.......",
+			".......0bffc4bff0.......",
+			"......9bbff0bbff9.......",
+			"......cbffb0bffbc.......",
+			"......4bffb4bffb4.......",
+			"......c4fbbccfbbc.......",
+			".......c00ccc004c.......",
+			".......c440c0444c.......",
+			".....55cccccccc40.......",
+			"...2255cccccccc4022.....",
+			"...2222cccccccc40225....",
+			"..05522cccccccc4025525..",
+			".225555cccccccc40552205.",
+			"55225555ccccccc00522522.",
+			"55222222cccccc402225222.",
+			"25522222cccccc402255225.",
+			"2255205555ccc4055552255.",
+			"52255005555440555502552.",
+			"52255022222222222002522.",
+			"5522ccc222222222ccc5525.",
+			"552cccc455555555ccc4055.",
+			"552c444405555555c444055."
+		};
+		static const char *const kPug130_0_2[] = {
+			".........1111...........",
+			"........1910011.........",
+			".......191110011........",
+			".......191110011........",
+			".....1191110100111......",
+			".....101c440000000......",
+			".....10cccc4110000......",
+			".....00000c4000000......",
+			".....00bbfcc4bbf00......",
+			".....0bbffcc0bbff0......",
+			".....9bbffb0bbfff9......",
+			".....cbfffb0bbffbc......",
+			".....4bffbb4bfffb4......",
+			".....4fffbb4bffbb4......",
+			".....c0fbbcccffb0c......",
+			".....c4000ccc0004c......",
+			".....544440c04444c......",
+			"...2254ccccccccc402.....",
+			"...2224ccccccccc4025....",
+			"..05524ccccccccc005525..",
+			".225555ccccccccc0052205.",
+			"5522555ccccccccc0022522.",
+			"5522222ccccccccc0025222.",
+			"2552222ccccccccc0055225.",
+			"22552054ccccccc40052255.",
+			"52255005ccccccc40002552.",
+			"52255022ccccccc00002522.",
+			"5522ccc24ccccc40ccc5525.",
+			"552cccc444ccc400ccc4055.",
+			"552c444405444055c444055.",
+			"........................"
+		};
+		static const char *const kPug130_2_0[] = {
+			".4444cc444444..",
+			".4cc444444c40..",
+			".4c44fff44c00..",
+			".4c44fff44c00..",
+			".4c4400044c00..",
+			".4ccc000ccc00..",
+			".4ccc000ccc00..",
+			".4ccccccccc00..",
+			".4cccccc4cc00..",
+			"..4cc4444c400..",
+			"..4cccc44c400..",
+			"..44ccccc4000..",
+			"...4ccccc400...",
+			"...44ccc4400...",
+			"....444400....."
+		};
+		static const char *const kPug130_2_1[] = {
+			".4444cc444444..",
+			".4ccccccccc40..",
+			".4ccccccccc00..",
+			".4ccc444ccc00..",
+			".4ccc4444cc00..",
+			".4ccccccccc00..",
+			".4ccc4444cc00..",
+			".44ccccccc400..",
+			"..4ccccccc400..",
+			"..4ccccccc400..",
+			"..44ccccc4000..",
+			"...44ccc4400...",
+			"....444440.....",
+			"....444400.....",
+			"..............."
+		};
+		static const char *const kPug130_2_2[] = {
+			"4cc44c44cccc4..",
+			"4cc4c44444cc40.",
+			"4cc40ffff70c40.",
+			"4cc40ffff70c40.",
+			"4ccc0000000c40.",
+			"4ccccccccccc40.",
+			"4ccc44444cc40..",
+			"4cccccccccc40..",
+			"4ccccccccc440..",
+			".4cccccccc400..",
+			".44cccccc400...",
+			"..44cccc4400...",
+			"...4444440.....",
+			"....444000.....",
+			"..............."
+		};
+		static const char *const kPug130_2_3[] = {
+			".4444c4444444..",
+			".4ccccccccc40..",
+			".4ccccccccc00..",
+			".4ccccccccc00..",
+			".4cccc00ccc00..",
+			".4cccc00cc400..",
+			".44cc4cc4c400..",
+			"..4cc4444c400..",
+			"..4cc444cc400..",
+			"..4ccccccc000..",
+			"..44ccccc4000..",
+			"...44ccc4400...",
+			"...4444400.....",
+			"....444400.....",
+			"..............."
+		};
+		static const char *const kPug130_2_4[] = {
+			"4cc44cc4cccc4..",
+			"4cc4c44444cc40.",
+			"4cc40ffff70c40.",
+			"4cc40ffff70c40.",
+			"4ccc0000000c40.",
+			"4ccccccccccc40.",
+			"4ccc44444cc40..",
+			"4cccccccccc40..",
+			".4cccccccc440..",
+			".4cccccccc400..",
+			"..4cccccc400...",
+			"..44cccc4400...",
+			"...4444440.....",
+			"....444000.....",
+			"..............."
+		};
+		static const char *const kPug130_2_5[] = {
+			".4444cc444444..",
+			".4c4c444c4c40..",
+			".4c44fff44c00..",
+			".4c44fff44c00..",
+			".4cc4fff4cc00..",
+			".4ccccccccc00..",
+			".4ccc4444cc00..",
+			".44ccccccc400..",
+			"..4ccccccc400..",
+			"...4ccccc4000..",
+			"...44ccc4400...",
+			"....4444000....",
+			"...............",
+			"...............",
+			"..............."
+		};
+		static const char *const kPug130_2_6[] = {
+			".4444c4444444..",
+			".4ccccccccc40..",
+			".4ccccccccc00..",
+			".4ccccccccc00..",
+			".4cccc00ccc00..",
+			".4cccc00cc400..",
+			".44cc4cc4c400..",
+			"..4cc4444c400..",
+			"..4cc4444c400..",
+			"..44cccccc000..",
+			"...4ccccc4000..",
+			"...44ccc4400...",
+			"....444400.....",
+			"....444400.....",
+			"..............."
+		};
+		static const char *const kPug130_2_7[] = {
+			".4444cc444444..",
+			".4cc444444c40..",
+			".4c44fff44c00..",
+			".4c44fff44c00..",
+			".4c4400044c00..",
+			".4ccc000ccc00..",
+			".4ccc000ccc00..",
+			".4ccccccccc00..",
+			".4cccccc4cc00..",
+			"..4cc4444c400..",
+			"..4cccc44c400..",
+			"..44ccccc4000..",
+			"...4ccccc400...",
+			"...44ccc4400...",
+			"....444400....."
+		};
+		static const char *const kPug130_2_8[] = {
+			"4cc44cc4cccc4..",
+			"4cc4c44444cc40.",
+			"4cc40ffff70c40.",
+			"4cc40ffff70c40.",
+			"4ccccccccccc40.",
+			"4cccc44444cc40.",
+			"4cccccccccc40..",
+			".4ccccccccc00..",
+			".4cccccccc400..",
+			"..4cccccc400...",
+			"..44ccc44400...",
+			"....444000.....",
+			"...............",
+			"...............",
+			"..............."
+		};
+		static const struct { int8 loop, cel; int16 w, h; int8 startX, off; const char *const *rows; } kPugCels[] = {
+			{ 0, 0, 45, 28, -1, 0, kPug130_0_0 },
+			{ 0, 1, 45, 28, -1, 0, kPug130_0_1 },
+			{ 0, 2, 45, 31, -1, 0, kPug130_0_2 },
+			{ 2, 0, 23, 15, 0, 2, kPug130_2_0 },
+			{ 2, 1, 23, 15, 0, 2, kPug130_2_1 },
+			{ 2, 2, 23, 15, 0, 2, kPug130_2_2 },
+			{ 2, 3, 23, 15, 0, 2, kPug130_2_3 },
+			{ 2, 4, 23, 15, 0, 2, kPug130_2_4 },
+			{ 2, 5, 23, 15, 0, 2, kPug130_2_5 },
+			{ 2, 6, 23, 15, 0, 2, kPug130_2_6 },
+			{ 2, 7, 23, 15, 0, 2, kPug130_2_7 },
+			{ 2, 8, 23, 15, 0, 2, kPug130_2_8 }
+		};
+		auto hexv = [](char ch) { return (byte)((ch >= 'a') ? ch - 'a' + 10 : ch - '0'); };
+		for (uint i = 0; i < ARRAYSIZE(kPugCels); ++i) {
+			const auto &pc = kPugCels[i];
+			if (pc.loop != loopNo || pc.cel != celNo || pc.w != celWidth || pc.h != celHeight || pc.startX != startX)
+				continue;
+			for (int y = 0; y < pc.h; ++y)
+				for (int x = 0; pc.rows[y][x]; ++x) {
+					const int j = pad - pc.off + x;
+					if (j >= 0 && j < fatW)
+						fat[y * fatW + j] = (pc.rows[y][x] == '.') ? clearKey : hexv(pc.rows[y][x]);
+				}
+		}
+	}
+	// SQ3 Elmo Pug's photo (view 103 loop 0 cel 0, at an odd column): tidied by hand in fat pixels (a brown
+	// border on the right and no shadow, both eyes, face coloured left of his mouth, ears)
+	if (g_sci->getGameId() == GID_SQ3 && _resourceId == 103 && loopNo == 0 && celNo == 0 && celWidth == 16 &&
+			celHeight == 16 && startX == -1 && !still) {
+		static const char *const kPug[16] = {
+			".666666666",
+			".600000006",
+			".608008886",
+			".600000886",
+			".600c00086",
+			".600000086",
+			".600b0b086",
+			".6c0b0bc86",
+			".6000c0086",
+			".60cccc006",
+			".60c44c026",
+			".650cc0056",
+			".655000526",
+			".666666666",
+			".6666ff666",
+			".........."
+		};
+		auto hexv = [](char ch) { return (byte)((ch >= 'a') ? ch - 'a' + 10 : ch - '0'); };
+		for (int y = 0; y < 16; ++y)
+			for (int x = 0; x < 10; ++x) {
+				const int j = pad - 1 + x;
+				if (j >= 0 && j < fatW)
+					fat[y * fatW + j] = (kPug[y][x] == '.') ? clearKey : hexv(kPug[y][x]);
+			}
+	}
+
+	// SQ3 weapons screen (room 18): the shield bars and control lights (view 46 loops 1, 2, 3, 9) sit inside
+	// boxes whose 1 pixel blue sides share a fat pixel with the light's first and last pixel; those fat
+	// pixels are left out, so the box's side (blue, see the picture fix in paint16) always shows
+	if (g_sci->getGameId() == GID_SQ3 && _resourceId == 46 && (loopNo == 1 || loopNo == 2 || loopNo == 3 || loopNo == 9)) {	// (stopped or not)
+		for (int j = pad; j < pad + numPairs && j < fatW; ++j) {
+			const int sx = pairStart + 2 * (j - pad);
+			if (sx == 46 || sx == 86 || sx == 244 || sx == 284)
+				for (int y = 0; y < celHeight; ++y)
+					fat[y * fatW + j] = clearKey;
+		}
+	}
+
 	agiDemakeDump(_resourceId, loopNo, celNo, celInfo, mirrored, startX, origBitmap, fat.data(), fatW,
 		rect.left + offsetX, rect.top + offsetY, pairStart, clipRectTranslated, priority);
 
@@ -4271,7 +6886,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 					for (int i = 0; i < 2; ++i) {
 						const int x2 = pairStart + 2 * (f - pad) + i;
 						if (x2 != coveredX && x2 >= clipLeft && x2 < clipRectTranslated.right &&
-								priority >= _screen->getPriority(x2, y2) && !agiDemakeUnderWindow(windowRects, x2, y2))
+								(priority >= _screen->getPriority(x2, y2) || (sq3OverBlack && _screen->getVisual(x2, y2) != 7 && _screen->getVisual(x2, y2) != 8)) && !agiDemakeUnderWindow(windowRects, x2, y2))
 							_screen->putPixel(x2, y2, GFX_SCREEN_MASK_VISUAL, front, 0, 0);
 					}
 					continue;
@@ -4281,7 +6896,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 				const int x2 = pairStart + 2 * (f - pad) + i;
 				if (x2 < clipLeft || x2 >= clipRectTranslated.right)
 					continue;
-				if (priority >= _screen->getPriority(x2, y2) && !agiDemakeUnderWindow(windowRects, x2, y2))
+				if ((priority >= _screen->getPriority(x2, y2) || (sq3OverBlack && _screen->getVisual(x2, y2) != 7 && _screen->getVisual(x2, y2) != 8)) && !agiDemakeUnderWindow(windowRects, x2, y2))
 					_screen->putPixel(x2, y2, drawMask, getMappedColor(color, scaleSignal, palette, x2, y2), priority, 0);
 			}
 		}
@@ -4329,7 +6944,7 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 				continue;
 			if (x2 < 0 || y2 < 0 || x2 >= _screen->getWidth() || y2 >= _screen->getHeight())
 				continue;
-			if (priority >= _screen->getPriority(x2, y2) && !agiDemakeUnderWindow(windowRects, x2, y2))
+			if ((priority >= _screen->getPriority(x2, y2) || (sq3OverBlack && _screen->getVisual(x2, y2) != 7 && _screen->getVisual(x2, y2) != 8)) && !agiDemakeUnderWindow(windowRects, x2, y2))
 				_screen->putPixel(x2, y2, drawMask, getMappedColor(inkColor, scaleSignal, palette, x2, y2), priority, 0);
 		}
 	}
@@ -4367,7 +6982,9 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 		for (int pass = 0; pass < 2; ++pass) {
 			for (int it = 0; it < 6 && textOverride->items[it].word; ++it) {
 				const AgiDemakeTextItem &item = textOverride->items[it];
-				const int wordW = agiDemakeWordWidth(item.word);
+				// (SQ3 SNAKE CHOW: in SNAKE, N and K skip their middle column to fit the label)
+				const bool narrowNK = textOverride->game == GID_SQ3 && textOverride->view == 901 && !strcmp(item.word, "SNAKE");
+				const int wordW = (textOverride->fixedPitch ? (int)strlen(item.word) * 8 - 1 : agiDemakeWordWidth(item.word)) - (narrowNK ? 2 : 0);
 				const int x0 = item.alignRight ? item.x - wordW : item.x;
 				const int y0 = item.y;
 				Common::Array<bool> ink((wordW + 2) * 9, false);
@@ -4375,12 +6992,21 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 				for (const char *ch = item.word; *ch; ++ch) {
 					const uint8 *g = Graphics::DosFont::fontData_PCBIOS + (byte)*ch * 8;
 					int a, b;
-					agiDemakeGlyphCols((byte)*ch, a, b);
+					if (textOverride->fixedPitch) {
+						a = 0;
+						b = 6;
+					} else
+						agiDemakeGlyphCols((byte)*ch, a, b);
+					const int skip = (narrowNK && (*ch == 'N' || *ch == 'K')) ? 3 : -1;
 					for (int gy = 0; gy < 7; ++gy)
-						for (int gx = a; gx <= b; ++gx)
+						for (int gx = a, n = 0; gx <= b; ++gx) {
+							if (gx == skip)
+								continue;
 							if (g[gy] & (0x80 >> gx))
-								ink[(gy + 1) * (wordW + 2) + gxPos + gx - a + 1] = true;
-					gxPos += b - a + 2;
+								ink[(gy + 1) * (wordW + 2) + gxPos + n + 1] = true;
+							++n;
+						}
+					gxPos += b - a + 2 - (skip >= a && skip <= b ? 1 : 0);
 				}
 				for (int by = 0; by < 9; ++by) {
 					for (int bx = 0; bx < wordW + 2; ++bx) {
@@ -4396,11 +7022,11 @@ void GfxView::drawAgiDemake(const Common::Rect &rect, const Common::Rect &clipRe
 							continue;
 						if (pass == 0 && textOverride->backing == 0xFF)
 							continue;
-						const int x2 = rect.left + offsetX + cx, y2 = rect.top + offsetY + cy;
+						const int x2 = rect.left + offsetX + agiShiftX + cx, y2 = rect.top + offsetY + cy;
 						if (x2 < clipRectTranslated.left || x2 >= clipRectTranslated.right || y2 < clipRectTranslated.top || y2 >= clipRectTranslated.bottom)
 							continue;
-						if (priority >= _screen->getPriority(x2, y2)) {
-							const byte c = (pass == 1) ? textOverride->textColor : textOverride->backing;
+						if (priority >= _screen->getPriority(x2, y2) || sq3OverBlack) {	// (the bubble's words go wherever the bubble went)
+							const byte c = (pass == 1) ? (item.colour1 ? (byte)(item.colour1 - 1) : textOverride->textColor) : textOverride->backing;
 							_screen->putPixel(x2, y2, drawMask, getMappedColor(c, scaleSignal, palette, x2, y2), priority, 0);
 						}
 					}

@@ -54,7 +54,7 @@ public:
  */
 class GfxFontAgi : public GfxFont {
 public:
-	GfxFontAgi(GfxScreen *screen) : _screen(screen), _fallback(nullptr), _tight(false), _spaceWidth(4) {}
+	GfxFontAgi(GfxScreen *screen) : _screen(screen), _fallback(nullptr), _tight(false), _spaceWidth(4), _code(false) {}
 	GuiResourceId getResourceId() override { return 0; }
 	uint8 getHeight() override { return 8; }
 	// Characters below 32 are game-specific symbols in SCI fonts (e.g. PQ2's "II"), so they are
@@ -67,12 +67,15 @@ public:
 	uint8 getCharHeight(uint16 chr) override { return useFallback(chr) ? _fallback->getCharHeight(chr) : 8; }
 	void draw(uint16 chr, int16 top, int16 left, byte color, bool greyedOutput) override;
 	void setFallback(GfxFont *font) { _fallback = font; }
+	// SQ3's code font (603): capitals are code symbols on the fat pixel grid, "{" is a spacer
+	void setCode(bool code) { _code = code; }
 private:
 	bool useFallback(uint16 chr) const { return _fallback && chr < 32; }
 	GfxScreen *_screen;
 	GfxFont *_fallback;
 	bool _tight;
 	int _spaceWidth;
+	bool _code;
 	void glyphCols(uint16 chr, int &a, int &b) const;
 };
 

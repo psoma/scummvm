@@ -28,6 +28,7 @@
 #include "sci/graphics/coordadjuster.h"
 #include "sci/graphics/ports.h"
 #include "sci/graphics/paint16.h"
+#include "sci/engine/agiinput.h"
 #include "sci/graphics/animate.h"
 #include "sci/graphics/scifont.h"
 #include "sci/graphics/picture.h"
@@ -41,6 +42,7 @@
 
 #include "sci/graphics/scifx.h"
 #include "common/config-manager.h"
+#include "graphics/fonts/dosfont.h"
 #include "common/file.h"
 #include "common/hashmap.h"
 
@@ -153,6 +155,7 @@ void GfxPaint16::agiDemakeDumpPicture(GuiResourceId pictureId, bool addToFlag) {
 }
 
 void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool addToFlag, GuiResourceId paletteId) {
+	agiInputPictureDrawn();	// (AGI demake: keys are ignored until a room's first picture is up)
 	_screen->_agiPicGeneration++;
 	// Set up custom per-picture palette mod
 	doCustomPicPalette(_screen, pictureId);
@@ -246,6 +249,247 @@ void GfxPaint16::drawPicture(GuiResourceId pictureId, bool mirroredFlag, bool ad
 		}
 		// keep a copy of the room picture for sprite fixes that put background back
 		_screen->agiDemakeSnapshotPicture();
+	}
+
+	// AGI demake, SQ3 ship's computer (picture 17): the panel headings "FLIGHT MODE" and "DEFENSE"
+	// are painted in 5 pixel letters. They are wiped (with the frame line either side, to make room)
+	// and written in the AGI font, tight spacing, at full resolution and flagged as text. Where the
+	// frame line starts at a corner on the odd pixel of a pair, that corner is filled in so the corner
+	// stays square (middle and right panels' top left corners)
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && pictureId == 17 && !addToFlag) {
+		static const struct { const char *word; int16 x, y, wipeL, wipeR; } kHead[] = {
+			{ "FLIGHT MODE", 118, 24, 114, 199 },
+			{ "DEFENSE", 234, 24, 230, 291 }
+		};
+		for (uint i = 0; i < ARRAYSIZE(kHead); ++i) {
+			for (int y = kHead[i].y; y < kHead[i].y + 7; ++y)
+				for (int x = kHead[i].wipeL; x <= kHead[i].wipeR; ++x) {
+					const byte c = _screen->agiDemakeGetPictureCode(x, y);
+					if (c == 10 || (y == 27 && c == 2))
+						_screen->agiDemakeSetPictureCode(x, y, 0);
+				}
+			int xPos = kHead[i].x;
+			for (const char *ch = kHead[i].word; *ch; ++ch) {
+				const uint8 *g = Graphics::DosFont::fontData_PCBIOS + (byte)*ch * 8;
+				int a = 8, b = -1;
+				for (int gx = 0; gx < 8; ++gx)
+					for (int gy = 0; gy < 8; ++gy)
+						if (g[gy] & (0x80 >> gx)) {
+							a = MIN(a, gx);
+							b = MAX(b, gx);
+						}
+				if (b < 0) {	// space
+					a = 0;
+					b = 2;
+				}
+				for (int gy = 0; gy < 7; ++gy)
+					for (int gx = a; gx <= b; ++gx)
+						if (g[gy] & (0x80 >> gx)) {
+							const int x = xPos + gx - a, y = kHead[i].y + gy;
+							_screen->agiDemakeSetPictureCode(x, y, 10);
+							_screen->setDemakeFlag(x, y, 1);
+						}
+				xPos += b - a + 2;
+			}
+		}
+		static const int16 kCorner[] = { 94, 226 };
+		for (uint i = 0; i < ARRAYSIZE(kCorner); ++i)
+			for (int d = 0; d < 2; ++d)
+				_screen->agiDemakeSetPictureCode(kCorner[i] + d, 27, 2);
+	}
+
+	// AGI demake, SQ3 weapons screen (picture 18): Sierra's 5 pixel lettering redone in the AGI font
+	// (tight spacing, full resolution, flagged as text). CONTROLS and SHIELDS move off the panel tops
+	// (whose frame lines are joined up) and are stacked letter by letter in the black margins at the
+	// screen's sides. RADAR sits one row higher. The key letters H, O, F, B are redrawn in their boxes.
+	// SPACEBAR goes one row lower, the red bracket's sides end level with the FIRE box, and the blue
+	// line under it steps down around the word, 1 pixel clear
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && pictureId == 18 && !addToFlag) {
+		auto colourAt = [&](int x, int y) { return _screen->agiDemakeGetPictureCode(x, y) & 15; };
+		auto setFat = [&](int p, int y, byte c) {
+			_screen->agiDemakeSetPictureCode(2 * p, y, c);
+			_screen->agiDemakeSetPictureCode(2 * p + 1, y, c);
+		};
+		auto wipe = [&](int x0, int x1, int y0, int y1, const byte *cols, int nCols) {
+			for (int y = y0; y <= y1; ++y)
+				for (int x = x0; x <= x1; ++x)
+					for (int i = 0; i < nCols; ++i)
+						if (colourAt(x, y) == cols[i]) {
+							_screen->agiDemakeSetPictureCode(x, y, 0);
+							break;
+						}
+		};
+		auto glyphCols = [](byte ch, int &a, int &b) {
+			const uint8 *g = Graphics::DosFont::fontData_PCBIOS + ch * 8;
+			a = 8;
+			b = -1;
+			for (int gx = 0; gx < 8; ++gx)
+				for (int gy = 0; gy < 8; ++gy)
+					if (g[gy] & (0x80 >> gx)) {
+						a = MIN(a, gx);
+						b = MAX(b, gx);
+					}
+			if (b < 0) {
+				a = 0;
+				b = 2;
+			}
+		};
+		auto wordWidth = [&](const char *w) {
+			int n = 0;
+			for (; *w; ++w) {
+				int a, b;
+				glyphCols((byte)*w, a, b);
+				n += b - a + 2;
+			}
+			return n - 1;
+		};
+		auto text = [&](const char *word, int x, int y) {
+			for (const char *ch = word; *ch; ++ch) {
+				const uint8 *g = Graphics::DosFont::fontData_PCBIOS + (byte)*ch * 8;
+				int a, b;
+				glyphCols((byte)*ch, a, b);
+				for (int gy = 0; gy < 7; ++gy)
+					for (int gx = a; gx <= b; ++gx)
+						if (g[gy] & (0x80 >> gx)) {
+							_screen->agiDemakeSetPictureCode(x + gx - a, y + gy, 10);
+							_screen->setDemakeFlag(x + gx - a, y + gy, 1);
+						}
+				x += b - a + 2;
+			}
+		};
+		static const byte kGreen[] = { 10 };
+		static const byte kGreenRed[] = { 10, 4 };
+		static const byte kSpacebar[] = { 10, 4, 1, 9 };
+		// panel tops: Sierra's headings wiped, frame line (row 49) joined up
+		static const int16 kPanel[][2] = { { 31, 90 }, { 229, 288 } };
+		for (int i = 0; i < 2; ++i) {
+			wipe(kPanel[i][0] + 1, kPanel[i][1] - 1, 46, 52, kGreen, 1);
+			for (int x = kPanel[i][0]; x <= kPanel[i][1]; ++x)
+				_screen->agiDemakeSetPictureCode(x, 49, 4);
+		}
+		// stacked headings, each letter centred on the margin's middle column
+		static const struct { const char *word; float cx; int top; } kStack[] = {
+			{ "CONTROLS", 10.5f, 69 }, { "SHIELDS", 310.5f, 74 }
+		};
+		for (uint i = 0; i < ARRAYSIZE(kStack); ++i)
+			for (int n = 0; kStack[i].word[n]; ++n) {
+				const char letter[2] = { kStack[i].word[n], 0 };
+				text(letter, (int)(kStack[i].cx - wordWidth(letter) / 2.0f + 0.5f), kStack[i].top + 8 * n);
+			}
+		// RADAR, rows 105-111, on its frame line (row 109)
+		wipe(40, 82, 105, 111, kGreenRed, 2);
+		text("RADAR", 43, 105);
+		// key letters in their 7 pixel boxes
+		static const struct { const char *word; int16 x, y; } kKey[] = {
+			{ "H", 37, 57 }, { "O", 37, 85 }, { "F", 235, 57 }, { "B", 235, 85 }
+		};
+		for (uint i = 0; i < ARRAYSIZE(kKey); ++i) {
+			wipe(kKey[i].x, kKey[i].x + 6, kKey[i].y - 1, kKey[i].y + 7, kGreen, 1);
+			text(kKey[i].word, kKey[i].x + (7 - wordWidth(kKey[i].word)) / 2, kKey[i].y);
+		}
+		// SPACEBAR (x 129-188, rows 156-162) and the blue line around it
+		wipe(128, 189, 156, 162, kSpacebar, 4);
+		const int stepL = 63, stepR = 95;	// fat columns, 1 pixel clear of the word
+		for (int p = stepL; p <= stepR; ++p) {
+			setFat(p, 160, 0);
+			setFat(p, 161, 0);
+			setFat(p, 162, 0);
+			setFat(p, 164, 9);
+		}
+		for (int y = 162; y <= 164; ++y) {
+			setFat(stepL, y, 9);
+			setFat(stepR, y, 9);
+		}
+		for (int y = 155; y <= 159; ++y)
+			for (int x = 128; x <= 191; ++x)
+				if (colourAt(x, y) == 4)
+					_screen->agiDemakeSetPictureCode(x, y, 0);
+		text("SPACEBAR", 129, 156);
+	}
+
+	// AGI demake, SQ3 weapons screen (picture 18): the radar box's blue sides are 1 pixel wide (x 33 and
+	// 87) with black beside them, so black won their fat pixel and the sides only showed while a text
+	// box over them drew them at full size. Their fat pixels are made blue
+	// (and the same for the inner boxes of the controls and shields panels: x 46 and 87, 244 and 285)
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && pictureId == 18 && !addToFlag) {
+		static const int16 kPairs[3][2] = { { 32, 86 }, { 46, 86 }, { 244, 284 } };	// even column of each side's pair
+		static const int16 kRows[3][2] = { { 100, 160 }, { 50, 100 }, { 50, 100 } };
+		for (int b = 0; b < 3; ++b)
+			for (int y = kRows[b][0]; y < kRows[b][1]; ++y)
+				for (int side = 0; side < 2; ++side) {
+					const int x = kPairs[b][side];
+					const byte l = _screen->agiDemakeGetPictureCode(x, y) & 15, r = _screen->agiDemakeGetPictureCode(x + 1, y) & 15;
+					if (l == 9 && r == 0)
+						_screen->agiDemakeSetPictureCode(x + 1, y, 9);
+					else if (r == 9 && l == 0)
+						_screen->agiDemakeSetPictureCode(x, y, 9);
+				}
+	}
+
+	// AGI demake, SQ3 robot fight (picture 120): POWER LEVEL, GREY and RED are in Sierra's tiny font in
+	// the picture. The picture is cleared behind them and they are redrawn in a compact fat pixel font,
+	// clear of the status bar, in their own colours (blue, grey, light red)
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && pictureId == 120 && !addToFlag) {
+		static const struct { int16 x0, x1, y0, y1; } kClear[] = { { 112, 199, 9, 16 }, { 114, 146, 18, 25 }, { 166, 194, 18, 25 } };
+		for (uint i = 0; i < ARRAYSIZE(kClear); ++i)
+			for (int y = kClear[i].y0; y < kClear[i].y1; ++y)
+				for (int x = kClear[i].x0; x < kClear[i].x1; ++x)
+					_screen->agiDemakeSetPictureCode(x, y, 0);
+		// a compact 3 x 5 font on the AGI fat pixel grid, 1 fat pixel between letters
+		static const struct { char ch; const char *rows[5]; } kGlyphs[] = {
+			{ 'D', { "11.", "1.1", "1.1", "1.1", "11." } },
+			{ 'E', { "111", "1..", "11.", "1..", "111" } },
+			{ 'G', { "111", "1..", "1.1", "1.1", "111" } },
+			{ 'L', { "1..", "1..", "1..", "1..", "111" } },
+			{ 'O', { "111", "1.1", "1.1", "1.1", "111" } },
+			{ 'P', { "111", "1.1", "111", "1..", "1.." } },
+			{ 'R', { "11.", "1.1", "11.", "1.1", "1.1" } },
+			{ 'V', { "1.1", "1.1", "1.1", "1.1", ".1." } },
+			{ 'W', { "1.1", "1.1", "111", "111", "1.1" } },
+			{ 'Y', { "1.1", "1.1", ".1.", ".1.", ".1." } },
+		};
+		static const struct { const char *text; int16 x, y; byte colour; } kLabels[] = {
+			{ "POWER LEVEL", 114, 11, 9 }, { "GREY", 116, 19, 7 }, { "RED", 168, 19, 12 }
+		};
+		for (uint i = 0; i < ARRAYSIZE(kLabels); ++i) {
+			int16 x = kLabels[i].x;
+			for (const char *p = kLabels[i].text; *p; ++p) {
+				if (*p == ' ') {
+					x += 4;
+					continue;
+				}
+				for (uint g = 0; g < ARRAYSIZE(kGlyphs); ++g) {
+					if (kGlyphs[g].ch != *p)
+						continue;
+					for (int r = 0; r < 5; ++r)
+						for (int c = 0; kGlyphs[g].rows[r][c]; ++c)
+							if (kGlyphs[g].rows[r][c] == '1') {
+								_screen->agiDemakeSetPictureCode(x + 2 * c, kLabels[i].y + r, kLabels[i].colour);
+								_screen->agiDemakeSetPictureCode(x + 2 * c + 1, kLabels[i].y + r, kLabels[i].colour);
+							}
+					x += 2 * (int16)strlen(kGlyphs[g].rows[0]) + 2;
+				}
+			}
+		}
+	}
+
+	// AGI demake, SQ3 Astro Chicken's cabinet (pictures 290-292): the red bit below the F of Feed: (x 30-50,
+	// rows 195-199) goes black
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && pictureId >= 290 && pictureId <= 292 && !addToFlag) {
+		for (int y = 195; y <= 199; ++y)
+			for (int x = 30; x <= 50; ++x)
+				if ((_screen->agiDemakeGetPictureCode(x, y) & 15) == 4)
+					_screen->agiDemakeSetPictureCode(x, y, 0);
+	}
+
+	// AGI demake, SQ3 the Terminator's face (picture 30): the innermost dark blue column at the left of
+	// his visor (x 104-105) turns black, so the visor's text has a fat pixel of black before the blue
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && pictureId == 30 && !addToFlag) {
+		for (int y = 41; y <= 101; ++y)
+			if ((_screen->agiDemakeGetPictureCode(104, y) & 15) == 1 || (_screen->agiDemakeGetPictureCode(105, y) & 15) == 1) {
+				_screen->agiDemakeSetPictureCode(104, y, 0);
+				_screen->agiDemakeSetPictureCode(105, y, 0);
+			}
 	}
 
 	// We make a call to SciPalette here, for increasing sys timestamp and also loading targetpalette, if palvary active
@@ -695,6 +939,22 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 		argc--; argv++;
 		switch (displayArg.getOffset()) {
 		case SCI_DISPLAY_MOVEPEN:
+			// AGI demake, SQ3 ship's computer (room 17): the sector number goes at x 100, which in the
+			// AGI font is on top of "CURRENT SECTOR:" (that ends at x 125). It moves to x 132
+			if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && g_sci->getEngineState()->currentRoomNumber() == 17 &&
+					argv[0].toUint16() == 100 && argv[1].toUint16() == 144) {
+				_ports->moveTo(132, 144);
+				argc -= 2; argv += 2;
+				break;
+			}
+			// AGI demake, SQ3 weapons screen (room 18): "TARGET:" at x 44 runs over its panel's edge in
+			// the AGI font. It goes to the top of the blue box, centred (x 37, 2 pixels below the top)
+			if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && g_sci->getEngineState()->currentRoomNumber() == 18 &&
+					argv[0].toUint16() == 44 && argv[1].toUint16() == 110) {
+				_ports->moveTo(37, 106);
+				argc -= 2; argv += 2;
+				break;
+			}
 			_ports->moveTo(argv[0].toUint16(), argv[1].toUint16());
 			argc -= 2; argv += 2;
 			break;
@@ -932,8 +1192,170 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 		}
 	}
 
+	// AGI demake, SQ3 navigation screen (room 19): a planet's details shown left of its zoom box (the
+	// planet in the right half of the map) get a 91 pixel column ending just left of the box. In the
+	// AGI font that wraps to 9 lines and runs off the bottom. The column widens to the longest
+	// hand-broken line and starts further left, its right edge where it was
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && g_sci->getEngineState()->currentRoomNumber() == 19 &&
+			width == 91 && text) {
+		int16 widest = 0;
+		const char *line = text;
+		for (const char *p = text; ; ++p) {
+			if (*p == 0 || *p == 0x0A || *p == 0x0D) {
+				widest = MAX<int16>(widest, _text16->agiWidth(Common::String(line, p - line).c_str(), true));
+				if (*p == 0)
+					break;
+				line = p + 1;
+			}
+		}
+		if (widest + 1 > width) {
+			Port *port = _ports->getPort();
+			port->curLeft = MAX<int16>(0, port->curLeft - (widest + 1 - width));
+			width = widest + 1;
+		}
+	}
+	// and a planet shown right of its zoom box (width 220, planet on the left of the map): its text
+	// starts 1 pixel further right, so the black outline sits 1 pixel clear of the box's frame
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && g_sci->getEngineState()->currentRoomNumber() == 19 &&
+			width == 220 && text)
+		_ports->getPort()->curLeft += 1;
+
+	// AGI demake, SQ3 the Terminator's visor (room 31): the messages must fit the black of his
+	// glasses (x 104 to 235) in the AGI font. ROGER WILCO / CASE OU812 starts below IDENTITY
+	// CONFIRMED with a 4 row gap. WANTED FOR is reworded to fit (the text is mirrored, so it is
+	// written backwards) and drawn as two pairs of lines 4 rows apart, centred on the visor
+	bool sq3Wanted = false;
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && g_sci->getEngineState()->currentRoomNumber() == 31 && text) {
+		Port *port = _ports->getPort();
+		if (port->curLeft == 116 && port->curTop == 45 && !strcmp(text, "OCLIW REGOR\n:218UO ESAC"))
+			port->curTop = 55;
+		if (!strcmp(text, "ROF DETNAW OCLIW\nDUARF ENIHCAM GNIDNEV\n\n:FFITNIALP\n.OC YTLEVON DIOZAPPIG ")) {
+			sq3Wanted = true;
+			port->curLeft = 106;
+			width = 130;
+		}
+	}
+
+	// AGI demake, SQ3 Astro Chicken (room 290): the attract screen's texts fit the arcade screen in the
+	// AGI font (208 pixels wide from x 55). The title is broken into 3 + 2 centred lines. The
+	// instructions are hand broken, with a 3 pixel gap between sections and the labels coloured
+	// (Controls: and Feed: light red, the arrows yellow); see the drawing below
+	static const char *const kAstroInstr[] = {
+		"Controls:", "Left arrow: move left", "Down arrow: stop left/right", "movement", "Right arrow: move right",
+		"Up arrow: toggle flapping", "Feed: don't use up all your feed!", "Hit the landing pad too fast and",
+		"you'll bounce back up.", "Landing outside the landing pad", "is fatal.", "If you fly too high you'll bounce",
+		"off the atmosphere and plummet", "back to the surface."
+	};
+	// AGI demake, SQ3 Monolith Burger menu (room 280): Sierra lines it up with "~" (blank in its font,
+	// tildes in the AGI font) and dots that no longer reach the prices. Laid out again: names from 4
+	// pixels in, prices right-aligned 290 pixels in, dot leaders between, the Big Belcher's contents
+	// over 3 lines. Drawn for both of Sierra's calls (the black shadow, then the white 1 pixel over)
+	static const struct { const char *name, *price; } kMenu[] = {
+		{ "1. MINI MONOLITH ..................................................", "1.00" },
+		{ "2. MONOLITH ............................................................", "2.00" },
+		{ "3.    W/POLYCHEEZE .............................................", "3.00" },
+		{ "4. FILET-O-ORAT ..................................................", "2.00" },
+		{ "5. JUMBO MONOLITH W/POLYCHEEZE .............", "5.00" },
+		{ "6. BIG BELCHER COMBO .......................................", "9.00" },
+		{ "    INCLUDES: JUMBO MONO W/POLYCHEEZE,", nullptr },
+		{ "    SPACE SPUDS W/EXTRA GREASE AND", nullptr },
+		{ "    SLOPPY SLURPER", nullptr },
+		{ "7. MONOLITH FUN MEAL ........................................", "7.00" },
+		{ "8. SPACE SPUDS ......................................................", "1.00" },
+		{ "TANG", nullptr },
+		{ "9.    SMALL ...............................................................", "1.00" },
+		{ "A.    MED ....................................................................", "2.00" },
+		{ "B.    LARGE ...............................................................", "3.00" },
+		{ "C. SLOPPY SLURPER .............................................", "4.00" }
+	};
+	const bool sq3Menu = _screen->agiDemake() && g_sci->getGameId() == GID_SQ3 &&
+		g_sci->getEngineState()->currentRoomNumber() == 280 && text && !strncmp(text, "1. MINI MONOLITH", 16);
+	// SQ3 Monolith Burger (room 25): the price in the employee's YOUR TOTAL IS _ BUCKAZOIDS. bubble sits
+	// just after IS in the redrawn bubble
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && g_sci->getEngineState()->currentRoomNumber() == 25 &&
+			_ports->getPort()->curLeft == 207 && _ports->getPort()->curTop == 98) {
+		_ports->getPort()->curLeft = 229;
+		_ports->getPort()->curTop = 94;
+	}
+	// SQ3 robot fight instructions (room 96): shortened ("key" and the dashes gone), each line centred
+	// in the black gap between the hands; "Press Any Key To Start" is replaced by PRESS ANY KEY
+	// flashing on the bottom line (agiInputSq3PressAnyKey)
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && g_sci->getEngineState()->currentRoomNumber() == 96 && text) {
+		static const struct { const char *from, *to; int16 x, y; } kInstr[] = {
+			{ "-- INSTRUCTIONS --", "INSTRUCTIONS", 121, 136 },
+			{ "  use arrow keys to", "use arrows to", 119, 144 },
+			{ " control your robot", "control robot", 119, 152 },
+			{ "use the J key to punch", "press J to punch", 108, 160 },
+			{ "use the M key to block", "press M to block", 112, 168 },
+			{ "Press Any Key To Start", "", 106, 173 }
+		};
+		for (uint i = 0; i < ARRAYSIZE(kInstr); ++i)
+			if (!strcmp(text, kInstr[i].from)) {
+				text = kInstr[i].to;
+				_ports->getPort()->curLeft = kInstr[i].x;
+				_ports->getPort()->curTop = kInstr[i].y;
+				if (!*text)
+					agiInputSq3PressAnyKey();
+				break;
+			}
+	}
+	// SQ3 weapons screen (room 18): the shield readout under TARGET: shortened (NEGATIVE reads MID) and
+	// centred between the radar box's blue sides (x 34-86, centre 60)
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && g_sci->getEngineState()->currentRoomNumber() == 18 && text &&
+			_ports->getPort()->curLeft == 40) {
+		static const struct { const char *from, *to; int16 x; } kShield[] = {
+			{ "IN FRONT", "FRONT", 41 }, { "NEGATIVE", "MID", 50 }, { " IN REAR", "REAR", 45 }
+		};
+		for (uint i = 0; i < ARRAYSIZE(kShield); ++i)
+			if (!strcmp(text, kShield[i].from)) {
+				text = kShield[i].to;
+				_ports->getPort()->curLeft = kShield[i].x;
+				width = 84 - kShield[i].x;	// the text box stops short of the frame's blue side (x 87), which it was wiping
+				break;
+			}
+	}
+	bool sq3AstroInstr = false;
+	// (and the cabinet lines: Insert Buckazoid! and PRESS F6 TO EXIT move up into the black strip above
+	// the arcade screen, PRESS F6 in yellow, so they are on one line each and nothing covers them; Feed:
+	// and its count move left to clear the chickens-left icons)
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && g_sci->getEngineState()->currentRoomNumber() == 290 && text) {
+		Port *port = _ports->getPort();
+		if (!strcmp(text, "Insert Buckazoid!")) {
+			port->curLeft = 40;
+			port->curTop = 12;
+			width = 116;
+		} else if (!strcmp(text, "PRESS F6 TO EXIT")) {
+			port->curLeft = 176;
+			port->curTop = 12;
+			width = 110;
+			colorPen = 14;
+			_ports->penColor(colorPen);
+		} else if (!strcmp(text, "Feed:") && port->curTop == 180) {
+			port->curLeft = 34;
+		} else if (port->curLeft == 80 && port->curTop == 180) {
+			port->curLeft = 69;
+			width = 24;	// the black box behind the count covers all 3 digits ("100" left a 0 behind)
+		}
+	}
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && g_sci->getEngineState()->currentRoomNumber() == 290 && text) {
+		if (!strncmp(text, "   ASTRO CHICKEN MUST LAND ON THE", 33)) {
+			text = "ASTRO CHICKEN MUST\nLAND ON THE ASTRO\nCHICKEN LANDING PAD.\n\nHE'S DEPENDING ON YOU\nTO BRING HIM TO SAFETY!";
+			alignment = SCI_TEXT16_ALIGNMENT_CENTER;
+			_ports->getPort()->curLeft = 55;
+			width = 208;
+		} else if (!strncmp(text, "Controls:\nLeft arrow:", 21)) {
+			sq3AstroInstr = true;
+			_ports->getPort()->curLeft = 55;
+			width = 208;
+		}
+	}
+
 	// now drawing the text
 	_text16->Size(rect, text, languageSplitter, -1, width);
+	if (sq3AstroInstr)
+		rect.bottom = rect.top + (int16)ARRAYSIZE(kAstroInstr) * 8 + 4 * 3;
+	if (sq3Menu)
+		rect.bottom = rect.top + (int16)ARRAYSIZE(kMenu) * 8;
 	rect.moveTo(_ports->getPort()->curLeft, _ports->getPort()->curTop);
 	if (agiTerminal() && _ports->getPort()->fontId == 7) {
 		// keep blanking inside the monitor's screen
@@ -980,6 +1402,19 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 		rect.moveTo(_ports->getPort()->curLeft, _ports->getPort()->curTop);
 	}
 
+	// AGI demake, SQ3 navigation screen (room 19): text written straight onto the star map gets a
+	// black outline round every letter, rounded out to whole fat pixels, so it reads over the purple
+	// grid. The saved area grows to take the outline (2 pixels each side, 1 above and below), so
+	// erasing the text takes the outline with it
+	const bool sq3Outline = _screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && g_sci->getEngineState()->currentRoomNumber() == 19 && !stroke;
+	const Common::Rect textRect = rect;
+	if (sq3Outline) {
+		rect.left -= 2;
+		rect.right += 2;
+		rect.top -= 1;
+		rect.bottom += 1;
+	}
+
 	// Kawa's SCI11+
 	if (stroke)
 		rect.grow(1);
@@ -1011,7 +1446,75 @@ reg_t GfxPaint16::kernelDisplay(const char *text, uint16 languageSplitter, int a
 	if (needCJKFix && !_screen->_picNotValid && bRedraw)
 		bitsShow(rect);
 
-	_text16->Box(text, languageSplitter, needCJKFix, rect, alignment, -1);
+	if (sq3Menu) {
+		for (int i = 0; i < (int)ARRAYSIZE(kMenu); ++i) {
+			const int16 y = rect.top + 8 * i;
+			_text16->Box(kMenu[i].name, languageSplitter, false, Common::Rect(rect.left + 4, y, rect.left + 300, y + 8),
+				SCI_TEXT16_ALIGNMENT_LEFT, -1);
+			if (kMenu[i].price)
+				_text16->Box(kMenu[i].price, languageSplitter, false, Common::Rect(rect.left + 200, y, rect.left + 290, y + 8),
+					SCI_TEXT16_ALIGNMENT_RIGHT, -1);
+		}
+	} else if (sq3AstroInstr) {
+		static const struct { const char *label; byte colour; } kLabels[] = {
+			{ "Controls:", 12 }, { "Left arrow:", 14 }, { "Down arrow:", 14 }, { "Right arrow:", 14 }, { "Up arrow:", 14 }, { "Feed:", 12 }
+		};
+		int16 y = rect.top;
+		for (int i = 0; i < (int)ARRAYSIZE(kAstroInstr); ++i) {
+			if (i == 6 || i == 7 || i == 9 || i == 11)	// a gap before Feed, and each of the three notes
+				y += 3;
+			const Common::Rect line(rect.left, y, rect.right, y + 8);
+			_text16->Box(kAstroInstr[i], languageSplitter, false, line, SCI_TEXT16_ALIGNMENT_LEFT, -1);
+			if (colorPen != 0)
+				for (uint l = 0; l < ARRAYSIZE(kLabels); ++l)
+					if (!strncmp(kAstroInstr[i], kLabels[l].label, strlen(kLabels[l].label))) {
+						_ports->penColor(kLabels[l].colour);
+						_text16->Box(kLabels[l].label, languageSplitter, false, line, SCI_TEXT16_ALIGNMENT_LEFT, -1);
+						_ports->penColor(colorPen);
+					}
+			y += 8;
+		}
+	} else if (sq3Wanted) {
+		Common::Rect top(rect.left, rect.top, rect.right, rect.top + 16), bottom(rect.left, rect.top + 20, rect.right, rect.top + 36);
+		_text16->Box("GNIDNEV ROF DETNAW\nDUARF ENIHCAM", languageSplitter, needCJKFix, top, alignment, -1);
+		_text16->Box(":FFITNIALP\nYTLEVON DIOZAPPIG", languageSplitter, needCJKFix, bottom, alignment, -1);
+	} else
+		_text16->Box(text, languageSplitter, needCJKFix, sq3Outline ? textRect : rect, alignment, -1);
+	if (sq3Outline) {
+		Common::Rect scr = rect;
+		_ports->offsetRect(scr);
+		scr.clip(Common::Rect(0, 0, _screen->getWidth(), _screen->getHeight()));
+		const int w = scr.width(), h = scr.height();
+		if (w > 0 && h > 0) {
+			Common::Array<byte> ink(w * h, 0), out(w * h, 0);
+			for (int y = 0; y < h; ++y)
+				for (int x = 0; x < w; ++x)
+					ink[y * w + x] = (_screen->getDemakeFlag(scr.left + x, scr.top + y) == 1 &&
+						_screen->getVisual(scr.left + x, scr.top + y) == (byte)colorPen) ? 1 : 0;
+			for (int y = 0; y < h; ++y)
+				for (int x = 0; x < w; ++x) {
+					if (!ink[y * w + x])
+						continue;
+					for (int dy = -1; dy <= 1; ++dy)
+						for (int dx = -1; dx <= 1; ++dx) {
+							const int ox = x + dx, oy = y + dy;
+							if (ox < 0 || oy < 0 || ox >= w || oy >= h || ink[oy * w + ox])
+								continue;
+							// round out to the whole fat pixel (screen columns 2n, 2n+1)
+							const int sx = scr.left + ox;
+							for (int px = sx & ~1; px <= (sx | 1); ++px) {
+								const int lx = px - scr.left;
+								if (lx >= 0 && lx < w && !ink[oy * w + lx])
+									out[oy * w + lx] = 1;
+							}
+						}
+				}
+			for (int y = 0; y < h; ++y)
+				for (int x = 0; x < w; ++x)
+					if (out[y * w + x])
+						_screen->putFontPixel(scr.top + y, scr.left + x, 0, 0);
+		}
+	}
 
 	// See comment above.
 	if (!needCJKFix && _screen->_picNotValid == 0 && bRedraw)

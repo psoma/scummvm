@@ -757,6 +757,35 @@ void GfxScreen::bitsGetRect(const byte *memoryPtr, Common::Rect *destRect) {
 	memcpy(destRect, memoryPtr, sizeof(Common::Rect));
 }
 
+void GfxScreen::agiPatchSavedBits(byte *dst, const byte *src) const {
+	if (_upscaledHires || !dst || !src)
+		return;
+	Common::Rect dr, sr;
+	byte dm, sm;
+	memcpy((void *)&dr, dst, sizeof(dr)); dst += sizeof(dr);
+	memcpy((void *)&dm, dst, sizeof(dm)); dst += sizeof(dm);
+	memcpy((void *)&sr, src, sizeof(sr)); src += sizeof(sr);
+	memcpy((void *)&sm, src, sizeof(sm)); src += sizeof(sm);
+	Common::Rect o = dr.findIntersectingRect(sr);
+	if (o.isEmpty())
+		return;
+	const int dPlane = dr.width() * dr.height(), sPlane = sr.width() * sr.height();
+	auto copyPlane = [&](byte *d, const byte *s2) {
+		for (int y = o.top; y < o.bottom; ++y)
+			for (int x = o.left; x < o.right; ++x)
+				d[(y - dr.top) * dr.width() + (x - dr.left)] = s2[(y - sr.top) * sr.width() + (x - sr.left)];
+	};
+	const int visualPlanes = _paletteMapScreen ? 3 : 2;
+	// planes in order: visual (visual, display, palette map), priority, control
+	if ((dm & GFX_SCREEN_MASK_VISUAL) && (sm & GFX_SCREEN_MASK_VISUAL))
+		for (int i = 0; i < visualPlanes; ++i)
+			copyPlane(dst + i * dPlane, src + i * sPlane);
+	const byte *sNext = src + ((sm & GFX_SCREEN_MASK_VISUAL) ? visualPlanes * sPlane : 0);
+	byte *dNext = dst + ((dm & GFX_SCREEN_MASK_VISUAL) ? visualPlanes * dPlane : 0);
+	if ((dm & GFX_SCREEN_MASK_PRIORITY) && (sm & GFX_SCREEN_MASK_PRIORITY))
+		copyPlane(dNext, sNext);
+}
+
 void GfxScreen::bitsRestore(const byte *memoryPtr) {
 	Common::Rect rect;
 	byte mask;
@@ -765,10 +794,31 @@ void GfxScreen::bitsRestore(const byte *memoryPtr) {
 	memcpy((void *)&mask, memoryPtr, sizeof(mask)); memoryPtr += sizeof(mask);
 
 	if (mask & GFX_SCREEN_MASK_VISUAL) {
-		bitsRestoreScreen(rect, memoryPtr, _visualScreen, _width);
-		bitsRestoreDisplayScreen(rect, memoryPtr, _displayScreen);
-		if (_paletteMapScreen)
-			bitsRestoreDisplayScreen(rect, memoryPtr, _paletteMapScreen);
+		if (!_agiProtect.empty() && !_upscaledHires) {
+			// AGI demake: leave pixels inside protected areas (open text boxes) as they are
+			byte *screens[3] = { _visualScreen, _displayScreen, _paletteMapScreen };
+			const int widths[3] = { _width, _displayWidth, _displayWidth };
+			for (int sIdx = 0; sIdx < 3; ++sIdx) {
+				if (!screens[sIdx]) {
+					if (sIdx == 2)
+						continue;
+				}
+				for (int y = rect.top; y < rect.bottom; ++y)
+					for (int x = rect.left; x < rect.right; ++x) {
+						const byte v = *memoryPtr++;
+						bool prot = false;
+						for (uint i = 0; i < _agiProtect.size() && !prot; ++i)
+							prot = _agiProtect[i].contains(x, y);
+						if (!prot && screens[sIdx])
+							screens[sIdx][y * widths[sIdx] + x] = v;
+					}
+			}
+		} else {
+			bitsRestoreScreen(rect, memoryPtr, _visualScreen, _width);
+			bitsRestoreDisplayScreen(rect, memoryPtr, _displayScreen);
+			if (_paletteMapScreen)
+				bitsRestoreDisplayScreen(rect, memoryPtr, _paletteMapScreen);
+		}
 	}
 	if (mask & GFX_SCREEN_MASK_PRIORITY) {
 		bitsRestoreScreen(rect, memoryPtr, _priorityScreen, _width);

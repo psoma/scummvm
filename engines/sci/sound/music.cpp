@@ -472,6 +472,11 @@ void SciMusic::soundInitSnd(MusicEntry *pSnd) {
 		} else
 			playSample = (track->digitalChannelNr != -1 && (_useDigitalSFX || track->channelCount == 1));
 
+		// "Force AGI sound": AGI games had no digital audio, so samples never play, not even the ones
+		// with no MIDI version (SQ3 "Where am I?", QfG2 clapping). The MIDI part plays, or nothing
+		if (playSample && ConfMan.hasKey("agi_sound") && ConfMan.getBool("agi_sound"))
+			playSample = false;
+
 		// Play digital sample
 		if (playSample) {
 			const SciSpan<const byte> &channelData = track->channels[track->digitalChannelNr].data;

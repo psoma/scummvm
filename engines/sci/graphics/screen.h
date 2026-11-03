@@ -179,6 +179,13 @@ public:
 	bool agiDemake() const { return _agiDemake; }
 	// AGI demake: set while a dialog icon (still image such as a portrait) is drawn
 	bool agiDemakeStill() const { return _agiDemakeStill; }
+	// AGI demake: screen areas (open text boxes) that restoring a sprite's background must not write
+	// over (SQ3 Fester's store); empty when not in use
+	void setAgiProtectRects(const Common::Array<Common::Rect> &r) { _agiProtect = r; }
+	void clearAgiProtectRects() { _agiProtect.clear(); }
+	// AGI demake: copy into saved bits 'dst' the pixels that saved bits 'src' (an open box's own
+	// saved background) hold for the same screen area, plane by plane where both have that plane
+	void agiPatchSavedBits(byte *dst, const byte *src) const;
 	void setAgiDemakeStill(bool s) { _agiDemakeStill = s; }
 	// AGI demake: a text box widened for hand-broken lines is moved left by half the extra width
 	// when its window is created, so it stays centred where the game put it
@@ -258,6 +265,7 @@ private:
 	bool _paletteModsEnabled;
 	bool _agiDemake;
 	bool _agiDemakeStill;
+	Common::Array<Common::Rect> _agiProtect;
 	int16 _agiWindowShift;
 	int16 _agiWindowShiftWidth;
 

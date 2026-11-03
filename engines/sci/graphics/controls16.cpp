@@ -355,6 +355,14 @@ void GfxControls16::kernelDrawButton(Common::Rect rect, reg_t obj, const char *t
 		}
 		rect.grow(1);
 		_paint16->eraseRect(rect);
+		// AGI demake, SQ3: buttons a row taller above and below, so the frames don't touch the letters
+		const bool agiTallButton = _screen->agiDemake() && g_sci->getGameId() == GID_SQ3;
+		Common::Rect outer = rect;
+		if (agiTallButton) {
+			outer.top -= 1;
+			outer.bottom += 1;
+			_paint16->eraseRect(outer);
+		}
 		// AGI demake, QfG1: the selected button's second frame line goes above the frame instead of
 		// inside it, where it touched the tops of the letters. The row above is cleared on every draw,
 		// so it goes again when the selection moves to another button
@@ -366,7 +374,7 @@ void GfxControls16::kernelDrawButton(Common::Rect rect, reg_t obj, const char *t
 			// AGI demake: pull the frame in to even screen columns, so each side is a whole fat
 			// pixel inside the button and the gap to a neighbouring button stays white
 			const int off = _ports->_curPort->left;
-			Common::Rect frameR = rect;
+			Common::Rect frameR = outer;
 			frameR.left = ((frameR.left + off + 1) & ~1) - off;
 			frameR.right = ((frameR.right + off) & ~1) - off;
 			_paint16->frameRect(frameR);
@@ -412,6 +420,8 @@ void GfxControls16::kernelDrawButton(Common::Rect rect, reg_t obj, const char *t
 					sel.top -= 1;	// inner sides and bottom as before, its top line on the frame's
 					_paint16->frameRect(sel, false);
 					_paint16->frameRect(Common::Rect(agiFrame.left, agiFrame.top - 1, agiFrame.right, agiFrame.top));
+				} else if (agiTallButton) {
+					_paint16->frameRect(Common::Rect(rect.left, rect.top - 1, rect.right, rect.bottom + 1), false);
 				} else {
 					_paint16->frameRect(rect, false);
 				}
@@ -420,6 +430,10 @@ void GfxControls16::kernelDrawButton(Common::Rect rect, reg_t obj, const char *t
 				rect.grow(1);
 				if (agiRaisedSelection)
 					rect.top -= 1;
+				if (agiTallButton) {
+					rect.top -= 1;
+					rect.bottom += 1;
+				}
 				_paint16->bitsShow(rect);
 			}
 		}

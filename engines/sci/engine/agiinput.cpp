@@ -96,6 +96,7 @@ uint32 g_lastWantedMs = 0;	// when ">_" last had a reason to be on screen
 // The game's status line is on: DrawStatus was last called with text, not 0. QfG1 (Game.sc, SL)
 // leaves it off on its start-up screens (copy protection notice, title) and turns it on for play
 bool g_statusOn = false;
+bool g_missedScreen = false;	// a screen update held back while Sierra's box was hidden (agiInputHideScreenUpdates)
 const EngineState *g_statusFor = nullptr;	// the game session g_statusOn was set in
 Common::String g_submitText;
 bool g_submitQueued = false;	// Enter was pressed: send the line next time User doit asks for an event
@@ -194,10 +195,88 @@ bool fromUserDoit(EngineState *s) {
 	return false;
 }
 
+// The status line is up, which is where the AGI line takes over typing. SQ3's cockpit (room 14)
+// counts as up even while the game hides the status line (the light speed run), so a key typed then
+// goes into the AGI line, not Sierra's box
+bool statusLike(EngineState *s) {
+	if (g_statusOn && g_statusFor == s)
+		return true;
+	return g_sci && g_sci->getGameId() == GID_SQ3 && s && s->currentRoomNumber() == 14;
+}
+
+// SQ3 Astro Chicken (room 290) with a chicken in flight: room 290's script marks a game started
+// (local 16) and not yet ended by a landing or crash (local 15). The input bar is hidden and typed
+// keys are ignored then; arrows and F6 still reach the game
+bool sq3AstroInFlight(EngineState *s) {
+	if (!g_sci || g_sci->getGameId() != GID_SQ3 || !s || s->currentRoomNumber() != 290)
+		return false;
+	const SegmentId seg = s->_segMan->getScriptSegment(290, SCRIPT_GET_DONT_LOAD);
+	if (!seg)
+		return false;
+	Script *scr = s->_segMan->getScript(seg);
+	if (!scr || scr->getLocalsCount() <= 16)
+		return false;
+	return scr->getLocalsBegin()[16].toUint16() == 1 && scr->getLocalsBegin()[15].toUint16() == 0;
+}
+
+static bool g_sq3PressAnyKey = false;
+static int g_sq3PressAnyKeyPhase = -1;
+
+static void sq3PressAnyKeyTick(EngineState *s) {
+	if (!g_sq3PressAnyKey)
+		return;
+	if (!s || g_sci->getGameId() != GID_SQ3 || s->currentRoomNumber() != 96) {
+		g_sq3PressAnyKey = false;
+		if (g_sci->_gfxScreen)
+			g_sci->_gfxScreen->copyRectToScreen(Common::Rect(0, kRowTop, kScreenW, kRowTop + kRowHeight));
+		return;
+	}
+	const int phase = (int)((g_system->getMillis() / 500) & 1);
+	if (phase != g_sq3PressAnyKeyPhase && g_sci->_gfxScreen) {
+		g_sq3PressAnyKeyPhase = phase;
+		g_sci->_gfxScreen->copyRectToScreen(Common::Rect(0, kRowTop, kScreenW, kRowTop + kRowHeight));
+	}
+}
+
+// SQ3 ScumSoft's keycard door (room 90): after "Keycard verified. Standby for composite facial scan." the
+// player has 3 seconds to hold up Elmo's picture. With Sierra's box, typing stops the game, so the
+// typing is free; with the AGI line the clock runs while typing, so the scan's timer gets 5 more seconds
+static reg_t g_sq3ScanTimerDone = NULL_REG;
+void sq3ExtendScanTimer(EngineState *s) {
+	if (!g_sci || g_sci->getGameId() != GID_SQ3 || !s || s->currentRoomNumber() != 90 || !agiInputActive())
+		return;
+	const reg_t obj = s->_segMan->findObjectByName("scanScript");
+	if (obj.isNull())
+		return;
+	Kernel *k = g_sci->getKernel();
+	const int stateSel = k->findSelector("state"), timerSel = k->findSelector("timer"), secSel = k->findSelector("seconds");
+	if (stateSel < 0 || timerSel < 0 || secSel < 0)
+		return;
+	if (readSelectorValue(s->_segMan, obj, stateSel) != 3) {
+		g_sq3ScanTimerDone = NULL_REG;
+		return;
+	}
+	const reg_t t = readSelector(s->_segMan, obj, timerSel);
+	if (t.isNull() || t == g_sq3ScanTimerDone || !s->_segMan->isObject(t))
+		return;
+	const int16 sec = readSelectorValue(s->_segMan, t, secSel);
+	if (sec > 0)
+		writeSelectorValue(s->_segMan, t, secSel, sec + 5);
+	g_sq3ScanTimerDone = t;
+	logLine("room 90: facial scan timer given 5 more seconds for typing");
+}
+
+// SQ3 ship's computer (room 17): Sierra's input box opened there (a key typed during the hand-over
+// from the cockpit, before room 17's start-up turns typing off) is never shown and is cancelled at
+// once, so nothing is typed on the computer screen, as in Sierra's own game once the screen is up
+bool sq3ComputerBox(EngineState *s) {
+	return g_sci && g_sci->getGameId() == GID_SQ3 && s && s->currentRoomNumber() == 17 && inGetInput(s);
+}
+
 // Sierra's input box is up and the AGI line takes it over: everywhere the status line is on
 // (start-up screens without it keep Sierra's box)
 bool takeOverBox(EngineState *s) {
-	return g_statusOn && g_statusFor == s && inGetInput(s);
+	return statusLike(s) && inGetInput(s);
 }
 
 bool windowOpen() {
@@ -205,6 +284,13 @@ bool windowOpen() {
 		return false;
 	Common::Array<Common::Rect> rects;
 	g_sci->_gfxPorts->agiDemakeOpenWindowRects(rects);
+	// SQ3 cockpit (room 14): the Two Guys' chatter boxes on the left (from 4,22) stay up while you play,
+	// and Sierra lets you type over them, so they don't count as a message box for the AGI line
+	EngineState *s = g_sci->getEngineState();
+	if (g_sci->getGameId() == GID_SQ3 && s && s->currentRoomNumber() == 14)
+		for (int i = (int)rects.size() - 1; i >= 0; --i)
+			if (rects[i].left == 4 && (rects[i].top == 22 || rects[i].top == 32))	// (22 in the box's own terms, 32 on screen)
+				rects.remove_at(i);
 	return !rects.empty();
 }
 
@@ -234,7 +320,11 @@ void updateShown(EngineState *s) {
 	// during them and ">_" flashed off and on
 	const bool canInput = userCanInput(s);
 	const int allowed = allowedHere(s);
-	const bool wanted = g_statusOn && ((canInput && (!g_line.empty() || allowed == 1)) || ((!canInput || allowed < 0) && g_shown));
+	const int room = s->currentRoomNumber();
+	// SQ3: the Monolith menu (280, the bar covered its bottom line) and the robot fight (96 the cockpit,
+	// 121 being loaded into the robot, 120 the fight) have no input bar
+	const bool sq3Menu = g_sci->getGameId() == GID_SQ3 && (room == 280 || room == 96 || room == 120 || room == 121);
+	const bool wanted = statusLike(s) && !sq3AstroInFlight(s) && !sq3Menu && ((canInput && (!g_line.empty() || allowed == 1)) || ((!canInput || allowed < 0) && g_shown));
 	if (wanted)
 		g_lastWantedMs = now;
 	const bool shown = wanted || (g_shown && now - g_lastWantedMs < kHideHoldMs);
@@ -295,15 +385,79 @@ void agiInputUpdate(EngineState *s) {
 	}
 }
 
+// The room whose picture was last drawn. SQ3: between a room change and the new room's first picture
+// (the blank screen while the next room loads, the logo), typed keys are ignored, so Sierra's box
+// can't open over a screen that isn't there yet
+static int g_picRoom = -1;
+void agiInputPictureDrawn() {
+	if (g_sci && g_sci->getEngineState())
+		g_picRoom = g_sci->getEngineState()->currentRoomNumber();
+}
+
 bool agiInputHandleKey(EngineState *s, reg_t obj, SciEvent &ev, uint16 modifiers, uint16 mask) {
+	if (g_sci->getGameId() == GID_SQ3 && g_sci->_gfxScreen && g_sci->_gfxScreen->agiDemake() && s &&
+			s->currentRoomNumber() != g_picRoom && ev.type == kSciEventKeyDown && ev.character >= 0x20 && ev.character < 0x7F) {
+		ev.type = kSciEventNone;
+		return true;
+	}
+	// SQ3 title screens (777 the Sierra logo, 900 the title and credits): any key skips on, but Sierra's
+	// User takes a typed letter first and opens its input box. A typed key is turned into a mouse click,
+	// which skips the same way and opens nothing
+	if (g_sci->getGameId() == GID_SQ3 && g_sci->_gfxScreen && g_sci->_gfxScreen->agiDemake() && s &&
+			(s->currentRoomNumber() == 900 || s->currentRoomNumber() == 777) && ev.type == kSciEventKeyDown &&
+			ev.character >= 0x20 && ev.character < 0x7F) {
+		ev.type = kSciEventMousePress;
+		ev.character = 0;
+		return false;
+	}
+	// SQ3 room 2 (the escape pod) before the status line comes up, its opening blue screen: Sierra's
+	// box would open on a typed key there, so typed keys are ignored until the status line is on. This
+	// sits before the AGI line's own checks, which don't run yet on that screen
+	if (g_sci->getGameId() == GID_SQ3 && g_sci->_gfxScreen && g_sci->_gfxScreen->agiDemake() && s &&
+			s->currentRoomNumber() == 2 && !statusLike(s) && ev.type == kSciEventKeyDown &&
+			ev.character >= 0x20 && ev.character < 0x7F && !(ConfMan.hasKey("agi_input") && ConfMan.getInt("agi_input") == 1)) {
+		ev.type = kSciEventNone;
+		return true;
+	}
 	if (!agiInputActive())
 		return false;
+
+	// (only in SQ3's Astro Chicken, room 290: elsewhere the working copy can be missing the moving
+	// sprites at that moment, and copying it out made Roger vanish until he was next drawn)
+	sq3ExtendScanTimer(s);
+	sq3PressAnyKeyTick(s);
+	if (g_sci->getGameId() == GID_SQ3 && (s->currentRoomNumber() == 96 || s->currentRoomNumber() == 120 || s->currentRoomNumber() == 121))
+		return false;	// the robot fight: every key belongs to the game
+	if (g_missedScreen && !inGetInput(s) && g_hijack == kHijackNone && g_sci->_gfxScreen) {
+		g_missedScreen = false;
+		if (g_sci->getGameId() == GID_SQ3 && s->currentRoomNumber() == 290)
+			g_sci->_gfxScreen->copyToScreen();
+	}
+
 
 	// Inside Sierra's input box that we opened on purpose: answer it straight away (any event the
 	// box asks for becomes Esc for a probe, or Enter with the line in place for a submit)
 	// The game opened its input box by itself, not for a probe or submit: a menu shortcut that
 	// fills the box first (QfG1 Menu.sc: Ctrl+A "ask about ", Ctrl+L "look at "), or a room that
 	// asks for a line itself. The box's starting text goes into the AGI line instead
+	if (g_hijack == kHijackNone && ev.type == kSciEventKeyDown && ev.character >= 0x20 && ev.character < 0x7F &&
+			sq3AstroInFlight(s))
+		return true;
+	if (g_hijack == kHijackNone && sq3ComputerBox(s)) {
+		logLine("game's box on the ship's computer cancelled");
+		ev.type = kSciEventKeyDown;
+		ev.character = kSciKeyEsc;
+		return false;
+	}
+	// SQ3 ship's computer (room 17): its start-up turns typing off (HandsOff), but the room number
+	// changes from the cockpit a moment before that runs, while the cockpit still has typing on. A
+	// letter typed in that gap opened Sierra's input box over the computer screen. In room 17, while
+	// the game still has typing on, printable keys are ignored (once typing is off they pass through
+	// as normal, so the number keys still reach the buttons)
+	if (g_sci->getGameId() == GID_SQ3 && g_hijack == kHijackNone && s->currentRoomNumber() == 17 &&
+			ev.type == kSciEventKeyDown && ev.character >= 0x20 && ev.character < 0x7F && userCanInput(s))
+		return true;
+
 	if (g_hijack == kHijackNone && takeOverBox(s)) {
 		const reg_t user = findUser(s);
 		g_line = s->_segMan->getString(readSelector(s->_segMan, user, g_inputLineSel));
@@ -341,11 +495,13 @@ bool agiInputHandleKey(EngineState *s, reg_t obj, SciEvent &ev, uint16 modifiers
 
 	// While a message box or dialog is open the keys go to it. Screens without the status line
 	// (start-up screens) keep Sierra's own input box
-	if (g_hijack != kHijackNone || windowOpen() || !g_statusOn || g_statusFor != s)
+	if (g_hijack != kHijackNone || windowOpen() || !statusLike(s))
 		return false;
 	const bool canInput = userCanInput(s);
-	// With typing off, keys still go into the line while ">_" is up (Enter waits until typing is on)
-	if (!canInput && !g_shown)
+	// With typing off, keys still go into the line while ">_" is up and something has been typed
+	// (Enter waits until typing is on). With nothing typed yet the keys belong to the game: rooms
+	// that read keys themselves, like SQ3's Monolith Burger menu, which takes a number to order
+	if (!canInput && (!g_shown || g_line.empty()))
 		return false;
 	const int allowed = allowedHere(s);
 	const bool userDoit = fromUserDoit(s) && canInput;
@@ -429,12 +585,41 @@ void agiInputStatusDrawn(bool on) {
 	g_statusFor = g_sci ? g_sci->getEngineState() : nullptr;
 }
 
+// Set when a screen update was held back while Sierra's box was hidden: once the box has gone the
+// whole screen is copied out again, as an update made in that time (a new picture shown, SQ3's Astro
+// Chicken win screen) would otherwise stay invisible until something else redrew that part
 bool agiInputHideScreenUpdates() {
 	EngineState *s = g_sci ? g_sci->getEngineState() : nullptr;
-	return s && agiInputActive() && (g_hijack != kHijackNone ? inGetInput(s) : takeOverBox(s));
+	const bool hide = s && agiInputActive() && (g_hijack != kHijackNone ? inGetInput(s) : (takeOverBox(s) || sq3ComputerBox(s)));
+	if (hide)
+		g_missedScreen = true;
+	return hide;
+}
+
+// SQ3 robot fight instructions (room 96): Sierra's "Press Any Key To Start" doesn't fit the box in
+// the AGI font, so PRESS ANY KEY flashes on the bottom line instead (typing is off there, so the
+// line is free), until the room changes
+void agiInputSq3PressAnyKey() {
+	g_sq3PressAnyKey = true;
+	g_sq3PressAnyKeyPhase = -1;
 }
 
 const byte *agiInputOverlay() {
+	if (g_sq3PressAnyKey && agiInputActive() && !g_shown) {
+		memset(g_overlay, kBackColor, sizeof(g_overlay));
+		if (g_sq3PressAnyKeyPhase == 0) {
+			static const char kText[] = "PRESS ANY KEY";
+			const int start = (kScreenW - (int)strlen(kText) * 8) / 2;
+			for (int c = 0; kText[c]; ++c) {
+				const byte *glyph = Graphics::DosFont::fontData_PCBIOS + (byte)kText[c] * 8;
+				for (int y = 0; y < 8; ++y)
+					for (int x = 0; x < 8; ++x)
+						if (glyph[y] & (0x80 >> x))
+							g_overlay[(kGapRows + y) * kScreenW + start + c * 8 + x] = 10;
+			}
+		}
+		return g_overlay;
+	}
 	if (!agiInputActive() || !g_shown)
 		return nullptr;
 

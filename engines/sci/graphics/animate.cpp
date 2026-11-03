@@ -251,6 +251,29 @@ void GfxAnimate::makeSortedList(List *list) {
 	Common::sort(_list.begin(), _list.end(), sortHelper);
 }
 
+// AGI demake, SQ3 ScumSoft's alarm bubbles (view 115 loop 5 cels 0-2), enlarged for the AGI font: where
+// a worker's placement would put one off the screen it is pushed back on (and onto an even column, so
+// its fat pixels line up). The shift is kept for the view's drawing, which slides the bubble's tail
+// along its bottom edge by the same amount so the tip stays over the speaker
+int g_agiDemakeSq3BubbleShift[4] = { 0, 0, 0, 0 };	// [3]: Elmo Pug's (loop 9 cel 0)
+
+void agiDemakeSq3PlaceBubble(GuiResourceId viewId, int16 loopNo, int16 celNo, Common::Rect &r) {
+	if (!g_sci || g_sci->getGameId() != GID_SQ3 || !g_sci->_gfxScreen || !g_sci->_gfxScreen->agiDemake() ||
+			viewId != 115 || !((loopNo == 5 && celNo <= 2) || (loopNo == 9 && celNo == 0)))
+		return;
+	int dx = 0, dy = 0;
+	if (r.right > 320)
+		dx = 320 - r.right;
+	else if (r.left < 0)
+		dx = -r.left;
+	if (((r.left + dx) & 1) != 0)
+		dx += (r.left + dx > 0) ? -1 : 1;
+	if (r.top < 10)
+		dy = 10 - r.top;
+	r.translate(dx, dy);
+	g_agiDemakeSq3BubbleShift[(loopNo == 9) ? 3 : celNo] = dx;
+}
+
 void GfxAnimate::fill(byte &old_picNotValid) {
 	GfxView *view = nullptr;
 	AnimateList::iterator it;
@@ -359,6 +382,12 @@ void GfxAnimate::applyGlobalScaling(AnimateList::iterator entry, GfxView *view) 
 void GfxAnimate::setNsRect(GfxView *view, AnimateList::iterator it) {
 	bool shouldSetNsRect = true;
 
+	// AGI demake, SQ3 room 91: the guy by the water cooler (view 115 loop 7, standing at 290,157) now
+	// and then picks his leg-up frame (4) at random; it looked like a glitch in fat pixels, so while
+	// he stands there frame 4 is drawn as his standing frame 0 (his walk cycle is untouched)
+	if (_screen->agiDemake() && g_sci->getGameId() == GID_SQ3 && it->viewId == 115 && it->loopNo == 7 &&
+			it->celNo == 4 && it->x == 290 && it->y == 157)
+		it->celNo = 0;
 	// Create rect according to coordinates and given cel
 	if (it->scaleSignal & kScaleSignalDoScaling) {
 		view->getCelScaledRect(it->loopNo, it->celNo, it->x, it->y, it->z, it->scaleX, it->scaleY, it->celRect);
@@ -376,13 +405,46 @@ void GfxAnimate::setNsRect(GfxView *view, AnimateList::iterator it) {
 			view->getCelRect(it->loopNo, it->celNo, it->x, it->y, it->z, it->celRect);
 		}
 	}
+	agiDemakeSq3PlaceBubble(it->viewId, it->loopNo, it->celNo, it->celRect);
 
 	if (shouldSetNsRect) {
 		_compare->setNSRect(it->object, it->celRect);
 	}
 }
 
+
+// AGI demake, SQ3 Fester's store (room 470): a sprite background saved while a talk box is open
+// would hold the box's pixels, and put them back after the box has gone (leftover bits of boxes).
+// Where it overlaps an open box, the background is taken from the box's own saved background instead
+static void agiDemakeFixUnderBits(GfxScreen *screen, GfxPorts *ports, SegManager *segMan, reg_t handle) {
+	if (handle.isNull() || !screen->agiDemake() || g_sci->getGameId() != GID_SQ3 || !g_sci->getEngineState() ||
+			g_sci->getEngineState()->currentRoomNumber() != 470)
+		return;
+	Common::Array<reg_t> saves;
+	ports->agiDemakeOpenWindowSaves(saves);
+	byte *dst = segMan->getHunkPointer(handle);
+	for (uint i = 0; i < saves.size(); ++i)
+		screen->agiPatchSavedBits(dst, segMan->getHunkPointer(saves[i]));
+}
+
+// AGI demake, SQ3 Fester's store (room 470): restoring a sprite's old background mustn't write over an
+// open talk box (the background was saved before the box opened, so it painted the room back over the
+// box's edges and text)
+static void agiDemakeProtectBoxes(GfxScreen *screen, GfxPorts *ports, bool on) {
+	if (!on) {
+		screen->clearAgiProtectRects();
+		return;
+	}
+	if (!screen->agiDemake() || g_sci->getGameId() != GID_SQ3 || !g_sci->getEngineState() ||
+			g_sci->getEngineState()->currentRoomNumber() != 470)
+		return;
+	Common::Array<Common::Rect> rects;
+	ports->agiDemakeOpenWindowRects(rects);
+	screen->setAgiProtectRects(rects);
+}
+
 void GfxAnimate::update() {
+	agiDemakeProtectBoxes(_screen, _ports, true);
 	reg_t bitsHandle;
 	Common::Rect rect;
 	AnimateList::iterator it;
@@ -437,6 +499,7 @@ void GfxAnimate::update() {
 					bitsHandle = _paint16->bitsSave(it->celRect, GFX_SCREEN_MASK_VISUAL|GFX_SCREEN_MASK_PRIORITY);
 				else
 					bitsHandle = _paint16->bitsSave(it->celRect, GFX_SCREEN_MASK_ALL);
+				agiDemakeFixUnderBits(_screen, _ports, _s->_segMan, bitsHandle);
 				writeSelector(_s->_segMan, it->object, SELECTOR(underBits), bitsHandle);
 			}
 		}
@@ -456,6 +519,7 @@ void GfxAnimate::update() {
 			}
 		}
 	}
+	agiDemakeProtectBoxes(_screen, _ports, false);
 }
 
 void GfxAnimate::drawCels() {
@@ -468,6 +532,7 @@ void GfxAnimate::drawCels() {
 		if (!(it->signal & (kSignalNoUpdate | kSignalHidden | kSignalAlwaysUpdate))) {
 			// Save background
 			bitsHandle = _paint16->bitsSave(it->celRect, GFX_SCREEN_MASK_ALL);
+			agiDemakeFixUnderBits(_screen, _ports, _s->_segMan, bitsHandle);
 			writeSelector(_s->_segMan, it->object, SELECTOR(underBits), bitsHandle);
 
 			// draw corresponding cel
@@ -524,6 +589,7 @@ void GfxAnimate::updateScreen(byte oldPicNotValid) {
 }
 
 void GfxAnimate::restoreAndDelete(int argc, reg_t *argv) {
+	agiDemakeProtectBoxes(_screen, _ports, true);
 	AnimateList::iterator it;
 	const AnimateList::iterator end = _list.end();
 
@@ -550,6 +616,7 @@ void GfxAnimate::restoreAndDelete(int argc, reg_t *argv) {
 			invokeSelector(_s, it->object, SELECTOR(delete_), argc, argv, 0);
 		}
 	}
+	agiDemakeProtectBoxes(_screen, _ports, false);
 }
 
 void GfxAnimate::reAnimate(Common::Rect rect) {
