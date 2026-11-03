@@ -84,6 +84,8 @@ class GfxView;
 /**
  * Animate class, kAnimate and relevant functions for SCI16 (SCI0-SCI1.1) games
  */
+void agiDemakeSq3PlaceBubble(GuiResourceId viewId, int16 loopNo, int16 celNo, Common::Rect &r);
+
 class GfxAnimate {
 public:
 	GfxAnimate(EngineState *state, ScriptPatcher *scriptPatcher, GfxCache *cache, GfxCompare *compare, GfxPorts *ports, GfxPaint16 *paint16, GfxScreen *screen, GfxPalette *palette, GfxCursor *cursor, GfxTransitions *transitions);

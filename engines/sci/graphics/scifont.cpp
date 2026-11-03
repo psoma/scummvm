@@ -370,7 +370,43 @@ void GfxFontAgi::glyphCols(uint16 chr, int &a, int &b) const {
 			}
 }
 
+// AGI demake, SQ3's code font (603): Sierra draws capitals as code symbols, small letters plain and "{"
+// as a narrow spacer. Here the symbols are 3 fat pixels wide and 7 rows tall, in an 8 pixel cell,
+// always starting on an even screen column; "{" takes no space, so the decoder ring's chart lines up
+static const char *const kAgiCodeGlyphs[26][7] = {
+	{ "111", "1..", "1..", "11.", "1..", "1..", "1.." },
+	{ "1.1", ".1.", "1.1", ".1.", "1.1", ".1.", "1.1" },
+	{ ".1.", "1.1", "1.1", ".1.", ".1.", ".1.", "111" },
+	{ "111", "..1", ".1.", "1..", "111", "...", "111" },
+	{ "1.1", "1.1", "111", "1.1", "1.1", "...", "..." },
+	{ ".1.", "111", ".1.", ".1.", ".1.", ".1.", "..." },
+	{ "111", "1.1", "...", "1.1", "1.1", "111", "..." },
+	{ "1..", "11.", "1.1", "111", "...", "...", "..." },
+	{ "...", ".1.", "...", "111", "...", ".1.", "..." },
+	{ "1.1", "111", "1.1", "1.1", "1.1", "...", "..." },
+	{ "11.", "1..", "11.", "..1", ".11", "..1", "..." },
+	{ "...", "111", ".1.", "111", "...", "111", "..." },
+	{ "111", "1.1", "111", "...", "111", "1.1", "111" },
+	{ "1.1", ".1.", "1.1", "...", "111", "...", "..." },
+	{ "..1", ".11", "1.1", "111", "..1", "..1", "..." },
+	{ "11.", "11.", "..1", "..1", "..1", "..1", "..." },
+	{ "1..", "1..", "111", "..1", "..1", "..1", "..." },
+	{ "1.1", "...", "1.1", "...", "1.1", "...", "1.1" },
+	{ ".1.", "1.1", ".1.", ".1.", ".1.", "111", "..." },
+	{ "111", ".1.", ".1.", ".1.", ".1.", "111", "..." },
+	{ "1..", ".1.", "..1", ".1.", "1..", "111", "..." },
+	{ "1.1", "1.1", ".1.", "...", "1.1", "1.1", ".1." },
+	{ "1.1", "111", "1.1", "1.1", "111", "1.1", "..." },
+	{ "..1", "..1", ".1.", ".1.", "1..", "111", "..." },
+	{ "111", "1..", "1.1", "1.1", "1..", "111", "..." },
+	{ "1.1", "1.1", "1.1", "1.1", "1.1", "111", "..." }
+};
+
 uint8 GfxFontAgi::getCharWidth(uint16 chr) {
+	if (_code && chr == '{')
+		return 0;
+	if (_code && chr >= 'A' && chr <= 'Z')
+		return 8;
 	if (useFallback(chr))
 		return _fallback->getCharWidth(chr);
 	if (!_tight)
@@ -383,6 +419,21 @@ uint8 GfxFontAgi::getCharWidth(uint16 chr) {
 void GfxFontAgi::draw(uint16 chr, int16 top, int16 left, byte color, bool greyedOutput) {
 	if (useFallback(chr)) {
 		_fallback->draw(chr, top, left, color, greyedOutput);
+		return;
+	}
+	if (_code && chr == '{')
+		return;
+	if (_code && chr >= 'A' && chr <= 'Z') {
+		const char *const *g = kAgiCodeGlyphs[chr - 'A'];
+		const int fx = left & ~1;
+		for (int y = 0; y < 7; ++y)
+			for (int i = 0; i < 3; ++i)
+				if (g[y][i] == '1')
+					for (int px = 0; px < 2; ++px) {
+						const int sx = fx + 2 * i + px;
+						if (sx >= 0 && sx < _screen->getWidth() && top + y >= 0 && top + y < _screen->getHeight())
+							_screen->putFontPixel(top, sx, y, color);
+					}
 		return;
 	}
 	if (_tight) {

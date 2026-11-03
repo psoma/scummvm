@@ -57,6 +57,8 @@ bool agiInputHideScreenUpdates();
 // For the AGI demake gfx driver: 9 rows of 320 EGA colours for screen rows 191-199, with 0xFF
 // where the line is not drawn (under open windows). nullptr when the line is not on screen
 const byte *agiInputOverlay();
+void agiInputSq3PressAnyKey();
+void agiInputPictureDrawn();
 
 } // End of namespace Sci
 

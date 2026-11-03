@@ -132,9 +132,18 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 	// white with the other colour directly above or below) are shown white. Where a fat pixel has a
 	// checker pixel and a line or edge pixel, the line wins, so vertical lines and edges stay straight
 	bool checkerToWhite = false;
+	// SQ3 intro (room 1): the scanner screens are drawn with 1 pixel green lines over a star field.
+	// Where a line shares a fat pixel with black or a star (blue, light blue), the line wins, so the
+	// borders and crosshairs stay solid
+	bool sq3GreenLines = false;
+	// SQ3 navigation screen (room 19): the purple sector grid's 1 pixel lines win over black and the
+	// stars (blue, light blue, cyan, light cyan) they share a fat pixel with
+	bool sq3PurpleGrid = false;
 	if (g_sci && g_sci->getEngineState()) {
 		const uint16 room = g_sci->getEngineState()->currentRoomNumber();
 		checkerToWhite = (g_sci->getGameId() == GID_PQ2 && room == 2);
+		sq3GreenLines = (g_sci->getGameId() == GID_SQ3 && room == 1);
+		sq3PurpleGrid = (g_sci->getGameId() == GID_SQ3 && room == 19);
 		for (uint i = 0; i < ARRAYSIZE(kRoomPairColors); ++i) {
 			if (kRoomPairColors[i].game != g_sci->getGameId() || (kRoomPairColors[i].room != room && kRoomPairColors[i].room != kAnyRoom))
 				continue;
@@ -222,6 +231,28 @@ void SCI0_AGIDemakeDriver::copyRectToScreen(const byte *src, int srcX, int srcY,
 						if (c == leftN && b != rightN)
 							c = b;
 					}
+				}
+				if (sq3GreenLines && hasRight) {
+					const byte l = lut[s[x]], r = lut[s[x + 1]];
+					auto space = [](byte v) { return v == 0 || v == 1 || v == 9; };
+					if ((l == 10 && space(r)) || (r == 10 && space(l)))
+						c = 10;
+				}
+				if (sq3PurpleGrid && hasRight) {
+					const byte l = lut[s[x]], r = lut[s[x + 1]];
+					auto star = [](byte v) { return v == 0 || v == 1 || v == 3 || v == 9 || v == 11; };
+					if ((l == 5 && star(r)) || (r == 5 && star(l)))
+						c = 5;
+					// and white (the scan and zoom box frames) wins over the grid where they cross, so the
+					// boxes' corners stay whole (only purple: dialogs' thin black lines must keep winning)
+					if ((l == 15 && r == 5) || (r == 15 && l == 5))
+						c = 15;
+					// a white sprite pixel (the zoom boxes' frames) also wins over black or a star beside it.
+					// The scan box sweeping the map leaves the sprite mark on the map's own pixels, so the
+					// usual sprite-takes-the-pair rule doesn't fire there. Only sprite white: a dialog's white
+					// background must not beat its thin black lines
+					if ((l == 15 && fl == 3 && star(r)) || (r == 15 && fr == 3 && star(l)))
+						c = 15;
 				}
 				d[x] = c;
 				if (hasRight)
