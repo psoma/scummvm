@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Space Quest II: AGI vs SCI comparison</title>
+<style>
+  :root { --bg:#111; --fg:#eee; --muted:#9a9a9a; --card:#1c1c1c; --accent:#4da3ff; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:24px; background:var(--bg); color:var(--fg);
+         font-family: system-ui, Segoe UI, Roboto, sans-serif; }
+  h1 { margin:0 0 4px; }
+  .sub { color:var(--muted); margin:0 0 24px; }
+  .pair { background:var(--card); border-radius:10px; padding:16px; margin-bottom:20px; }
+  .pair h2 { margin:0 0 4px; font-size:1.1rem; }
+  .note { margin:0 0 10px; color:var(--muted); font-size:.9rem; }
+  .row { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:700px) { .row { grid-template-columns:1fr; } }
+  figure { margin:0; }
+  figcaption { margin-top:6px; text-align:center; font-weight:600; color:var(--accent); }
+  figure button { display:block; width:100%; padding:0; border:2px solid transparent;
+                  background:none; cursor:zoom-in; border-radius:6px; overflow:hidden; }
+  figure button:hover, figure button:focus-visible { border-color:var(--accent); outline:none; }
+  figure img { display:block; width:100%; height:auto; }
+
+  #lb { position:fixed; inset:0; background:rgba(0,0,0,.95); display:none;
+        flex-direction:column; align-items:center; justify-content:center; z-index:10; }
+  #lb.open { display:flex; }
+  #lb img { max-width:96vw; max-height:90vh; object-fit:contain; cursor:zoom-out; }
+  #lbcap { margin-top:8px; color:var(--fg); font-weight:600; }
+  .nav { position:absolute; top:50%; transform:translateY(-50%); font-size:2.5rem;
+         color:#fff; background:rgba(255,255,255,.12); border:0; border-radius:8px;
+         padding:8px 16px; cursor:pointer; }
+  .nav:hover { background:rgba(255,255,255,.25); }
+  #prev { left:12px; }
+  #next { right:12px; }
+  #close { position:absolute; top:12px; right:16px; font-size:2rem; color:#fff;
+           background:none; border:0; cursor:pointer; }
+</style>
+</head>
+<body>
+<h1>Space Quest II: AGI vs SCI</h1>
+<p class="sub">Left is AGI (low res), right is SCI (high res). Click an image for full screen. Use the left and right arrow keys to flip between images and Esc to close.</p>
+<div id="grid"></div>
+
+<div id="lb" aria-modal="true" role="dialog">
+  <button id="close" aria-label="Close">&times;</button>
+  <button id="prev" class="nav" aria-label="Previous">&#8249;</button>
+  <img id="lbimg" alt="">
+  <div id="lbcap"></div>
+  <button id="next" class="nav" aria-label="Next">&#8250;</button>
+</div>
+
+<script>
+const pairs = [
+  { title:"Title screen",      f:"01-title",           note:"" },
+  { title:"Where am I",        f:"02-where-am-i",      note:"" },
+  { title:"Cockpit",           f:"03-cockpit",         note:"" },
+  { title:"Flight panel",      f:"04-flight-panel",    note:"" },
+  { title:"Tunnel boring",     f:"05-tunnel-boring",   note:"" },
+  { title:"World O' Wonders",  f:"06-world-o-wonders", note:"" },
+  { title:"Astro Chicken",     f:"07-astro-chicken",   note:"Captured at different points (AGI score 238, SCI score 358)." },
+  { title:"Landing pad",       f:"08-landing-pad",     note:"" },
+  { title:"Office",            f:"09-office",          note:"" },
+  { title:"Arena",             f:"10-arena",           note:"Captured at different points (AGI score 508, SCI score 608)." }
+];
+
+const items = [];
+const grid = document.getElementById("grid");
+
+pairs.forEach(p => {
+  const sec = document.createElement("section");
+  sec.className = "pair";
+  const h = document.createElement("h2");
+  h.textContent = p.title;
+  sec.appendChild(h);
+  if (p.note) {
+    const n = document.createElement("p");
+    n.className = "note";
+    n.textContent = p.note;
+    sec.appendChild(n);
+  }
+  const row = document.createElement("div");
+  row.className = "row";
+
+  [["AGI", p.f + "-agi.png"], ["SCI", p.f + "-sci.png"]].forEach(([label, file]) => {
+    const idx = items.length;
+    items.push({ src: "images/" + file, cap: p.title + " - " + label });
+
+    const fig = document.createElement("figure");
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.setAttribute("aria-label", "Open " + p.title + " " + label + " full screen");
+    const img = document.createElement("img");
+    img.src = "images/" + file;
+    img.loading = "lazy";
+    img.alt = p.title + " (" + label + ")";
+    btn.appendChild(img);
+    btn.addEventListener("click", () => openAt(idx));
+    const cap = document.createElement("figcaption");
+    cap.textContent = label;
+    fig.append(btn, cap);
+    row.appendChild(fig);
+  });
+
+  sec.appendChild(row);
+  grid.appendChild(sec);
+});
+
+const lb = document.getElementById("lb");
+const lbimg = document.getElementById("lbimg");
+const lbcap = document.getElementById("lbcap");
+let cur = 0;
+
+function show(i) {
+  cur = (i + items.length) % items.length;
+  lbimg.src = items[cur].src;
+  lbimg.alt = items[cur].cap;
+  lbcap.textContent = items[cur].cap;
+}
+function openAt(i) { show(i); lb.classList.add("open"); document.body.style.overflow = "hidden"; }
+function closeLb() { lb.classList.remove("open"); document.body.style.overflow = ""; }
+
+document.getElementById("prev").addEventListener("click", e => { e.stopPropagation(); show(cur - 1); });
+document.getElementById("next").addEventListener("click", e => { e.stopPropagation(); show(cur + 1); });
+document.getElementById("close").addEventListener("click", closeLb);
+lbimg.addEventListener("click", closeLb);
+lb.addEventListener("click", e => { if (e.target === lb) closeLb(); });
+document.addEventListener("keydown", e => {
+  if (!lb.classList.contains("open")) return;
+  if (e.key === "Escape") closeLb();
+  if (e.key === "ArrowLeft") show(cur - 1);
+  if (e.key === "ArrowRight") show(cur + 1);
+});
+</script>
+</body>
+</html>
